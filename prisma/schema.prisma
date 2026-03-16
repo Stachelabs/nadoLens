@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Liquidation {
+  id         Int      @id @default(autoincrement())
+  timestamp  BigInt
+  product_id Int
+  amount     Decimal  @db.Decimal(30, 18)
+  price      Decimal  @db.Decimal(30, 18)
+  liquidator String
+  liquidatee String
+  created_at DateTime @default(now())
+
+  @@index([product_id, timestamp(sort: Desc)])
+}
+
+model OiSnapshot {
+  id           Int      @id @default(autoincrement())
+  product_id   Int
+  price_low    Decimal  @db.Decimal(20, 2)
+  price_high   Decimal  @db.Decimal(20, 2)
+  long_oi_usd  Decimal  @db.Decimal(20, 2)
+  short_oi_usd Decimal  @db.Decimal(20, 2)
+  snapshot_at  DateTime @default(now())
+
+  @@index([product_id, price_low])
+}
