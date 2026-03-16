@@ -2,7 +2,13 @@
 // Maintains a persistent WebSocket to wss://gateway.prod.nado.xyz/v1/subscribe
 // Fans out messages to all connected SSE clients
 
-import { WebSocket } from 'ws'
+import { createRequire } from 'node:module'
+import * as nodeCrypto from 'node:crypto'
+
+// Force-load ws via Node require to bypass Bun's native WebSocket shim
+const nodeRequire = createRequire(import.meta.url)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const { WebSocket: WS } = nodeRequire('ws') as { WebSocket: any }
 
 const PORT = parseInt(process.env.PORT ?? '3001')
 const NADO_WS_URL =
@@ -27,12 +33,38 @@ function broadcastToClients(data: string) {
   }
 }
 
+// ─── Startup Diagnostic ───────────────────────────────────────────────────────
+
+async function diagnoseEndpoint(): Promise<void> {
+  const key = Buffer.from(nodeCrypto.randomBytes(16)).toString('base64')
+  const httpUrl = NADO_WS_URL.replace('wss://', 'https://')
+  console.log('[ws-proxy] Diagnosing endpoint:', httpUrl)
+  try {
+    const res = await fetch(httpUrl, {
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Key': key,
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Extensions': 'permessage-deflate',
+      },
+    })
+    console.log('[ws-proxy] Diagnostic status:', res.status)
+    const text = await res.text()
+    console.log('[ws-proxy] Diagnostic body:', text.slice(0, 300))
+  } catch (e) {
+    console.error('[ws-proxy] Diagnostic fetch error:', e)
+  }
+}
+
 // ─── WebSocket Connection ─────────────────────────────────────────────────────
 
 let wsConnected = false
 
 function connect(attempt = 0): void {
-  const ws = new WebSocket(NADO_WS_URL, {
+  // Use perMessageDeflate option (proper ws API) instead of raw header
+  const ws = new WS(NADO_WS_URL, {
+    perMessageDeflate: true,
     headers: {
       'Sec-WebSocket-Extensions': 'permessage-deflate',
     },
@@ -49,7 +81,7 @@ function connect(attempt = 0): void {
 
     // Ping every 30s to keep connection alive
     const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WS.OPEN) {
         ws.send(JSON.stringify({ method: 'ping' }))
       } else {
         clearInterval(pingInterval)
@@ -64,7 +96,7 @@ function connect(attempt = 0): void {
     })
   })
 
-  ws.on('message', (data) => {
+  ws.on('message', (data: unknown) => {
     if (typeof data === 'string') {
       broadcastToClients(data)
     } else if (Buffer.isBuffer(data)) {
@@ -145,5 +177,6 @@ const server = Bun.serve({
 
 console.log(`[ws-proxy] HTTP server listening on port ${server.port}`)
 
-// Start WebSocket connection
+// Diagnose endpoint reachability, then start WebSocket connection
+await diagnoseEndpoint()
 connect()
