@@ -72,8 +72,12 @@ function connect(attempt = 0): void {
     }
   })
 
-  ws.on('error', (error) => {
+  ws.on('error', (error: Error & { response?: { statusCode: number; headers: Record<string, string> } }) => {
     console.error('[ws-proxy] WebSocket error:', error.message)
+    if (error.response) {
+      console.error('[ws-proxy] HTTP status:', error.response.statusCode)
+      console.error('[ws-proxy] HTTP headers:', JSON.stringify(error.response.headers))
+    }
     wsConnected = false
     reconnect(attempt + 1)
   })
