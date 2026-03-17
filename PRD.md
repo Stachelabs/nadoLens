@@ -474,31 +474,40 @@ NEXT_PUBLIC_WS_PROXY_URL=https://nadolens-production.up.railway.app
 - [x] Zustand stores (liquidation, orderbook, oi, account)
 - [x] WS Proxy Bun + package `ws` + endpoint `/health` — `ws_connected: true` confirmé
 
-### Phase 2 — Heatmap (J3-5)
-- [ ] TradingView Lightweight Charts v5
-- [x] `useLiquidationStream` SSE (Railway proxy) — **✅ livré**
-- [x] Couche 1 — tableau live liquidations (dark, rouge/vert par side) — **✅ livré**
-- [ ] Couche 2 — zones book_depth translucides sur TradingView
-- [ ] Couche 3 — OI estimé (futur) + LayerControls + persistance Neon + stats
+### Phase 2 — Heatmap ✅ DONE
+- [x] `useLiquidationStream` SSE (Railway proxy)
+- [x] Couche 1 — tableau live liquidations (dark, rouge/vert par side)
+- [x] Couche 2 — OI estimation : `useOIHeatmap`, `HeatmapChart` (canvas), `LayerControls`, persistance Neon
+- [x] `/api/liquidations` GET fallback archive Nado (`events + liquidate_subaccount`) si DB vide
+- [x] `lightweight-charts` 5.1.0 installé
+- [ ] Couche 3 — zones book_depth translucides (optionnel, post-MVP)
 
-### Phase 3 — Orderbook (J6)
-- [ ] Snapshot + stream `book_depth` + reconstruction diffs
-- [ ] Depth chart + tableau + agrégation
+### Phase 3 — Cockpit de Survie ✅ DONE
+- [x] `useAccount` — wagmi + polling `subaccount_info` 10s, address→bytes32 subaccount
+- [x] `useSurvivalMetrics` — dropTolerance, riskLevel, isCritical
+- [x] `MarginShield` — wrapper pulsant rouge/orange selon risk level
+- [x] `HealthBar` — barre segmentée 3 zones
+- [x] `LiquidationGap` — % baisse avant liquidation, position la plus critique
+- [x] `PredictiveSafety` — drop tolerance, pulse rouge si < 10%
+- [x] `MaintWeightBadge` — gris/orange/rouge selon seuils
+- [x] `PnLFlash` — flash rouge si PnL chute > 5% en < 30s
+- [x] `PositionsTable` — positions live avec liq price highlight
+- [x] `CollateralBreakdown` — collateral / margin / available / notional
+- [x] `/api/wallet/[address]` — force-dynamic, no-store
 
-### Phase 4 — Cockpit de Survie (J7-9)
-- [ ] Connect Wallet wagmi + `useAccount`
-- [ ] `useSurvivalMetrics` + `MarginShield`
-- [ ] Tous les composants cockpit
-- [ ] Close/cancel via wagmi signing
-
-### Phase 5 — Wallet Explorer (J10-11)
+### Phase 4 — Wallet Explorer (suivant)
 - [ ] Route `/wallet/[address]` + barre de recherche
 - [ ] `useWalletData` → `subaccount_info` + archive `matches`
-- [ ] Composants : Header, Positions, TradeHistory, EquityCurve, Stats
+- [ ] Composants : WalletHeader, WalletPositions, WalletTradeHistory, WalletEquityCurve, WalletStats
+- [ ] Courbe equity TradingView Lightweight Charts
 
-### Phase 6 — Deploy & Polish (J12-13)
+### Phase 5 — Orderbook Depth
+- [ ] Snapshot `/v2/orderbook` + stream `book_depth` + reconstruction diffs
+- [ ] Depth chart (bids/asks) + tableau 20 niveaux + spread live
+
+### Phase 6 — Deploy & Polish
 - [ ] README + screenshots + GIF démo
-- [ ] Deploy Vercel + tests testnet
+- [ ] Tests testnet + validation prod
 - [ ] Push GitHub public + mail Frank
 
 ---
