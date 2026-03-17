@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useAccount } from 'wagmi'
 
 const navLinks = [
   { href: '/heatmap', label: 'Heatmap' },
@@ -12,6 +13,7 @@ const navLinks = [
 
 export function Nav() {
   const pathname = usePathname()
+  const { address, isConnected } = useAccount()
 
   return (
     <nav className="border-b border-white/10 bg-black/40 backdrop-blur-sm">
@@ -38,6 +40,18 @@ export function Nav() {
             </Link>
           )
         })}
+        {isConnected && address && (
+          <Link
+            href={`/wallet/${address}`}
+            className={`ml-auto rounded px-3 py-1.5 text-sm transition-colors ${
+              pathname.startsWith(`/wallet/${address}`)
+                ? 'bg-emerald-400/10 text-emerald-400'
+                : 'text-emerald-400/60 hover:text-emerald-400'
+            }`}
+          >
+            My Wallet
+          </Link>
+        )}
       </div>
     </nav>
   )
