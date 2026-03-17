@@ -445,14 +445,21 @@ export interface WalletStats {
 ## 8. Variables d'environnement
 
 ```bash
-# .env.local — jamais commité
-NADO_SUBSCRIPTIONS_WS=wss://gateway.prod.nado.xyz/v1/subscribe
+# .env — jamais commité (voir .env.example pour le template)
+DATABASE_URL=postgresql://...
 NADO_GATEWAY_REST=https://gateway.prod.nado.xyz/v1
 NADO_ARCHIVE_REST=https://archive.prod.nado.xyz/indexer
 NADO_GATEWAY_V2=https://gateway.prod.nado.xyz/v2
-WS_PROXY_URL=https://nadolens-ws.up.railway.app
-DATABASE_URL=postgresql://...
+
+# WS Proxy Railway (server-side uniquement)
+WS_PROXY_URL=https://nadolens-production.up.railway.app
+
+# WS Proxy accessible côté browser (préfixe NEXT_PUBLIC_ obligatoire)
+NEXT_PUBLIC_WS_PROXY_URL=https://nadolens-production.up.railway.app
 ```
+
+> `WS_PROXY_URL` → API routes Next.js (server-side, pas exposé au browser)
+> `NEXT_PUBLIC_WS_PROXY_URL` → hooks client (EventSource, useLiquidationStream)
 
 ---
 
@@ -469,9 +476,10 @@ DATABASE_URL=postgresql://...
 
 ### Phase 2 — Heatmap (J3-5)
 - [ ] TradingView Lightweight Charts v5
-- [ ] `useLiquidationStream` SSE (Railway proxy)
-- [ ] Couche 1 + Couche 2 + Couche 3 (OI estimé)
-- [ ] LayerControls + persistance Neon + stats
+- [x] `useLiquidationStream` SSE (Railway proxy) — **✅ livré**
+- [x] Couche 1 — tableau live liquidations (dark, rouge/vert par side) — **✅ livré**
+- [ ] Couche 2 — zones book_depth translucides sur TradingView
+- [ ] Couche 3 — OI estimé (futur) + LayerControls + persistance Neon + stats
 
 ### Phase 3 — Orderbook (J6)
 - [ ] Snapshot + stream `book_depth` + reconstruction diffs
@@ -519,4 +527,4 @@ Toute l'infrastructure est déjà en place (wagmi signing, Nado execute).
 
 ---
 
-*PRD v1.7 — NadoLens*
+*PRD v1.8 — NadoLens*

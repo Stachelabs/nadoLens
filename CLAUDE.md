@@ -158,6 +158,8 @@ Phase 1 :
 - Server Actions — fetch Nado Archive REST
 
 **WS Proxy (Railway — Bun)**
+- Région : **eu-west4** (Pays-Bas) — OBLIGATOIRE. Les IPs US East (Google Cloud) sont bloquées
+  par Nado pour les connexions WebSocket (`{"reason":"ip_query_only","blocked":true}`).
 - WS persistant vers `wss://gateway.prod.nado.xyz/v1/subscribe`
   (testnet : `wss://gateway.test.nado.xyz/v1/subscribe`)
 - SSE vers clients browser
@@ -165,6 +167,12 @@ Phase 1 :
   → Railway ne dort PAS sur un process actif (contrairement à Render free tier)
   → Pas besoin de ping anti-sleep, mais /health reste utile pour surveiller l'état
     du process depuis le dashboard Railway et diagnostiquer les incidents
+- URL prod : `https://nadolens-production.up.railway.app`
+
+**Build Vercel :**
+- Script build : `"build": "prisma generate && next build"` (prisma generate avant next build)
+- Wagmi optional peer deps exclus via `webpack resolve.alias = false` dans `next.config.ts`
+  (`@safe-global/safe-apps-provider`, `@safe-global/safe-apps-sdk`, `@walletconnect/ethereum-provider`, `@walletconnect/modal`)
 
 **Jamais :**
 - ❌ Clé privée dans le code Next.js ou dans le browser
@@ -249,7 +257,8 @@ headers: {
 }
 // Format event : data: {"type":"liquidation",...}\n\n
 
-// Côté browser
+// Côté browser — utiliser NEXT_PUBLIC_WS_PROXY_URL (pas WS_PROXY_URL qui est server-only)
+const WS_PROXY_URL = process.env.NEXT_PUBLIC_WS_PROXY_URL ?? 'http://localhost:3001'
 const source = new EventSource(`${WS_PROXY_URL}/sse`)
 source.onmessage = (e) => {
   const event = JSON.parse(e.data) as LiquidationEvent
@@ -327,7 +336,18 @@ fix(ws-proxy): reconnect backoff on stream drop
 chore(deps): update @nadohq/client
 ```
 
-Branches : `feat/` · `fix/` · `chore/` — jamais committer sur `main`.
+**Workflow branches :**
+- Toujours créer une branche `feat/` ou `fix/` — jamais committer directement sur `main`
+- Chaque branche crée automatiquement un **Vercel Preview** (URL unique)
+- Tester sur le preview avant de merge sur main (deploy production automatique)
+- PR → merge → delete branch
+
+```bash
+git checkout -b feat/heatmap-layer2
+# ... code ...
+git push -u origin feat/heatmap-layer2
+# Vercel génère une preview URL → tester → merge PR
+```
 
 ---
 
@@ -350,15 +370,22 @@ pnpm tsc --noEmit && pnpm lint
 
 ## Priorités MVP — ordre strict
 
-1. WS Proxy Bun Railway + `/health` (monitoring)
-2. `useLiquidationStream` SSE → Zustand
-3. Heatmap couche 1 → couche 2 → couche 3
-4. Orderbook depth
-5. Cockpit de Survie complet
-6. Wallet Explorer (`/wallet/[address]`)
+1. ~~WS Proxy Bun Railway + `/health` (monitoring)~~ ✅
+2. ~~`useLiquidationStream` SSE → Zustand~~ ✅
+3. ~~Heatmap couche 1 (tableau live)~~ ✅ ~~couche 2 (OI estimation + HeatmapChart canvas)~~ ✅ → couche 3 (book_depth zones)
+4. ~~Cockpit de Survie~~ ✅ — useAccount, useSurvivalMetrics, MarginShield, HealthBar, LiquidationGap, PredictiveSafety, MaintWeightBadge, PnLFlash, PositionsTable, CollateralBreakdown
+5. Wallet Explorer (`/wallet/[address]`)
+6. Orderbook depth
+
+**Notes architecture livrée :**
+- Archive Nado : endpoint `events` + `event_types: ["liquidate_subaccount"]` = liquidations historiques
+- Subaccount bytes32 = `0x{address}64656661756c740000000000` (default subaccount)
+- `/api/liquidations` GET : fallback archive si DB vide
+- `/api/wallet/[address]` : force-dynamic, no-store cache (polling 10s)
+- `parseSubaccountInfo()` dans `hooks/useAccount.ts` = point d'ajustement si format Nado change
 
 **Ne pas sauter d'étape.**
 
 ---
 
-*CLAUDE.md v1.6 — NadoLens*
+*CLAUDE.md v1.8 — NadoLens*
