@@ -49,51 +49,72 @@ interface NadoPerpProduct {
   product_id: number
   oracle_price_x18: string
   risk: NadoRisk
-  balance: { amount: string; v_quote_balance: string }
 }
 interface NadoSpotProduct {
   product_id: number
   oracle_price_x18: string
+}
+interface NadoPerpBalance {
+  product_id: number
+  balance: { amount: string; v_quote_balance: string }
+}
+interface NadoSpotBalance {
+  product_id: number
   balance: { amount: string }
+}
+interface NadoHealthEntry {
+  assets: string
+  liabilities: string
+  health: string
 }
 interface NadoSubaccountData {
   perp_products?: NadoPerpProduct[]
   spot_products?: NadoSpotProduct[]
-  health?: { maintenance_health?: string }
+  perp_balances?: NadoPerpBalance[]
+  spot_balances?: NadoSpotBalance[]
+  healths?: NadoHealthEntry[]
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
-
 
 function parsePositions(raw: unknown): { positions: Position[]; equityUsd: number; availableMargin: number; healthScore: number } {
   const fallback = { positions: [], equityUsd: 0, availableMargin: 0, healthScore: 1 }
   if (!raw || typeof raw !== 'object') return fallback
 
   const r = raw as Record<string, unknown>
-  const data = ((r.data as Record<string, unknown>)?.subaccount_info ?? r.data ?? r) as NadoSubaccountData
+  const data = (r.data ?? r) as NadoSubaccountData
   if (!data || typeof data !== 'object') return fallback
 
-  const perps = data.perp_products ?? []
-  const spots = data.spot_products ?? []
+  const perpProducts = data.perp_products ?? []
+  const spotProducts = data.spot_products ?? []
+  const perpBalances = data.perp_balances ?? []
+  const spotBalances = data.spot_balances ?? []
+  const healths = data.healths ?? []
 
-  const positions: Position[] = perps
-    .filter((p) => parseFloat(p.balance?.amount ?? '0') !== 0)
-    .map((p): Position => {
-      const amount = fromX18(p.balance.amount)
-      const markPrice = fromX18(p.oracle_price_x18)
+  const perpProductMap = new Map(perpProducts.map((p) => [p.product_id, p]))
+  const spotProductMap = new Map(spotProducts.map((p) => [p.product_id, p]))
+
+  const positions: Position[] = perpBalances
+    .filter((b) => parseFloat(b.balance?.amount ?? '0') !== 0)
+    .map((b): Position => {
+      const market = perpProductMap.get(b.product_id)
+      const amount = fromX18(b.balance.amount)
+      const markPrice = market ? fromX18(market.oracle_price_x18) : 0
       const isLong = amount >= 0
-      const maintWeight = isLong
-        ? fromX18(p.risk.long_weight_maintenance_x18)
-        : fromX18(p.risk.short_weight_maintenance_x18)
+      const maintWeight = market
+        ? isLong
+          ? fromX18(market.risk.long_weight_maintenance_x18)
+          : fromX18(market.risk.short_weight_maintenance_x18)
+        : 0.9875
       const maintMarginRate = 1 - Math.min(maintWeight, 1)
       const leverage = 10
       const liquidationPrice = isLong
         ? markPrice * (1 - 1 / leverage + maintMarginRate)
         : markPrice * (1 + 1 / leverage - maintMarginRate)
-      const unrealizedPnl = fromX18(p.balance.v_quote_balance) + amount * markPrice
+      const unrealizedPnl = fromX18(b.balance.v_quote_balance) + amount * markPrice
       return {
-        product_id: p.product_id,
-        pair: productName(p.product_id),
+        product_id: b.product_id,
+        pair: productName(b.product_id),
         amount,
         entry_price: markPrice,
         mark_price: markPrice,
@@ -105,9 +126,10 @@ function parsePositions(raw: unknown): { positions: Position[]; equityUsd: numbe
       }
     })
 
-  const totalCollateral = spots.reduce((s, sp) => {
-    const bal = fromX18(sp.balance?.amount ?? '0')
-    const price = sp.oracle_price_x18 ? fromX18(sp.oracle_price_x18) : 1
+  const totalCollateral = spotBalances.reduce((s, sb) => {
+    const bal = fromX18(sb.balance?.amount ?? '0')
+    const market = spotProductMap.get(sb.product_id)
+    const price = market?.oracle_price_x18 ? fromX18(market.oracle_price_x18) : 1
     return s + Math.max(0, bal) * price
   }, 0)
   const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
@@ -116,14 +138,15 @@ function parsePositions(raw: unknown): { positions: Position[]; equityUsd: numbe
   const availableMargin = Math.max(0, totalCollateral - totalMaintMargin)
   const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0)
 
-  return {
-    positions,
-    equityUsd: totalCollateral + unrealizedTotal,
-    availableMargin,
-    healthScore: data.health?.maintenance_health
-      ? Math.max(0, Math.min(1, fromX18(data.health.maintenance_health)))
-      : Math.max(0, Math.min(1, 1 - maintMarginUsage)),
+  let healthScore = Math.max(0, Math.min(1, 1 - maintMarginUsage))
+  const maintHealth = healths[1]
+  if (maintHealth) {
+    const assets = fromX18(maintHealth.assets)
+    const liabilities = fromX18(maintHealth.liabilities)
+    if (assets > 0) healthScore = Math.max(0, Math.min(1, (assets - liabilities) / assets))
   }
+
+  return { positions, equityUsd: totalCollateral + unrealizedTotal, availableMargin, healthScore }
 }
 
 function estimateTimeSec(submissionIdx: string, newestIdx: number): number {

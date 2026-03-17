@@ -2,14 +2,16 @@
 
 import { useEffect, useRef } from 'react'
 import { useAccount as useWagmiAccount } from 'wagmi'
+import type { Address } from 'viem'
 import { useAccountStore } from '@/store/accountStore'
 import { fromX18 } from '@/types/nado'
 import type { AccountHealth, Position, RiskLevel } from '@/types/nado'
+import { productName } from '@/hooks/useWalletData'
 
 const POLL_INTERVAL = 10_000
 
 // Convert EVM address → Nado bytes32 subaccount (default name = "default\0\0\0\0\0")
-function toSubaccount(address: string): string {
+function toSubaccount(address: Address): string {
   const addr = address.toLowerCase().replace('0x', '')
   return `0x${addr}64656661756c740000000000`
 }
@@ -27,38 +29,44 @@ interface NadoRisk {
   short_weight_maintenance_x18: string
 }
 
-interface NadoPerpBalance {
-  amount: string
-  v_quote_balance: string
-}
-
 interface NadoPerpProduct {
   product_id: number
   oracle_price_x18: string
   risk: NadoRisk
-  balance: NadoPerpBalance
-}
-
-interface NadoSpotBalance {
-  amount: string
 }
 
 interface NadoSpotProduct {
   product_id: number
   oracle_price_x18: string
-  balance: NadoSpotBalance
+}
+
+interface NadoPerpBalance {
+  product_id: number
+  balance: {
+    amount: string
+    v_quote_balance: string
+  }
+}
+
+interface NadoSpotBalance {
+  product_id: number
+  balance: {
+    amount: string
+  }
 }
 
 interface NadoHealth {
-  maintenance_health?: string
-  initial_health?: string
-  health?: string
+  assets: string
+  liabilities: string
+  health: string
 }
 
 interface NadoSubaccountData {
   perp_products?: NadoPerpProduct[]
   spot_products?: NadoSpotProduct[]
-  health?: NadoHealth
+  perp_balances?: NadoPerpBalance[]
+  spot_balances?: NadoSpotBalance[]
+  healths?: NadoHealth[]
 }
 
 // ─── Parser ───────────────────────────────────────────────────────────────────
@@ -69,81 +77,82 @@ function parseSubaccountInfo(
   if (!raw || typeof raw !== 'object') return null
 
   const r = raw as Record<string, unknown>
-  // Handle wrapper: { status, data: { subaccount_info: {...} } } or flat
-  const inner = (
-    (r.data as Record<string, unknown>)?.subaccount_info ??
-    r.data ??
-    r
-  ) as NadoSubaccountData
+  // Gateway wraps in { status, data: { ... } }
+  const data = (r.data ?? r) as NadoSubaccountData
+  if (!data || typeof data !== 'object') return null
 
-  if (!inner || typeof inner !== 'object') return null
+  const perpProducts = data.perp_products ?? []
+  const spotProducts = data.spot_products ?? []
+  const perpBalances = data.perp_balances ?? []
+  const spotBalances = data.spot_balances ?? []
+  const healths = data.healths ?? []
 
-  const perpProducts = inner.perp_products ?? []
-  const spotProducts = inner.spot_products ?? []
+  // Build lookup maps: product_id → market data
+  const perpProductMap = new Map(perpProducts.map((p) => [p.product_id, p]))
+  const spotProductMap = new Map(spotProducts.map((p) => [p.product_id, p]))
 
-  // ─── Positions ─────────────────────────────────────────────────────────────
-  const positions: Position[] = perpProducts
-    .filter((p) => parseFloat(p.balance?.amount ?? '0') !== 0)
-    .map((p): Position => {
-      const amount = fromX18(p.balance.amount)
-      const markPrice = fromX18(p.oracle_price_x18)
+  // ─── Positions from perp_balances ─────────────────────────────────────────
+  const positions: Position[] = perpBalances
+    .filter((b) => parseFloat(b.balance?.amount ?? '0') !== 0)
+    .map((b): Position => {
+      const market = perpProductMap.get(b.product_id)
+      const amount = fromX18(b.balance.amount)
+      const markPrice = market ? fromX18(market.oracle_price_x18) : 0
       const isLong = amount >= 0
 
-      const maintWeight = isLong
-        ? fromX18(p.risk.long_weight_maintenance_x18)
-        : fromX18(p.risk.short_weight_maintenance_x18)
+      const maintWeight = market
+        ? isLong
+          ? fromX18(market.risk.long_weight_maintenance_x18)
+          : fromX18(market.risk.short_weight_maintenance_x18)
+        : 0.9875
 
-      // Maintenance margin rate = 1 - maintWeight
       const maintMarginRate = 1 - Math.min(maintWeight, 1)
-
-      // Liquidation price estimation (simplified — assumes no cross-margin)
-      // liq_long  = entry × (1 - 1/leverage + maintMarginRate)
-      // Using mark as entry proxy and assuming 10x leverage
       const leverage = 10
       const liquidationPrice = isLong
         ? markPrice * (1 - 1 / leverage + maintMarginRate)
         : markPrice * (1 + 1 / leverage - maintMarginRate)
 
-      const notional = Math.abs(amount) * markPrice
-      // v_quote_balance = cumulative PnL offset (x18)
-      const unrealizedPnl = fromX18(p.balance.v_quote_balance) + amount * markPrice
+      const unrealizedPnl = fromX18(b.balance.v_quote_balance) + amount * markPrice
 
       return {
-        product_id: p.product_id,
-        pair: `Perp #${p.product_id}`,
+        product_id: b.product_id,
+        pair: productName(b.product_id),
         amount,
-        entry_price: markPrice, // approximate — real entry needs trade history
+        entry_price: markPrice,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: Math.max(0, liquidationPrice),
-        margin_used: notional * maintMarginRate,
+        margin_used: Math.abs(amount) * markPrice * maintMarginRate,
         maint_weight: maintWeight,
         isolated: false,
       }
     })
 
-  // ─── Account health ─────────────────────────────────────────────────────────
-  const totalNotional = positions.reduce(
-    (s, p) => s + Math.abs(p.amount) * p.mark_price,
-    0
-  )
-  const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
-  const maintMarginUsage = totalNotional > 0 ? totalMaintMargin / totalNotional : 0
-
-  // Collateral from spot balances (USDC/USDT proxy at price ≈ 1)
-  const totalCollateral = spotProducts.reduce((s, sp) => {
-    const bal = fromX18(sp.balance?.amount ?? '0')
-    const price = sp.oracle_price_x18 ? fromX18(sp.oracle_price_x18) : 1
+  // ─── Collateral from spot_balances ────────────────────────────────────────
+  const totalCollateral = spotBalances.reduce((s, sb) => {
+    const bal = fromX18(sb.balance?.amount ?? '0')
+    const market = spotProductMap.get(sb.product_id)
+    const price = market?.oracle_price_x18 ? fromX18(market.oracle_price_x18) : 1
     return s + Math.max(0, bal) * price
   }, 0)
 
+  // ─── Health ───────────────────────────────────────────────────────────────
+  const totalNotional = positions.reduce((s, p) => s + Math.abs(p.amount) * p.mark_price, 0)
+  const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
+  const maintMarginUsage = totalNotional > 0 ? totalMaintMargin / totalNotional : 0
   const availableMargin = Math.max(0, totalCollateral - totalMaintMargin)
   const dropTolerance = totalNotional > 0 ? (availableMargin / totalNotional) * 100 : 100
 
-  // Use gateway health fields if available
-  const healthScore = inner.health?.maintenance_health
-    ? Math.max(0, Math.min(1, fromX18(inner.health.maintenance_health)))
-    : Math.max(0, Math.min(1, 1 - maintMarginUsage))
+  // healths[1] = maintenance health (index 1)
+  let healthScore = Math.max(0, Math.min(1, 1 - maintMarginUsage))
+  const maintHealth = healths[1]
+  if (maintHealth) {
+    const assets = fromX18(maintHealth.assets)
+    const liabilities = fromX18(maintHealth.liabilities)
+    if (assets > 0) {
+      healthScore = Math.max(0, Math.min(1, (assets - liabilities) / assets))
+    }
+  }
 
   const health: AccountHealth = {
     health_score: healthScore,
