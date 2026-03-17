@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAccount } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 
 const navLinks = [
   { href: '/heatmap', label: 'Heatmap' },
@@ -43,7 +44,7 @@ export function Nav() {
         {isConnected && address && (
           <Link
             href={`/wallet/${address}`}
-            className={`ml-auto rounded px-3 py-1.5 text-sm transition-colors ${
+            className={`rounded px-3 py-1.5 text-sm transition-colors ${
               pathname.startsWith(`/wallet/${address}`)
                 ? 'bg-emerald-400/10 text-emerald-400'
                 : 'text-emerald-400/60 hover:text-emerald-400'
@@ -52,6 +53,13 @@ export function Nav() {
             My Wallet
           </Link>
         )}
+        <div className="ml-auto">
+          <ConnectButton
+            accountStatus="avatar"
+            chainStatus="none"
+            showBalance={false}
+          />
+        </div>
       </div>
     </nav>
   )

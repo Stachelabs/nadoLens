@@ -1,6 +1,7 @@
 'use client'
 
-import { useAccount as useWagmiAccount, useConnect, useDisconnect } from 'wagmi'
+import { useAccount as useWagmiAccount, useDisconnect } from 'wagmi'
+import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount } from '@/hooks/useAccount'
 import { useSurvivalMetrics } from '@/hooks/useSurvivalMetrics'
 import { MarginShield } from '@/components/dashboard/MarginShield'
@@ -13,8 +14,6 @@ import { CollateralBreakdown } from '@/components/dashboard/CollateralBreakdown'
 // ─── Connect wallet screen ────────────────────────────────────────────────────
 
 function ConnectWallet() {
-  const { connect, connectors, isPending } = useConnect()
-
   return (
     <div className="flex flex-col items-center justify-center py-32 gap-8">
       <div className="text-center space-y-2">
@@ -24,19 +23,7 @@ function ConnectWallet() {
           Connect your wallet to monitor positions, margin health, and liquidation risk in real-time.
         </p>
       </div>
-
-      <div className="flex flex-col gap-2 w-full max-w-xs">
-        {connectors.map((connector) => (
-          <button
-            key={connector.id}
-            onClick={() => connect({ connector })}
-            disabled={isPending}
-            className="w-full rounded-lg border border-white/20 bg-white/5 px-6 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:border-white/30 transition-all disabled:opacity-40"
-          >
-            {isPending ? 'Connecting…' : `Connect with ${connector.name}`}
-          </button>
-        ))}
-      </div>
+      <ConnectButton label="Connect Wallet" />
     </div>
   )
 }
