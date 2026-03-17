@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { fromX18 } from '@/types/nado'
-import type { Position, TradeMatch, WalletStats, RiskLevel } from '@/types/nado'
+import type { Position, TradeMatch, WalletStats } from '@/types/nado'
 
 const ARCHIVE_URL = 'https://archive.prod.nado.xyz/indexer'
 const POSITIONS_POLL_MS = 30_000
@@ -64,11 +64,6 @@ interface NadoSubaccountData {
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
-function riskFromUsage(u: number): RiskLevel {
-  if (u > 0.66) return 'danger'
-  if (u > 0.33) return 'warning'
-  return 'safe'
-}
 
 function parsePositions(raw: unknown): { positions: Position[]; equityUsd: number; availableMargin: number; healthScore: number } {
   const fallback = { positions: [], equityUsd: 0, availableMargin: 0, healthScore: 1 }
