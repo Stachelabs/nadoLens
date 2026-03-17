@@ -1,6 +1,6 @@
 import { defineChain } from 'viem'
-import { createConfig, http } from 'wagmi'
-import { injected, metaMask } from 'wagmi/connectors'
+import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+import { http } from 'wagmi'
 
 export const inkL2 = defineChain({
   id: 57073,
@@ -14,9 +14,10 @@ export const inkL2 = defineChain({
   },
 })
 
-export const wagmiConfig = createConfig({
+export const wagmiConfig = getDefaultConfig({
+  appName: 'NadoLens',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '',
   chains: [inkL2],
-  connectors: [injected(), metaMask()],
   transports: {
     [inkL2.id]: http(),
   },
