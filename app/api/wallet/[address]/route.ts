@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const NADO_GATEWAY = process.env.NADO_GATEWAY_REST ?? 'https://gateway.prod.nado.xyz/v1'
 
 interface Props {
@@ -20,7 +22,7 @@ export async function GET(request: NextRequest, { params }: Props) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    next: { revalidate: 30 },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
