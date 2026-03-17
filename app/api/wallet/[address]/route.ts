@@ -13,6 +13,11 @@ export async function GET(request: NextRequest, { params }: Props) {
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('query') ?? 'subaccount_info'
 
+  // Validate: must be a 20-byte (42 char) or 32-byte (66 char) hex address
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address) && !/^0x[a-fA-F0-9]{64}$/.test(address)) {
+    return NextResponse.json({ error: 'Invalid address' }, { status: 400 })
+  }
+
   const body = {
     type: query,
     subaccount: address,

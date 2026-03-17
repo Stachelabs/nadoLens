@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import type { OIBucket } from '@/types/nado'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const productId = searchParams.get('product_id')

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import type { Liquidation } from '@prisma/client'
 import type { LiquidationEvent } from '@/types/nado'
 
+export const dynamic = 'force-dynamic'
+
 const ARCHIVE_URL = process.env.NADO_ARCHIVE_REST ?? 'https://archive.prod.nado.xyz/indexer'
 
 // Nado archive event shape (liquidate_subaccount)
@@ -108,14 +110,16 @@ export async function POST(request: NextRequest) {
   const productId = body.product_ids[0] ?? 0
 
   const record = await prisma.liquidation.createMany({
-    data: {
-      timestamp: BigInt(body.timestamp),
-      product_id: productId,
-      amount: body.amount,
-      price: body.price,
-      liquidator: body.liquidator,
-      liquidatee: body.liquidatee,
-    },
+    data: [
+      {
+        timestamp: BigInt(body.timestamp),
+        product_id: productId,
+        amount: body.amount,
+        price: body.price,
+        liquidator: body.liquidator,
+        liquidatee: body.liquidatee,
+      },
+    ],
     skipDuplicates: true,
   })
 

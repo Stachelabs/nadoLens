@@ -46,14 +46,14 @@ export function WalletEquityCurve({ trades }: Props) {
     const finalValue = points[points.length - 1]?.value ?? 0
     const lineColor = finalValue >= 0 ? '#34d399' : '#f87171'
 
-    let chart: import('lightweight-charts').IChartApi
-    let series: import('lightweight-charts').ISeriesApi<'Line'>
+    let cancelled = false
+    let ro: ResizeObserver | null = null
 
     const init = async () => {
       const lc = await import('lightweight-charts')
-      if (!containerRef.current) return
+      if (cancelled || !containerRef.current) return
 
-      chart = lc.createChart(containerRef.current, {
+      const chart = lc.createChart(containerRef.current, {
         layout: {
           background: { color: 'transparent' },
           textColor: 'rgba(255,255,255,0.4)',
@@ -66,9 +66,7 @@ export function WalletEquityCurve({ trades }: Props) {
           vertLine: { color: 'rgba(255,255,255,0.2)' },
           horzLine: { color: 'rgba(255,255,255,0.2)' },
         },
-        rightPriceScale: {
-          borderColor: 'rgba(255,255,255,0.1)',
-        },
+        rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
         timeScale: {
           borderColor: 'rgba(255,255,255,0.1)',
           timeVisible: true,
@@ -78,7 +76,12 @@ export function WalletEquityCurve({ trades }: Props) {
         handleScale: false,
       })
 
-      series = chart.addSeries(lc.LineSeries, {
+      if (cancelled) {
+        chart.remove()
+        return
+      }
+
+      const series = chart.addSeries(lc.LineSeries, {
         color: lineColor,
         lineWidth: 2,
         priceLineVisible: false,
@@ -89,22 +92,23 @@ export function WalletEquityCurve({ trades }: Props) {
       chart.timeScale().fitContent()
       chartRef.current = chart
 
-      const ro = new ResizeObserver(() => {
-        if (containerRef.current && chart) {
-          chart.applyOptions({ width: containerRef.current.clientWidth })
+      ro = new ResizeObserver(() => {
+        if (containerRef.current && chartRef.current) {
+          chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
         }
       })
       ro.observe(containerRef.current)
-
-      return () => {
-        ro.disconnect()
-        chart.remove()
-      }
     }
 
-    const cleanup = init()
+    void init()
+
     return () => {
-      cleanup.then((fn) => fn?.())
+      cancelled = true
+      ro?.disconnect()
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+      }
     }
   }, [trades])
 
