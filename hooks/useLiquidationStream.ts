@@ -32,9 +32,22 @@ function parseLiquidationEvent(data: Record<string, unknown>): LiquidationEvent 
 
 export function useLiquidationStream(): void {
   const addEvent = useLiquidationStore((state) => state.addEvent)
+  const setInitialEvents = useLiquidationStore((state) => state.setInitialEvents)
   const sourceRef = useRef<EventSource | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const attemptRef = useRef(0)
+
+  // Load initial data from DB (or Nado archive fallback) on mount
+  useEffect(() => {
+    fetch('/api/liquidations?limit=200')
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setInitialEvents(data as LiquidationEvent[])
+        }
+      })
+      .catch(() => {})
+  }, [setInitialEvents])
 
   useEffect(() => {
     function connect() {
