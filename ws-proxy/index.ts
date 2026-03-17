@@ -44,7 +44,9 @@ function connect(attempt = 0): void {
     console.log(`[ws-proxy] Connected to ${NADO_WS_URL}`)
 
     ws.send(JSON.stringify({ id: 1, method: 'subscribe', stream: { type: 'liquidation', product_id: null } }))
-    ws.send(JSON.stringify({ id: 2, method: 'subscribe', stream: { type: 'best_bid_offer', product_id: 1 } }))
+    ws.send(JSON.stringify({ id: 2, method: 'subscribe', stream: { type: 'book_depth', product_id: 2 } }))
+    ws.send(JSON.stringify({ id: 3, method: 'subscribe', stream: { type: 'book_depth', product_id: 4 } }))
+    ws.send(JSON.stringify({ id: 4, method: 'subscribe', stream: { type: 'book_depth', product_id: 8 } }))
 
     const pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
