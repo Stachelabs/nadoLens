@@ -55,9 +55,10 @@ export function Nav() {
         )}
         <div className="ml-auto">
           <ConnectButton
-            accountStatus="avatar"
-            chainStatus="none"
+            accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }}
             showBalance={false}
+            chainStatus={{ smallScreen: 'icon', largeScreen: 'icon' }}
+            label="Connect Wallet"
           />
         </div>
       </div>
