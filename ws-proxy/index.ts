@@ -2,13 +2,7 @@
 // Maintains a persistent WebSocket to wss://gateway.prod.nado.xyz/v1/subscribe
 // Fans out messages to all connected SSE clients
 
-import { createRequire } from 'node:module'
-import * as nodeCrypto from 'node:crypto'
-
-// Force-load ws via Node require to bypass Bun's native WebSocket shim
-const nodeRequire = createRequire(import.meta.url)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { WebSocket: WS } = nodeRequire('ws') as { WebSocket: any }
+import { WebSocket } from 'ws'
 
 const PORT = parseInt(process.env.PORT ?? '3001')
 const NADO_WS_URL =
@@ -33,38 +27,12 @@ function broadcastToClients(data: string) {
   }
 }
 
-// ─── Startup Diagnostic ───────────────────────────────────────────────────────
-
-async function diagnoseEndpoint(): Promise<void> {
-  const key = Buffer.from(nodeCrypto.randomBytes(16)).toString('base64')
-  const httpUrl = NADO_WS_URL.replace('wss://', 'https://')
-  console.log('[ws-proxy] Diagnosing endpoint:', httpUrl)
-  try {
-    const res = await fetch(httpUrl, {
-      headers: {
-        Upgrade: 'websocket',
-        Connection: 'Upgrade',
-        'Sec-WebSocket-Key': key,
-        'Sec-WebSocket-Version': '13',
-        'Sec-WebSocket-Extensions': 'permessage-deflate',
-      },
-    })
-    console.log('[ws-proxy] Diagnostic status:', res.status)
-    const text = await res.text()
-    console.log('[ws-proxy] Diagnostic body:', text.slice(0, 300))
-  } catch (e) {
-    console.error('[ws-proxy] Diagnostic fetch error:', e)
-  }
-}
-
 // ─── WebSocket Connection ─────────────────────────────────────────────────────
 
 let wsConnected = false
 
 function connect(attempt = 0): void {
-  // Use perMessageDeflate option (proper ws API) instead of raw header
-  const ws = new WS(NADO_WS_URL, {
-    perMessageDeflate: true,
+  const ws = new WebSocket(NADO_WS_URL, {
     headers: {
       'Sec-WebSocket-Extensions': 'permessage-deflate',
     },
@@ -75,13 +43,11 @@ function connect(attempt = 0): void {
     attempt = 0
     console.log(`[ws-proxy] Connected to ${NADO_WS_URL}`)
 
-    // Subscribe to public streams (id required by server)
     ws.send(JSON.stringify({ id: 1, method: 'subscribe', stream: { type: 'liquidation', product_id: null } }))
     ws.send(JSON.stringify({ id: 2, method: 'subscribe', stream: { type: 'best_bid_offer', product_id: 1 } }))
 
-    // Ping every 30s to keep connection alive
     const pingInterval = setInterval(() => {
-      if (ws.readyState === WS.OPEN) {
+      if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ method: 'ping' }))
       } else {
         clearInterval(pingInterval)
@@ -96,7 +62,7 @@ function connect(attempt = 0): void {
     })
   })
 
-  ws.on('message', (data: unknown) => {
+  ws.on('message', (data) => {
     if (typeof data === 'string') {
       broadcastToClients(data)
     } else if (Buffer.isBuffer(data)) {
@@ -104,12 +70,8 @@ function connect(attempt = 0): void {
     }
   })
 
-  ws.on('error', (error: Error & { response?: { statusCode: number; headers: Record<string, string> } }) => {
+  ws.on('error', (error: Error) => {
     console.error('[ws-proxy] WebSocket error:', error.message)
-    if (error.response) {
-      console.error('[ws-proxy] HTTP status:', error.response.statusCode)
-      console.error('[ws-proxy] HTTP headers:', JSON.stringify(error.response.headers))
-    }
     wsConnected = false
     reconnect(attempt + 1)
   })
@@ -129,7 +91,6 @@ const server = Bun.serve({
   fetch(req: Request) {
     const url = new URL(req.url)
 
-    // Health endpoint
     if (url.pathname === '/health') {
       return new Response(
         JSON.stringify({
@@ -142,7 +103,6 @@ const server = Bun.serve({
       )
     }
 
-    // SSE endpoint
     if (url.pathname === '/sse') {
       const id = crypto.randomUUID()
       const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
@@ -151,10 +111,8 @@ const server = Bun.serve({
       clients.set(id, { id, writer })
       console.log(`[ws-proxy] SSE client connected (${id}) — total: ${clients.size}`)
 
-      // Send initial heartbeat
       writer.write(encoder.encode(': connected\n\n'))
 
-      // Clean up on client disconnect
       req.signal.addEventListener('abort', () => {
         clients.delete(id)
         writer.close().catch(() => {})
@@ -177,6 +135,4 @@ const server = Bun.serve({
 
 console.log(`[ws-proxy] HTTP server listening on port ${server.port}`)
 
-// Diagnose endpoint reachability, then start WebSocket connection
-await diagnoseEndpoint()
 connect()
