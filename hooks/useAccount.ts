@@ -122,7 +122,7 @@ function parseSubaccountInfo(
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: Math.max(0, liquidationPrice),
-        margin_used: Math.abs(amount) * markPrice * maintMarginRate,
+        margin_used: Math.max(0, Math.abs(amount) * markPrice * maintMarginRate),
         maint_weight: maintWeight,
         isolated: false,
       }

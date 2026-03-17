@@ -8,10 +8,14 @@ export function LiquidationGap() {
   const gaps = positions
     .filter((p) => p.liquidation_price > 0 && p.mark_price > 0)
     .map((p) => {
-      const dropPct = ((p.mark_price - p.liquidation_price) / p.mark_price) * 100
-      return { pair: p.pair, dropPct: Math.abs(dropPct), side: p.amount >= 0 ? 'LONG' : 'SHORT' }
+      const isLong = p.amount >= 0
+      // Long: liq below mark → drop%. Short: liq above mark → rise%.
+      const pct = isLong
+        ? ((p.mark_price - p.liquidation_price) / p.mark_price) * 100  // positive
+        : ((p.liquidation_price - p.mark_price) / p.mark_price) * 100  // positive
+      return { pair: p.pair, pct: Math.abs(pct), side: isLong ? 'LONG' : 'SHORT', isLong }
     })
-    .sort((a, b) => a.dropPct - b.dropPct)
+    .sort((a, b) => a.pct - b.pct)
 
   if (gaps.length === 0) {
     return (
@@ -24,8 +28,9 @@ export function LiquidationGap() {
   }
 
   const critical = gaps[0]
-  const isCritical = critical.dropPct < 10
-  const isWarning = critical.dropPct < 25
+  const isCritical = critical.pct < 10
+  const isWarning = critical.pct < 25
+  const direction = critical.isLong ? 'drop' : 'rise'
 
   return (
     <div
@@ -45,10 +50,10 @@ export function LiquidationGap() {
           isCritical ? 'text-red-400 animate-pulse' : isWarning ? 'text-orange-400' : 'text-white/80'
         }`}
       >
-        -{critical.dropPct.toFixed(2)}%
+        {critical.isLong ? '-' : '+'}{critical.pct.toFixed(2)}%
       </div>
       <div className="mt-1 text-xs text-white/40">
-        {critical.pair} {critical.side} — drop before liquidation
+        {critical.pair} {critical.side} — {direction} before liquidation
       </div>
     </div>
   )

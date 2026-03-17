@@ -39,7 +39,7 @@ export function PredictiveSafety() {
       <div className="mt-1 text-xs text-white/40">
         {isCritical
           ? '⚠ Critical — account at high risk'
-          : 'Market drop before account liquidated'}
+          : 'Collateral buffer vs total exposure'}
       </div>
     </div>
   )
