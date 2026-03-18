@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useLiquidationStore } from '@/store/liquidationStore'
 import { fromX18 } from '@/types/nado'
 import type { LiquidationEvent } from '@/types/nado'
+import { productName } from '@/hooks/useWalletData'
 
 const WS_PROXY_URL =
   process.env.NEXT_PUBLIC_WS_PROXY_URL ?? 'http://localhost:3001'
@@ -75,6 +76,7 @@ export function useLiquidationStream(): void {
           amountUsd: Math.abs(fromX18(raw.amount)),
           priceUsd: fromX18(raw.price),
           side: parseFloat(raw.amount) >= 0 ? 'long' : 'short',
+          pair: productName(raw.product_ids[0] ?? 0),
         }
 
         addEvent(enriched)
