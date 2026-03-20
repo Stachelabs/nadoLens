@@ -44,7 +44,7 @@ IDs prioritaires :
 
 ## Stack
 
-Next.js 15 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagmi · viem 2 · TradingView Lightweight Charts v5 · Zod 4 · Prisma 5 · Neon
+Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagmi 2 · viem 2 · RainbowKit 2 · TradingView Lightweight Charts v5 · Zod 4 · Prisma 5 · Neon
 
 ---
 
@@ -79,8 +79,7 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 
 **Serveur Next.js (Vercel)**
 
-- `/api/liquidations` — Neon DB
-- `/api/oi-heatmap` — OI estimé
+- `/api/pairs` — liste des paires Nado
 - `/api/wallet/[address]` — proxy Nado Gateway (évite CORS)
 - Valider tous les bodies et réponses externes avec Zod `safeParse()`
 
@@ -94,7 +93,9 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 **Build Vercel**
 
 - Script build : `"build": "prisma generate && next build"`
-- Wagmi optional peer deps exclus via `webpack resolve.alias = false` dans `next.config.ts`
+- Next.js 16 utilise **Turbopack par défaut** — `turbopack: {}` dans `next.config.ts`
+- Wallet SDKs (MetaMask, WalletConnect) : `config.externals.push('pino-pretty', 'lokijs', 'encoding')` dans webpack (fallback `--webpack`)
+- `ws-proxy/` exclu du tsconfig principal
 
 **Jamais**
 
@@ -137,11 +138,13 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 
 **next-themes** : `ThemeProvider` en dehors de `Providers` dans `layout.tsx`. `suppressHydrationWarning` sur `<html>`.
 
+**RainbowKit** : accent purple `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard dans Providers pour éviter hydration mismatch.
+
 ---
 
 ## Nado API — rappels critiques
 
-- Chain ID Ink L2 mainnet : **763373**
+- Chain ID Ink L2 mainnet : **57073** (wagmi/viem) — ne pas confondre avec d'autres IDs
 - Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
 - Valeurs en **x18** → `fromX18()` systématiquement
 - ⚠️ **Exception V2** : `/v2/tickers` et `/v2/trades` retournent des **décimaux normaux**, PAS x18
@@ -151,6 +154,7 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 - Mainnet WS Gateway : `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
 - Mainnet WS Subscribe : `wss://gateway.prod.nado.xyz/v1/subscribe` (streams temps réel)
 - Gateway v1 REST : `https://gateway.prod.nado.xyz/v1` | v2 : `https://gateway.prod.nado.xyz/v2`
+- Archive indexer : `https://archive.prod.nado.xyz/indexer` (POST JSON — pas REST)
 - Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2`
 - ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404)
 
@@ -178,7 +182,7 @@ function addressToSubaccount(
 
 ## Git
 
-Format : `feat(heatmap): add OI layer 3` · `fix(ws-proxy): reconnect backoff`
+Format : `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
 Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque branche → Vercel Preview → tester → merge PR.
 
@@ -190,10 +194,10 @@ Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque b
 2. ✅ `useLiquidationStream` SSE → Zustand
 3. ✅ Heatmap couche 1 + couche 2 → couche 3 (book_depth zones, optionnel)
 4. ✅ Cockpit de Survie complet
-5. **→ Wallet Explorer** (`/wallet/[address]`)
-6. Orderbook depth
-7. Deploy & Polish (README, GIF, push GitHub, mail Frank)
+5. ✅ **Wallet Explorer** (`/wallet/[address]`) — fresh install, composants restaurés
+6. **→ Deploy & Polish** (README, GIF, push GitHub public, mail Frank)
+7. Orderbook depth (post-polish)
 
 ---
 
-_CLAUDE.md v2.1 — NadoLens_
+_CLAUDE.md v2.2 — NadoLens_
