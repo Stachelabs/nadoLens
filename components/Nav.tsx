@@ -29,7 +29,7 @@ export function Nav() {
         {/* Logo */}
         <Link
           href="/wallet"
-          className="text-sm font-bold tracking-[0.15em] text-foreground uppercase"
+          className="text-sm font-bold tracking-tight text-foreground uppercase"
         >
           NadoLens
         </Link>
@@ -43,7 +43,7 @@ export function Nav() {
                 key={href}
                 href={href}
                 className={cn(
-                  buttonVariants({ variant: isActive ? 'secondary' : 'ghost', size: 'sm' }),
+                  buttonVariants({ variant: isActive ? 'outline' : 'ghost', size: 'sm' }),
                   !isActive && 'text-muted-foreground',
                 )}
               >
