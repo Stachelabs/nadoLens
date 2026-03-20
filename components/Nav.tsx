@@ -43,7 +43,7 @@ export function Nav() {
                 key={href}
                 href={href}
                 className={cn(
-                  buttonVariants({ variant: isActive ? 'outline' : 'ghost', size: 'sm' }),
+                  buttonVariants({ variant: isActive ? 'secondary' : 'ghost', size: 'sm' }),
                   !isActive && 'text-muted-foreground',
                 )}
               >
