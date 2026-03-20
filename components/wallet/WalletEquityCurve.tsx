@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { fromX18 } from '@/types/nado'
 import type { TradeMatch } from '@/types/nado'
+import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 interface Props {
   trades: TradeMatch[]
@@ -116,23 +118,25 @@ export function WalletEquityCurve({ trades }: Props) {
   const finalValue = points[points.length - 1]?.value ?? 0
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/20 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[11px] uppercase tracking-wider text-white/30">Equity Curve</div>
-        {points.length > 0 && (
-          <div className={`text-sm font-bold tabular-nums ${finalValue >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {finalValue >= 0 ? '+' : ''}
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalValue)}
-          </div>
-        )}
-      </div>
-      {points.length < 2 ? (
-        <div className="h-48 flex items-center justify-center text-sm text-white/30">
-          Not enough trade data to plot curve
+    <Card className="border-border bg-card">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">Equity Curve</div>
+          {points.length > 0 && (
+            <div className={cn('text-sm font-bold tabular-nums', finalValue >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+              {finalValue >= 0 ? '+' : ''}
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalValue)}
+            </div>
+          )}
         </div>
-      ) : (
-        <div ref={containerRef} className="h-48 w-full" />
-      )}
-    </div>
+        {points.length < 2 ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+            Not enough trade data to plot curve
+          </div>
+        ) : (
+          <div ref={containerRef} className="h-48 w-full" />
+        )}
+      </CardContent>
+    </Card>
   )
 }

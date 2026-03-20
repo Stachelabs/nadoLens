@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fromX18 } from '@/types/nado'
 import type { Position, TradeMatch, WalletStats } from '@/types/nado'
+import { NadoSubaccountDataSchema, ArchiveMatchesResponseSchema } from '@/lib/schemas/nado'
 
 const ARCHIVE_URL = 'https://archive.prod.nado.xyz/indexer'
 const POSITIONS_POLL_MS = 30_000
@@ -24,72 +25,26 @@ export function productName(id: number): string {
   return names[id] ?? `Perp #${id}`
 }
 
-// ─── Nado archive types ───────────────────────────────────────────────────────
-
-interface ArchiveMatch {
-  order: { priceX18: string }
-  base_filled: string
-  fee: string
-  submission_idx: string
-  closed_amount: string
-  realized_pnl: string
-  pre_balance: {
-    base: { perp?: { product_id: number; balance: { amount: string } } } | null
-  }
-  post_balance: {
-    base: { perp?: { product_id: number; balance: { amount: string } } } | null
-  }
-}
-
-interface NadoRisk {
-  long_weight_maintenance_x18: string
-  short_weight_maintenance_x18: string
-}
-interface NadoPerpProduct {
-  product_id: number
-  oracle_price_x18: string
-  risk: NadoRisk
-}
-interface NadoSpotProduct {
-  product_id: number
-  oracle_price_x18: string
-}
-interface NadoPerpBalance {
-  product_id: number
-  balance: { amount: string; v_quote_balance: string }
-}
-interface NadoSpotBalance {
-  product_id: number
-  balance: { amount: string }
-}
-interface NadoHealthEntry {
-  assets: string
-  liabilities: string
-  health: string
-}
-interface NadoSubaccountData {
-  perp_products?: NadoPerpProduct[]
-  spot_products?: NadoSpotProduct[]
-  perp_balances?: NadoPerpBalance[]
-  spot_balances?: NadoSpotBalance[]
-  healths?: NadoHealthEntry[]
-}
-
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
 function parsePositions(raw: unknown): { positions: Position[]; equityUsd: number; availableMargin: number; healthScore: number } {
   const fallback = { positions: [], equityUsd: 0, availableMargin: 0, healthScore: 1 }
   if (!raw || typeof raw !== 'object') return fallback
 
+  // Gateway wraps in { status, data: { ... } } — unwrap if needed
   const r = raw as Record<string, unknown>
-  const data = (r.data ?? r) as NadoSubaccountData
-  if (!data || typeof data !== 'object') return fallback
+  const inner = r.data ?? raw
 
-  const perpProducts = data.perp_products ?? []
-  const spotProducts = data.spot_products ?? []
-  const perpBalances = data.perp_balances ?? []
-  const spotBalances = data.spot_balances ?? []
-  const healths = data.healths ?? []
+  const result = NadoSubaccountDataSchema.safeParse(inner)
+  if (!result.success) return fallback
+
+  const data = result.data
+
+  const perpProducts = data.perp_products
+  const spotProducts = data.spot_products
+  const perpBalances = data.perp_balances
+  const spotBalances = data.spot_balances
+  const healths = data.healths
 
   const perpProductMap = new Map(perpProducts.map((p) => [p.product_id, p]))
   const spotProductMap = new Map(spotProducts.map((p) => [p.product_id, p]))
@@ -155,10 +110,11 @@ function estimateTimeSec(submissionIdx: string, newestIdx: number): number {
 }
 
 function parseMatches(raw: unknown): TradeMatch[] {
-  if (!raw || typeof raw !== 'object') return []
-  const r = raw as Record<string, unknown>
-  const matches = (r.matches ?? []) as ArchiveMatch[]
-  if (!Array.isArray(matches) || matches.length === 0) return []
+  const result = ArchiveMatchesResponseSchema.safeParse(raw)
+  if (!result.success) return []
+
+  const matches = result.data.matches
+  if (matches.length === 0) return []
 
   const newestIdx = Math.max(...matches.map((m) => parseInt(m.submission_idx)))
 

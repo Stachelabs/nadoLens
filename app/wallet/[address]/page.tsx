@@ -22,15 +22,15 @@ export default function WalletAddressPage({ params }: Props) {
       <div className="flex items-center gap-3">
         <Link
           href="/wallet"
-          className="text-white/30 hover:text-white/60 transition-colors text-sm"
+          className="text-muted-foreground/70 hover:text-foreground/70 transition-colors text-sm"
         >
           ← Search
         </Link>
-        <h1 className="text-lg font-bold text-white/80">Wallet Explorer</h1>
+        <h1 className="text-lg font-bold text-foreground">Wallet Explorer</h1>
       </div>
 
       {loading && (
-        <div className="rounded-lg border border-white/10 bg-black/20 p-8 text-center text-sm text-white/40">
+        <div className="rounded-lg border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Loading wallet data…
         </div>
       )}

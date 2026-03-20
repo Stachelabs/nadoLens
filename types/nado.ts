@@ -6,6 +6,11 @@ export const fromX18 = (val: string): number => parseFloat(val) / 1e18
 
 export type RiskLevel = 'safe' | 'warning' | 'danger'
 
+// ─── Re-exports from schemas (single source of truth) ────────────────────────
+
+export type { NadoPair } from '@/lib/schemas/nado'
+export type { PredictedLiqLevel } from '@/lib/schemas/nado'
+
 // ─── Liquidation ─────────────────────────────────────────────────────────────
 
 export interface LiquidationEvent {

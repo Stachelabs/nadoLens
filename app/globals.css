@@ -8,108 +8,142 @@ body {
   font-family: var(--font-geist-sans, system-ui, sans-serif);
 }
 
+/* ─── NadoLens Theme — inspired by Nado DEX trading interface ───────────────
+   Light: clean off-white trading terminal
+   Dark: near-black deep space — matches Nado's own UI
+─────────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Base */
+  --background:         oklch(0.97 0.003 264);   /* #f5f5f8 — cool off-white */
+  --foreground:         oklch(0.12 0.008 264);   /* #131318 — near black */
+
+  /* Cards / panels */
+  --card:               oklch(1 0 0);             /* pure white */
+  --card-foreground:    oklch(0.12 0.008 264);
+
+  /* Popovers / dropdowns */
+  --popover:            oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.008 264);
+
+  /* Primary action — Nado green */
+  --primary:            oklch(0.68 0.19 148);    /* emerald #22c55e */
+  --primary-foreground: oklch(0.09 0 0);
+
+  /* Secondary (ghost backgrounds) */
+  --secondary:          oklch(0.92 0.004 264);
+  --secondary-foreground: oklch(0.20 0.008 264);
+
+  /* Muted / disabled */
+  --muted:              oklch(0.93 0.004 264);
+  --muted-foreground:   oklch(0.48 0.008 264);   /* #737385 */
+
+  /* Accent highlights */
+  --accent:             oklch(0.93 0.004 264);
+  --accent-foreground:  oklch(0.20 0.008 264);
+
+  /* Destructive — Nado red */
+  --destructive:        oklch(0.63 0.24 27);     /* #ef4444 */
+
+  /* Borders & inputs */
+  --border:             oklch(0.85 0.006 264);   /* #d0d0de */
+  --input:              oklch(0.88 0.005 264);
+  --ring:               oklch(0.68 0.19 148);    /* green focus ring */
+
+  /* Trading semantic */
+  --bull:               oklch(0.68 0.19 148);    /* green — long/profit */
+  --bear:               oklch(0.63 0.24 27);     /* red — short/loss */
+  --warn:               oklch(0.72 0.19 65);     /* amber — caution */
+
+  /* Charts */
+  --chart-1: oklch(0.68 0.19 148);
+  --chart-2: oklch(0.63 0.24 27);
+  --chart-3: oklch(0.72 0.19 65);
+  --chart-4: oklch(0.62 0.18 240);
+  --chart-5: oklch(0.55 0.16 290);
+
+  --radius: 0.5rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Base — Nado's near-black background */
+  --background:         oklch(0.09 0.005 264);   /* #0f0f12 */
+  --foreground:         oklch(0.93 0.005 264);   /* #e8e8f0 */
+
+  /* Cards — slightly elevated surface */
+  --card:               oklch(0.12 0.006 264);   /* #141418 */
+  --card-foreground:    oklch(0.93 0.005 264);
+
+  /* Popovers */
+  --popover:            oklch(0.14 0.007 264);   /* #1a1a1f */
+  --popover-foreground: oklch(0.93 0.005 264);
+
+  /* Primary action — Nado green */
+  --primary:            oklch(0.68 0.19 148);    /* #22c55e */
+  --primary-foreground: oklch(0.09 0 0);
+
+  /* Secondary */
+  --secondary:          oklch(0.18 0.007 264);   /* #22222a */
+  --secondary-foreground: oklch(0.88 0.005 264);
+
+  /* Muted */
+  --muted:              oklch(0.18 0.007 264);
+  --muted-foreground:   oklch(0.52 0.008 264);   /* #7d7d90 */
+
+  /* Accent */
+  --accent:             oklch(0.18 0.007 264);
+  --accent-foreground:  oklch(0.93 0.005 264);
+
+  /* Destructive */
+  --destructive:        oklch(0.63 0.24 27);     /* #ef4444 */
+
+  /* Borders — subtle Nado-style separator */
+  --border:             oklch(0.22 0.008 264);   /* #2a2a35 */
+  --input:              oklch(0.20 0.008 264 / 60%);
+  --ring:               oklch(0.68 0.19 148);    /* green focus ring */
+
+  /* Trading semantic */
+  --bull:               oklch(0.68 0.19 148);
+  --bear:               oklch(0.63 0.24 27);
+  --warn:               oklch(0.72 0.19 65);
+
+  /* Charts */
+  --chart-1: oklch(0.68 0.19 148);
+  --chart-2: oklch(0.63 0.24 27);
+  --chart-3: oklch(0.72 0.19 65);
+  --chart-4: oklch(0.62 0.18 240);
+  --chart-5: oklch(0.55 0.16 290);
 }
 
 @theme inline {
   --font-sans: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
+  --color-background:         var(--background);
+  --color-foreground:         var(--foreground);
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
   --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
+  --color-primary:            var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary:          var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:              var(--muted);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-destructive:        var(--destructive);
+  --color-border:             var(--border);
+  --color-input:              var(--input);
+  --color-ring:               var(--ring);
+  --color-chart-1:            var(--chart-1);
+  --color-chart-2:            var(--chart-2);
+  --color-chart-3:            var(--chart-3);
+  --color-chart-4:            var(--chart-4);
+  --color-chart-5:            var(--chart-5);
+  --color-bull:               var(--bull);
+  --color-bear:               var(--bear);
+  --color-warn:               var(--warn);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -117,6 +151,16 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Sidebar */
+  --color-sidebar-ring:               var(--ring);
+  --color-sidebar-border:             var(--border);
+  --color-sidebar-accent-foreground:  var(--accent-foreground);
+  --color-sidebar-accent:             var(--accent);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-primary:            var(--primary);
+  --color-sidebar-foreground:         var(--foreground);
+  --color-sidebar:                    var(--card);
 }
 
 @layer base {

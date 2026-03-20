@@ -6,6 +6,7 @@ import type { Address } from 'viem'
 import { useAccountStore } from '@/store/accountStore'
 import { fromX18 } from '@/types/nado'
 import type { AccountHealth, Position, RiskLevel } from '@/types/nado'
+import { NadoSubaccountDataSchema } from '@/lib/schemas/nado'
 import { productName } from '@/hooks/useWalletData'
 
 const POLL_INTERVAL = 10_000
@@ -22,53 +23,6 @@ function riskFromUsage(usage: number): RiskLevel {
   return 'safe'
 }
 
-// ─── Nado gateway response types ─────────────────────────────────────────────
-
-interface NadoRisk {
-  long_weight_maintenance_x18: string
-  short_weight_maintenance_x18: string
-}
-
-interface NadoPerpProduct {
-  product_id: number
-  oracle_price_x18: string
-  risk: NadoRisk
-}
-
-interface NadoSpotProduct {
-  product_id: number
-  oracle_price_x18: string
-}
-
-interface NadoPerpBalance {
-  product_id: number
-  balance: {
-    amount: string
-    v_quote_balance: string
-  }
-}
-
-interface NadoSpotBalance {
-  product_id: number
-  balance: {
-    amount: string
-  }
-}
-
-interface NadoHealth {
-  assets: string
-  liabilities: string
-  health: string
-}
-
-interface NadoSubaccountData {
-  perp_products?: NadoPerpProduct[]
-  spot_products?: NadoSpotProduct[]
-  perp_balances?: NadoPerpBalance[]
-  spot_balances?: NadoSpotBalance[]
-  healths?: NadoHealth[]
-}
-
 // ─── Parser ───────────────────────────────────────────────────────────────────
 
 function parseSubaccountInfo(
@@ -76,16 +30,20 @@ function parseSubaccountInfo(
 ): { health: AccountHealth; positions: Position[] } | null {
   if (!raw || typeof raw !== 'object') return null
 
+  // Gateway wraps in { status, data: { ... } } — unwrap if needed
   const r = raw as Record<string, unknown>
-  // Gateway wraps in { status, data: { ... } }
-  const data = (r.data ?? r) as NadoSubaccountData
-  if (!data || typeof data !== 'object') return null
+  const inner = r.data ?? raw
 
-  const perpProducts = data.perp_products ?? []
-  const spotProducts = data.spot_products ?? []
-  const perpBalances = data.perp_balances ?? []
-  const spotBalances = data.spot_balances ?? []
-  const healths = data.healths ?? []
+  const result = NadoSubaccountDataSchema.safeParse(inner)
+  if (!result.success) return null
+
+  const data = result.data
+
+  const perpProducts = data.perp_products
+  const spotProducts = data.spot_products
+  const perpBalances = data.perp_balances
+  const spotBalances = data.spot_balances
+  const healths = data.healths
 
   // Build lookup maps: product_id → market data
   const perpProductMap = new Map(perpProducts.map((p) => [p.product_id, p]))

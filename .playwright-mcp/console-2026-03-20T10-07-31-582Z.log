@@ -1,0 +1,10 @@
+[    1502ms] Uncaught Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rD (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:35059)
+    at rO (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:36092)
+    at <anonymous> (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:117788)
+    at iS (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:122660)
+    at ib (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:114448)
+    at <anonymous> (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:110435)
+    at io (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:110536)
+    at iY (https://static-2v.gitbook.com/_next/static/chunks/87c73c54-095cf9a90cf9ee03.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:132639)
+    at w (https://static-2v.gitbook.com/_next/static/chunks/21902-3670322c005d48c5.js?dpl=b40465e7b73b5fca44c9c9748c18ca9dbce4e67d:0:102089)

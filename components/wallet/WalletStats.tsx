@@ -1,6 +1,7 @@
 'use client'
 
 import type { WalletStats } from '@/types/nado'
+import { Card, CardContent } from '@/components/ui/card'
 
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
@@ -22,33 +23,20 @@ export function WalletStats({ stats }: Props) {
       value: `${isPnlPositive ? '+' : ''}${fmtUsd.format(stats.total_pnl_usd)}`,
       color: isPnlPositive ? 'text-emerald-400' : 'text-red-400',
     },
-    {
-      label: 'Volume',
-      value: fmtUsd.format(stats.total_volume_usd),
-      color: 'text-white/80',
-    },
-    {
-      label: 'Avg Trade',
-      value: fmtUsd.format(stats.avg_trade_size_usd),
-      color: 'text-white/60',
-    },
-    {
-      label: 'Trades',
-      value: stats.trades.length.toString(),
-      color: 'text-white/60',
-    },
+    { label: 'Volume', value: fmtUsd.format(stats.total_volume_usd), color: 'text-foreground' },
+    { label: 'Avg Trade', value: fmtUsd.format(stats.avg_trade_size_usd), color: 'text-foreground/70' },
+    { label: 'Trades', value: stats.trades.length.toString(), color: 'text-foreground/70' },
   ]
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
       {items.map(({ label, value, color }) => (
-        <div
-          key={label}
-          className="rounded-lg border border-white/10 bg-black/20 p-3 text-center"
-        >
-          <div className="text-[10px] uppercase tracking-wider text-white/30 mb-1">{label}</div>
-          <div className={`text-base font-bold tabular-nums ${color}`}>{value}</div>
-        </div>
+        <Card key={label} className="border-border bg-card">
+          <CardContent className="p-3 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">{label}</div>
+            <div className={`text-base font-bold tabular-nums ${color}`}>{value}</div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   )

@@ -1,135 +1,57 @@
 # CLAUDE.md — NadoLens
-> Règles de travail. Lire en entier avant de toucher au code.
-> Contexte projet → About.md | Spec complète → PRD.md
+> Règles de travail uniquement. Spec complète → PRD.md | Contexte business → About.md
 
 ---
 
-## Documentation Nado — consulter avant de coder
+## Références
 
-| Section | URL |
+| Doc | Contenu |
 |---|---|
-| API overview | https://docs.nado.xyz/developer-resources/api |
-| Gateway queries | https://docs.nado.xyz/developer-resources/api/gateway/queries |
-| Gateway executes | https://docs.nado.xyz/developer-resources/api/gateway/executes |
-| Signing EIP-712 | https://docs.nado.xyz/developer-resources/api/gateway/signing |
-| WS Streams | https://docs.nado.xyz/developer-resources/api/subscriptions/streams |
-| WS Events | https://docs.nado.xyz/developer-resources/api/subscriptions/events |
-| Archive indexer | https://docs.nado.xyz/developer-resources/api/archive-indexer |
-| API V2 REST | https://docs.nado.xyz/developer-resources/api/v2 |
-| TypeScript SDK | https://docs.nado.xyz/developer-resources/typescript-sdk |
-| Liquidations | https://docs.nado.xyz/liquidations |
-| Subaccounts | https://docs.nado.xyz/subaccounts-and-health |
-| Formules | https://docs.nado.xyz/definitions-formulas |
+| PRD.md | Spec complète, API Nado, phases |
+| NADO_API.md | Référence API complète, response shapes, rate limits |
+| ARCHI.md | Architecture Wallet Explorer, data flow, composants |
+| About.md | Contexte business, hébergement, pitch Frank |
+| lib/schemas/nado.ts | **Source de vérité des types** — Zod schemas |
 
 ---
 
-## Context7 — documentation live des librairies
+## Context7 — doc live des librairies
 
 **Toujours utiliser Context7 — jamais se fier à la mémoire pour les librairies.**
 
-```json
-// .mcp.json à la racine du projet
-{
-  "mcpServers": {
-    "context7": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
-    }
-  }
-}
+IDs prioritaires :
 ```
-
-IDs Context7 prioritaires :
-```
-/vercel/next.js                 → Next.js 15 App Router
-/wevm/wagmi                     → wagmi v2
-/wevm/viem                      → viem
-/pmndrs/zustand                 → Zustand 5
-/prisma/prisma                  → Prisma 5
-/tradingview/lightweight-charts → TradingView Charts v5
+/vercel/next.js          /wevm/wagmi       /wevm/viem
+/pmndrs/zustand          /prisma/prisma    /tradingview/lightweight-charts
+/colinhacks/zod/v4.0.1
 ```
 
 ---
 
 ## Package managers
 
-| Package | Manager | Raison |
+| Périmètre | Manager | Raison |
 |---|---|---|
-| App Next.js | **pnpm** | Standard Next.js, compat shadcn/prisma/wagmi |
-| WS Proxy | **Bun** | Runtime WS natif ultra-rapide, process léger long-running |
-
-```bash
-# App Next.js
-pnpm install
-pnpm dev
-pnpm build
-
-# WS Proxy uniquement
-cd ws-proxy
-bun install
-bun run index.ts
-```
+| App Next.js | **pnpm** | Standard, compat shadcn/prisma/wagmi |
+| WS Proxy (`ws-proxy/`) | **Bun** | Runtime WS natif, process long-running |
 
 ---
 
-## Stack — versions exactes
+## Stack
 
-```
-Next.js                15 (App Router)
-TypeScript             strict — zéro any
-Tailwind CSS           v4
-shadcn/ui              latest
-Zustand                5.x
-wagmi                  3.x
-viem                   2.x
-TradingView            Lightweight Charts v5
-@nadohq/client         latest
-@nadohq/indexer-client latest
-Prisma                 5.x
-```
+Next.js 15 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagmi 3 · viem 2 · TradingView Lightweight Charts v5 · Zod 4 · Prisma 5 · Neon
 
 ---
 
 ## Méthode de travail — APEX
 
 ```bash
-# Commandes recommandées
-/apex -i implement <description>          # Interactif — voir le plan avant de coder (recommandé pour démarrer)
-/apex -a -s implement <description>       # Auto + save — pour les phases suivantes
-/apex -a -s -t implement <description>    # Avec tests
-/apex -a -s -x implement <description>    # Avec review adversariale
-/apex -a -s -m implement <description>    # Agents parallèles (phases complexes)
-/apex -a -s -e implement <description>    # Economy — moins de tokens
+/apex -i implement <description>       # interactif — valider le plan avant de coder
+/apex -a -s implement <description>    # auto + save
+/apex -a -s -e implement <description> # economy — moins de tokens
 ```
 
-**Flags :**
-- `-i` interactive (valider le plan avant de coder) | `-a` auto | `-s` save outputs
-- `-t` tests | `-x` examine (review adversariale) | `-m` teams (agents parallèles)
-- `-b` branch git | `-e` economy (moins de tokens)
-
-**Modèle :** Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement
-si Sonnet tourne en rond sur un problème d'architecture complexe.
-
-**Starter Phase 1 — copier-coller dans Claude Code :**
-```
-/apex -i implement nadolens phase 1 foundation
-
-Lis About.md, PRD.md et CLAUDE.md avant de commencer.
-Use context7 pour toute doc de librairie.
-Consulte les URLs doc Nado dans CLAUDE.md si besoin.
-@nadohq/client est public sur npm — pas de token requis.
-Ink L2 chainId = 57073.
-
-Phase 1 :
-- Init Next.js 15 TypeScript strict + Tailwind v4 + shadcn — pnpm
-- wagmi v2 + viem (Ink L2 chainId 57073)
-- Neon + Prisma + migrations (liquidations + oi_snapshots)
-- Singleton @nadohq/client + @nadohq/indexer-client
-- Layout + navigation 4 pages (heatmap, dashboard, orderbook, wallet)
-- Zustand stores (liquidationStore, orderbookStore, oiStore, accountStore)
-- WS Proxy Bun dans ws-proxy/ — endpoint /health (monitoring)
-```
+Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonnet tourne en rond sur un problème d'architecture complexe.
 
 ---
 
@@ -137,48 +59,39 @@ Phase 1 :
 
 - Zéro `any` — toujours typer explicitement
 - Zéro `as unknown as X` — si besoin, le type est mal conçu
-- Tous les payloads Nado typés dans `types/nado.ts`
-- `fromX18(val: string): number` pour toutes les conversions Nado
-- Imports depuis `types/nado.ts` uniquement — jamais de re-déclarations locales
+- Types Nado → `lib/schemas/nado.ts` (`z.infer<>`) — jamais re-déclarer ailleurs
+- `fromX18(val: string): number` dans `types/nado.ts` pour toutes les conversions
 
 ---
 
 ## Règles architecture
 
-**Côté client (browser)**
+**Client (browser)**
 - Rendu React + Zustand stores
 - Signing EIP-712 via wagmi/viem — jamais côté serveur
-- Connexion SSE via `EventSource` vers WS Proxy Railway
-- Ordres signés envoyés directement vers Nado Gateway
+- SSE via `EventSource` vers WS Proxy Railway (utiliser `NEXT_PUBLIC_WS_PROXY_URL`)
 
-**Côté serveur Next.js (Vercel)**
-- `/api/liquidations` — lecture/écriture Neon
-- `/api/oi-heatmap` — calcul OI estimé
-- `/api/wallet/[address]` — proxy queries Nado Gateway (évite CORS browser)
-- Server Actions — fetch Nado Archive REST
+**Serveur Next.js (Vercel)**
+- `/api/liquidations` — Neon DB
+- `/api/oi-heatmap` — OI estimé
+- `/api/wallet/[address]` — proxy Nado Gateway (évite CORS)
+- Valider tous les bodies et réponses externes avec Zod `safeParse()`
 
 **WS Proxy (Railway — Bun)**
-- Région : **eu-west4** (Pays-Bas) — OBLIGATOIRE. Les IPs US East (Google Cloud) sont bloquées
-  par Nado pour les connexions WebSocket (`{"reason":"ip_query_only","blocked":true}`).
-- WS persistant vers `wss://gateway.prod.nado.xyz/v1/subscribe`
-  (testnet : `wss://gateway.test.nado.xyz/v1/subscribe`)
-- SSE vers clients browser
-- `GET /health` — monitoring et debugging uniquement
-  → Railway ne dort PAS sur un process actif (contrairement à Render free tier)
-  → Pas besoin de ping anti-sleep, mais /health reste utile pour surveiller l'état
-    du process depuis le dashboard Railway et diagnostiquer les incidents
-- URL prod : `https://nadolens-production.up.railway.app`
+- Région **eu-west4** (Pays-Bas) OBLIGATOIRE — IPs US East bloquées par Nado
+- Utiliser le package `ws` (pas le WebSocket natif Bun) — Nado exige `Sec-WebSocket-Extensions: permessage-deflate`
+- Ping toutes les 30s : `{ method: "ping" }`
+- Champ `id` obligatoire dans chaque message subscribe
 
-**Build Vercel :**
-- Script build : `"build": "prisma generate && next build"` (prisma generate avant next build)
+**Build Vercel**
+- Script build : `"build": "prisma generate && next build"`
 - Wagmi optional peer deps exclus via `webpack resolve.alias = false` dans `next.config.ts`
-  (`@safe-global/safe-apps-provider`, `@safe-global/safe-apps-sdk`, `@walletconnect/ethereum-provider`, `@walletconnect/modal`)
 
-**Jamais :**
+**Jamais**
 - ❌ Clé privée dans le code Next.js ou dans le browser
-- ❌ Signing d'ordres côté serveur Next.js
-- ❌ `console.log` de payloads avec adresses wallet ou signatures
-- ❌ Committer `.env`, `.env.local`, ou tout fichier avec secrets, egalement pas de commit About.md
+- ❌ Signing côté serveur
+- ❌ `console.log` de payloads avec adresses ou signatures
+- ❌ Committer `.env`, `.env.local`, `About.md`
 
 ---
 
@@ -186,206 +99,86 @@ Phase 1 :
 
 - Un composant = un fichier = une responsabilité
 - `PascalCase.tsx` composants — `camelCase.ts` hooks et libs
-- Hooks → `hooks/` préfixés `use`
-- Stores → `store/` suffixés `Store`
-- Logique métier → `hooks/` ou `lib/` — jamais dans les composants
-- shadcn/ui pour tous les éléments UI de base
+- Hooks → `hooks/` préfixés `use` | Stores → `store/` suffixés `Store`
+- **shadcn/ui obligatoire** pour tout élément UI de base
+- Exceptions HTML natif autorisé : `<canvas>`, divs de layout, wrappers sémantiques sans état
+
+**shadcn/ui — contrainte critique**
+- `Button` utilise `@base-ui/react/button` → **pas de prop `asChild`**
+- Pour un lien stylé bouton : `<Link className={cn(buttonVariants({ variant, size }))}>`
+- Jamais `<Button asChild><Link>` — ça ne compile pas
 
 ---
 
-## Pattern Zustand
+## Thème NadoLens
 
-```typescript
-import { create } from 'zustand'
-import type { LiquidationEvent } from '@/types/nado'
+| Token | Usage |
+|---|---|
+| `text-foreground` | Texte principal |
+| `text-muted-foreground` | Texte secondaire |
+| `bg-background` | Fond page |
+| `bg-card` | Fond carte |
+| `border-border` | Bordures |
+| `text-primary` / `bg-primary` | Emerald #22c55e |
+| `text-destructive` | Rouge #ef4444 |
 
-interface LiquidationStore {
-  events: LiquidationEvent[]
-  addEvent: (event: LiquidationEvent) => void
-  clear: () => void
-}
+Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` orange
 
-export const useLiquidationStore = create<LiquidationStore>((set) => ({
-  events: [],
-  addEvent: (event) =>
-    set((state) => ({
-      events: [event, ...state.events].slice(0, 500)
-    })),
-  clear: () => set({ events: [] }),
-}))
-```
+**next-themes** : `ThemeProvider` en dehors de `Providers` dans `layout.tsx`. `suppressHydrationWarning` sur `<html>`.
 
 ---
 
-## WS Proxy — Bun (ws-proxy/index.ts)
+## Nado API — rappels critiques
 
-**Important :** utiliser le package `ws` (pas le WebSocket natif Bun).
-Le serveur Nado exige `Sec-WebSocket-Extensions: permessage-deflate` — le WebSocket natif Bun
-ne permet pas d'injecter ce header, le package `ws` le permet.
-Le message subscribe doit inclure un champ `id` (corrélation) sinon le serveur renvoie une erreur.
-
-```typescript
-import { WebSocket } from 'ws'  // ← package ws, pas natif Bun
-
-const connect = (attempt = 0) => {
-  const ws = new WebSocket(NADO_WS_URL, {
-    headers: { 'Sec-WebSocket-Extensions': 'permessage-deflate' }
-  })
-  ws.on('open', () => {
-    ws.send(JSON.stringify({ id: 1, method: 'subscribe', stream: { type: 'liquidation', product_id: null } }))
-    const ping = setInterval(() => ws.send(JSON.stringify({ method: 'ping' })), 30_000)
-    ws.on('close', () => { clearInterval(ping); reconnect(attempt + 1) })
-  })
-  ws.on('error', () => reconnect(attempt + 1))
-}
-const reconnect = (attempt: number) => {
-  const delay = Math.min(1000 * 2 ** attempt, 30_000)
-  setTimeout(() => connect(attempt), delay)
-}
-```
-
----
-
-## SSE — headers obligatoires
-
-```typescript
-// WS Proxy response headers
-headers: {
-  'Content-Type': 'text/event-stream',
-  'Cache-Control': 'no-cache',
-  'Connection': 'keep-alive',
-}
-// Format event : data: {"type":"liquidation",...}\n\n
-
-// Côté browser — utiliser NEXT_PUBLIC_WS_PROXY_URL (pas WS_PROXY_URL qui est server-only)
-const WS_PROXY_URL = process.env.NEXT_PUBLIC_WS_PROXY_URL ?? 'http://localhost:3001'
-const source = new EventSource(`${WS_PROXY_URL}/sse`)
-source.onmessage = (e) => {
-  const event = JSON.parse(e.data) as LiquidationEvent
-  useLiquidationStore.getState().addEvent(event)
-}
-```
-
----
-
-## Cockpit de Survie — règles
-
-**Philosophie : le trader ressent le danger, il ne le lit pas.**
-
-```typescript
-// useSurvivalMetrics — seule source de vérité pour le risque
-const riskLevel: RiskLevel =
-  maintMarginUsage > 0.66 ? "danger" :
-  maintMarginUsage > 0.33 ? "warning" : "safe"
-
-const dropToLiquidation = ((markPrice - liquidationPrice) / markPrice) * 100
-const dropTolerance = (availableMargin / totalNotional) * 100
-// isCritical si dropTolerance < 10%
-
-// MaintWeightBadge
-// < 0.80 → gris | 0.80–0.95 → orange | ≥ 0.95 → rouge + animate-pulse
-
-// PnLFlash — useRef pour PnL précédent
-// delta < -5% en < 30s → font-size × 1.4 + rouge
-```
-
----
-
-## Wallet Explorer — rappels
-
-- `subaccount_info` pour positions + health (live)
-- Archive `matches` pour historique — `realized_pnl` (x18) dispo depuis déc. 2025
-- Données publiques — pas d'auth pour lire n'importe quel wallet
-- Proxy `/api/wallet/[address]` côté Next.js pour éviter CORS browser
-
----
-
-## Nado API — rappels clés
-
+- Chain ID Ink L2 mainnet : **763373**
+- Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
 - Valeurs en **x18** → `fromX18()` systématiquement
-- Ping WS toutes les **30s** obligatoire (envoyer `{ method: "ping" }`)
-- Header WS **obligatoire** : `Sec-WebSocket-Extensions: permessage-deflate` (403 sinon)
-- Champ `id` **obligatoire** dans chaque message subscribe (erreur sinon)
-- `book_depth` = diffs : `[price_x18, size_x18]` — size `"0"` = niveau supprimé du carnet
-- Subaccount = bytes32 = adresse wallet (20b) + nom (12b) en hex
+- ⚠️ **Exception V2** : `/v2/tickers` et `/v2/trades` retournent des **décimaux normaux**, PAS x18
+- Subaccount bytes32 : `0x{address}64656661756c740000000000` (default)
 - `product_id: null` sur stream `liquidation` = toutes les paires
-- Mainnet WS : `wss://gateway.prod.nado.xyz/v1/subscribe`
-- Testnet WS : `wss://gateway.test.nado.xyz/v1/subscribe`
-- Gateway REST v1 : `https://gateway.prod.nado.xyz/v1` (queries + executes)
-- Gateway REST v2 : `https://gateway.prod.nado.xyz/v2` (market data — pairs, orderbook…)
-- Archive/Indexer : `https://archive.prod.nado.xyz/indexer`
-- ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404 Vercel)
+- `book_depth` = diffs — size `"0"` = niveau supprimé du carnet
+- Mainnet WS Gateway : `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
+- Mainnet WS Subscribe : `wss://gateway.prod.nado.xyz/v1/subscribe` (streams temps réel)
+- Gateway v1 REST : `https://gateway.prod.nado.xyz/v1` | v2 : `https://gateway.prod.nado.xyz/v2`
+- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2`
+- ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404)
 
----
+### addressToSubaccount — helper critique
 
-## Prisma / Neon
+```typescript
+function addressToSubaccount(address: string, name: string = 'default'): string {
+  const addr = address.toLowerCase().replace('0x', '')
+  const nameHex = Buffer.from(name).toString('hex').padEnd(24, '0')
+  return `0x${addr}${nameHex}`
+}
+```
 
-- Singleton dans `lib/db.ts`
-- `createMany({ skipDuplicates: true })` pour les liquidations
-- Index sur `(product_id, timestamp DESC)` pour les queries heatmap
+### Rate limits Wallet Explorer
+- `subaccount_info` : IP weight 2 → polling 30s OK (2 × 2/min = 4 weight)
+- `matches` archive : IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52
+- `subaccounts` archive : IP weight 2
+- Total par refresh : ~56 weight → safe avec 2400/min max
 
 ---
 
 ## Git
 
-```
-feat(heatmap): add OI estimation layer 3
-feat(cockpit): add MarginShield wrapper
-feat(wallet): add wallet explorer page
-fix(ws-proxy): reconnect backoff on stream drop
-chore(deps): update @nadohq/client
-```
+Format : `feat(heatmap): add OI layer 3` · `fix(ws-proxy): reconnect backoff`
 
-**Workflow branches :**
-- Toujours créer une branche `feat/` ou `fix/` — jamais committer directement sur `main`
-- Chaque branche crée automatiquement un **Vercel Preview** (URL unique)
-- Tester sur le preview avant de merge sur main (deploy production automatique)
-- PR → merge → delete branch
-
-```bash
-git checkout -b feat/heatmap-layer2
-# ... code ...
-git push -u origin feat/heatmap-layer2
-# Vercel génère une preview URL → tester → merge PR
-```
-
----
-
-## Commandes
-
-```bash
-# App Next.js (pnpm)
-pnpm dev
-pnpm build
-npx prisma migrate dev && npx prisma studio
-
-# WS Proxy (Bun)
-cd ws-proxy && bun run index.ts
-
-# Check
-pnpm tsc --noEmit && pnpm lint
-```
+Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque branche → Vercel Preview → tester → merge PR.
 
 ---
 
 ## Priorités MVP — ordre strict
 
-1. ~~WS Proxy Bun Railway + `/health` (monitoring)~~ ✅
-2. ~~`useLiquidationStream` SSE → Zustand~~ ✅
-3. ~~Heatmap couche 1 (tableau live)~~ ✅ ~~couche 2 (OI estimation + HeatmapChart canvas)~~ ✅ → couche 3 (book_depth zones)
-4. ~~Cockpit de Survie~~ ✅ — useAccount, useSurvivalMetrics, MarginShield, HealthBar, LiquidationGap, PredictiveSafety, MaintWeightBadge, PnLFlash, PositionsTable, CollateralBreakdown
-5. Wallet Explorer (`/wallet/[address]`)
+1. ✅ WS Proxy Bun + `/health`
+2. ✅ `useLiquidationStream` SSE → Zustand
+3. ✅ Heatmap couche 1 + couche 2 → couche 3 (book_depth zones, optionnel)
+4. ✅ Cockpit de Survie complet
+5. **→ Wallet Explorer** (`/wallet/[address]`)
 6. Orderbook depth
-
-**Notes architecture livrée :**
-- Archive Nado : endpoint `events` + `event_types: ["liquidate_subaccount"]` = liquidations historiques
-- Subaccount bytes32 = `0x{address}64656661756c740000000000` (default subaccount)
-- `/api/liquidations` GET : fallback archive si DB vide
-- `/api/wallet/[address]` : force-dynamic, no-store cache (polling 10s)
-- `parseSubaccountInfo()` dans `hooks/useAccount.ts` = point d'ajustement si format Nado change
-
-**Ne pas sauter d'étape.**
+7. Deploy & Polish (README, GIF, push GitHub, mail Frank)
 
 ---
 
-*CLAUDE.md v1.8 — NadoLens*
+*CLAUDE.md v2.1 — NadoLens*

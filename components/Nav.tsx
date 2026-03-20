@@ -4,12 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAccount } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { buttonVariants } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { cn } from '@/lib/utils'
 
 const navLinks = [
-  { href: '/heatmap', label: 'Heatmap' },
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/orderbook', label: 'Orderbook' },
-  { href: '/wallet', label: 'Wallet' },
+  { href: '/wallet', label: 'Wallet Explorer' },
 ]
 
 export function Nav() {
@@ -17,11 +17,11 @@ export function Nav() {
   const { address, isConnected } = useAccount()
 
   return (
-    <nav className="border-b border-white/10 bg-black/40 backdrop-blur-sm">
+    <nav className="border-b border-border bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-screen-xl items-center gap-1 px-4">
         <Link
-          href="/heatmap"
-          className="mr-6 text-sm font-bold tracking-widest text-white/90 uppercase"
+          href="/wallet"
+          className="mr-6 text-sm font-bold tracking-widest text-foreground uppercase"
         >
           NadoLens
         </Link>
@@ -31,11 +31,13 @@ export function Nav() {
             <Link
               key={href}
               href={href}
-              className={`rounded px-3 py-1.5 text-sm transition-colors ${
+              className={cn(
+                buttonVariants({ variant: 'ghost', size: 'sm' }),
+                'text-sm transition-colors',
                 active
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/50 hover:text-white/80'
-              }`}
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
               {label}
             </Link>
@@ -44,16 +46,19 @@ export function Nav() {
         {isConnected && address && (
           <Link
             href={`/wallet/${address}`}
-            className={`rounded px-3 py-1.5 text-sm transition-colors ${
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'sm' }),
+              'text-sm transition-colors',
               pathname.startsWith(`/wallet/${address}`)
-                ? 'bg-emerald-400/10 text-emerald-400'
-                : 'text-emerald-400/60 hover:text-emerald-400'
-            }`}
+                ? 'bg-primary/10 text-primary'
+                : 'text-primary/60 hover:text-primary hover:bg-primary/5'
+            )}
           >
             My Wallet
           </Link>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <ThemeToggle />
           <ConnectButton
             accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }}
             showBalance={false}

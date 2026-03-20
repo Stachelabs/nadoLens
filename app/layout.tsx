@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import '@rainbow-me/rainbowkit/styles.css'
 import { Providers } from './providers'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import { Nav } from '@/components/Nav'
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -20,14 +21,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body>
-        <Providers>
-          <Nav />
-          <main className="mx-auto max-w-screen-xl px-4 py-6">
-            {children}
-          </main>
-        </Providers>
+        <ThemeProvider>
+          <Providers>
+            <Nav />
+            <main className="mx-auto max-w-screen-xl px-4 py-6">
+              {children}
+            </main>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -80,111 +80,8 @@ Clé privée ne quitte jamais le wallet. Ordres envoyés directement vers Nado G
 
 ## 4. Nado API
 
-### WebSocket Subscriptions
-`wss://gateway.prod.nado.xyz/v1/subscribe` — testnet : `wss://gateway.test.nado.xyz/v1/subscribe`
-- ping 30s obligatoire
-- header **obligatoire** : `Sec-WebSocket-Extensions: permessage-deflate` (refus 403 sinon)
-- champ `id` obligatoire dans chaque message subscribe (corrélation requête/réponse)
-- utiliser le package `ws` côté serveur (pas le WebSocket natif Bun — ne permet pas d'injecter ce header)
-Doc : https://docs.nado.xyz/developer-resources/api/subscriptions/streams
-
-| Stream | Auth | Usage |
-|---|---|---|
-| `liquidation` (`product_id: null`) | Non | Heatmap toutes paires |
-| `book_depth` | Non | Orderbook + zones risque |
-| `best_bid_offer` | Non | Spread live |
-| `latest_candlestick` | Non | Chart de fond |
-| `position_change` | Oui | Cockpit + Wallet Explorer live |
-| `order_update` | Oui | Suivi ordres |
-| `fill` | Oui | Historique exécutions |
-
-**Format subscribe :**
-```json
-{ "id": 1, "method": "subscribe", "stream": { "type": "liquidation", "product_id": null } }
-```
-Réponse ACK : `{ "result": null, "id": 1 }` — erreur : `{ "result": null, "error": "...", "id": 1 }`
-
-**Event liquidation :**
-```typescript
-{
-  type: "liquidation"
-  timestamp: string     // nanoseconds
-  product_ids: number[]
-  liquidator: string    // bytes32
-  liquidatee: string    // bytes32
-  amount: string        // x18 — positif=long liquidé, négatif=short liquidé
-  price: string         // x18 — prix oracle
-}
-```
-
-**Event best_bid_offer :**
-```typescript
-{
-  type: "best_bid_offer"
-  timestamp: string   // nanoseconds
-  product_id: number
-  bid_price: string   // x18
-  bid_qty: string     // x18
-  ask_price: string   // x18
-  ask_qty: string     // x18
-}
-```
-
-**Event book_depth (diffs — ~100ms) :**
-```typescript
-{
-  type: "book_depth"
-  product_id: number
-  last_max_timestamp: string  // timestamp du dernier diff reçu — pour ordonner
-  min_timestamp: string
-  max_timestamp: string
-  bids: [string, string][]    // [price_x18, size_x18] — size "0" = niveau supprimé
-  asks: [string, string][]
-}
-```
-
-### REST — Endpoints vérifiés
-- Gateway v1 (queries/executes) : `https://gateway.prod.nado.xyz/v1`
-- Gateway v2 (market data) : `https://gateway.prod.nado.xyz/v2`
-- Archive/Indexer : `https://archive.prod.nado.xyz/indexer`
-- Testnet gateway : `https://gateway.test.nado.xyz/v1`
-- Testnet archive : `https://archive.test.nado.xyz/v1`
-- Doc V2 : https://docs.nado.xyz/developer-resources/api/v2
-
-| Endpoint | Usage |
-|---|---|
-| `GET /v2/pairs` | Paires disponibles |
-| `GET /v2/orderbook?pair=BTCUSDT0` | Snapshot orderbook |
-| `GET /v2/tickers` | Stats 24h |
-| `GET /v2/trades?pair=BTCUSDT0` | Trades récents |
-| `GET /v2/assets` | Assets |
-
-### Gateway queries — `POST /query`
-Doc : https://docs.nado.xyz/developer-resources/api/gateway/queries
-
-| Query | Usage |
-|---|---|
-| `subaccount_info` | Health, marge, positions, maint_weight — Cockpit + Wallet Explorer |
-| `all_products` | IDs produits valides |
-| `market_liquidity` | Liquidité par produit |
-
-### Archive indexer
-Doc : https://docs.nado.xyz/developer-resources/api/archive-indexer
-
-| Query | Usage |
-|---|---|
-| `orders` | Historique ordres d'un subaccount |
-| `matches` | Historique fills — `realized_pnl` (x18) disponible depuis déc. 2025 |
-| `candlesticks` | Données OHLCV |
-
-### Gateway executes — `POST /execute` (signés wagmi)
-Doc : https://docs.nado.xyz/developer-resources/api/gateway/executes
-
-| Action | Usage |
-|---|---|
-| `place_order` | Placer un ordre |
-| `cancel_orders` | Annuler ordre(s) |
-| `cancel_product_orders` | Annuler tous les ordres d'un produit |
+> **Référence complète → NADO_API.md** (endpoints, response shapes, rate limits, event payloads, signing)
+> Ne pas dupliquer ici — NADO_API.md est la source de vérité.
 
 ---
 
@@ -391,54 +288,8 @@ nadolens/
 
 ## 7. Types TypeScript
 
-```typescript
-// types/nado.ts
-export type RiskLevel = "safe" | "warning" | "danger"
-export const fromX18 = (val: string): number => parseFloat(val) / 1e18
-
-export interface LiquidationEvent {
-  type: "liquidation"; timestamp: string; product_ids: number[]
-  liquidator: string; liquidatee: string
-  amount: string; price: string  // x18
-  amountUsd?: number; priceUsd?: number
-  side?: "long" | "short"; pair?: string
-}
-export interface OrderbookLevel { price: number; size: number; total?: number }
-export interface OrderbookState { bids: OrderbookLevel[]; asks: OrderbookLevel[]; lastUpdateMs: number }
-export interface Position {
-  product_id: number; pair: string; amount: number
-  entry_price: number; mark_price: number; unrealized_pnl: number
-  liquidation_price: number; margin_used: number
-  maint_weight: number; isolated: boolean
-}
-export interface AccountHealth {
-  health_score: number; total_collateral_usd: number
-  maintenance_margin: number; maint_margin_usage: number
-  available_margin: number; total_notional: number
-  risk_level: RiskLevel; drop_tolerance: number
-}
-export interface OIBucket {
-  price_low: number; price_high: number
-  long_oi_usd: number; short_oi_usd: number; risk_score: number
-}
-export interface SurvivalMetrics {
-  dropTolerance: number; riskLevel: RiskLevel
-  isMaintWeightCritical: boolean; isCritical: boolean
-}
-export interface TradeMatch {
-  timestamp: string; product_id: number; pair: string
-  amount: string; price: string        // x18
-  realized_pnl: string; closed_amount: string  // x18
-  fee: string; side: "long" | "short"
-}
-export interface WalletStats {
-  address: string
-  health_score: number; total_equity_usd: number; available_margin: number
-  positions: Position[]; trades: TradeMatch[]
-  win_rate: number; total_pnl_usd: number
-  total_volume_usd: number; avg_trade_size_usd: number
-}
-```
+> Source de vérité : `lib/schemas/nado.ts` (Zod schemas + `z.infer<>`).
+> `types/nado.ts` contient `fromX18`, `RiskLevel`, et les interfaces domain (Position, AccountHealth, etc.).
 
 ---
 
@@ -448,7 +299,7 @@ export interface WalletStats {
 # .env — jamais commité (voir .env.example pour le template)
 DATABASE_URL=postgresql://...
 NADO_GATEWAY_REST=https://gateway.prod.nado.xyz/v1
-NADO_ARCHIVE_REST=https://archive.prod.nado.xyz/indexer
+NADO_ARCHIVE_REST=https://archive.prod.nado.xyz/v1
 NADO_GATEWAY_V2=https://gateway.prod.nado.xyz/v2
 
 # WS Proxy Railway (server-side uniquement)
@@ -465,38 +316,21 @@ NEXT_PUBLIC_WS_PROXY_URL=https://nadolens-production.up.railway.app
 
 ## 9. Phases de développement
 
-### Phase 1 — Foundation ✅ DONE
-- [x] Init Next.js 15 + TS strict + Tailwind v4 — **pnpm**
-- [x] wagmi v3 + viem (Ink L2 chainId 57073)
-- [x] Neon + Prisma 5 + schema (liquidations + oi_snapshots)
-- [x] Singleton `@nadohq/client` (`createNadoClient('inkMainnet', { publicClient })`)
-- [x] Layout + navigation 4 pages (heatmap, dashboard, orderbook, wallet)
-- [x] Zustand stores (liquidation, orderbook, oi, account)
-- [x] WS Proxy Bun + package `ws` + endpoint `/health` — `ws_connected: true` confirmé
+### ✅ Phase 1 — Foundation
+Init Next.js 15 + Tailwind v4 + shadcn/ui + wagmi v3 + Neon/Prisma + Zustand stores + WS Proxy Bun Railway
 
-### Phase 2 — Heatmap ✅ DONE
-- [x] `useLiquidationStream` SSE (Railway proxy)
-- [x] Couche 1 — tableau live liquidations (dark, rouge/vert par side)
-- [x] Couche 2 — OI estimation : `useOIHeatmap`, `HeatmapChart` (canvas), `LayerControls`, persistance Neon
-- [x] `/api/liquidations` GET fallback archive Nado (`events + liquidate_subaccount`) si DB vide
-- [x] `lightweight-charts` 5.1.0 installé
-- [ ] Couche 3 — zones book_depth translucides (optionnel, post-MVP)
+### ✅ Phase 2 — Heatmap
+`useLiquidationStream` SSE · Couche 1 (tableau live) · Couche 2 (OI estimation canvas)
+Couche 3 (book_depth zones) — optionnel post-MVP
 
-### Phase 3 — Cockpit de Survie ✅ DONE
-- [x] `useAccount` — wagmi + polling `subaccount_info` 10s, address→bytes32 subaccount
-- [x] `useSurvivalMetrics` — dropTolerance, riskLevel, isCritical
-- [x] `MarginShield` — wrapper pulsant rouge/orange selon risk level
-- [x] `HealthBar` — barre segmentée 3 zones
-- [x] `LiquidationGap` — % baisse avant liquidation, position la plus critique
-- [x] `PredictiveSafety` — drop tolerance, pulse rouge si < 10%
-- [x] `MaintWeightBadge` — gris/orange/rouge selon seuils
-- [x] `PnLFlash` — flash rouge si PnL chute > 5% en < 30s
-- [x] `PositionsTable` — positions live avec liq price highlight
-- [x] `CollateralBreakdown` — collateral / margin / available / notional
-- [x] `/api/wallet/[address]` — force-dynamic, no-store
+### ✅ Phase 3 — Cockpit de Survie
+`useAccount` · `useSurvivalMetrics` · MarginShield · HealthBar · LiquidationGap · PredictiveSafety · MaintWeightBadge · PnLFlash · PositionsTable · CollateralBreakdown
 
-### Phase 4 — Wallet Explorer (suivant)
-- [ ] Route `/wallet/[address]` + barre de recherche
+### ✅ Transversal — UI & solidité
+shadcn/ui complet + thème NadoLens (dark/light/system) + Zod end-to-end (lib/schemas/nado.ts)
+
+### → Phase 4 — Wallet Explorer
+- [ ] Route `/wallet/[address]` fonctionnelle + barre de recherche
 - [ ] `useWalletData` → `subaccount_info` + archive `matches`
 - [ ] Composants : WalletHeader, WalletPositions, WalletTradeHistory, WalletEquityCurve, WalletStats
 - [ ] Courbe equity TradingView Lightweight Charts
