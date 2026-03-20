@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# prisma generated
+prisma/generated/
+
+# docs (not committed)
+About.md
+
+# tools
+.obsidian/
+.claude/
+.playwright-mcp/
+.mcp.json
+
+# ws-proxy deps
+ws-proxy/node_modules/
