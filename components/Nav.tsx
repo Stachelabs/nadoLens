@@ -14,16 +14,9 @@ export function Nav() {
   const pathname = usePathname();
   const { address, isConnected } = useAccount();
 
-  const allLinks = [
-    ...navLinks,
-    ...(isConnected && address
-      ? [{ href: `/wallet/${address}`, label: "My Wallet" }]
-      : []),
-  ];
-
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-7xl items-center  gap-6 px-4">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
         {/* Logo */}
         <Link
           href="/wallet"
@@ -34,7 +27,7 @@ export function Nav() {
 
         {/* Links */}
         <div className="flex items-center gap-1">
-          {allLinks.map(({ href, label }) => {
+          {navLinks.map(({ href, label }) => {
             const isActive = pathname?.startsWith(href);
             return (
               <Link
@@ -52,6 +45,19 @@ export function Nav() {
               </Link>
             );
           })}
+
+          {isConnected && address && (
+            <Link
+              href={`/wallet/${address}`}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "sm" }),
+                "border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200",
+                pathname === `/wallet/${address}` && "bg-purple-500/20 text-purple-200",
+              )}
+            >
+              My Wallet
+            </Link>
+          )}
         </div>
 
         {/* Right side */}
