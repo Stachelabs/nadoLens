@@ -59,8 +59,8 @@ export function Nav() {
           <ConnectButton
             label="Connect Wallet"
             showBalance={false}
-            chainStatus="none"
-            accountStatus="avatar"
+            chainStatus={{ smallScreen: 'icon', largeScreen: 'icon' }}
+            accountStatus={{ smallScreen: 'avatar', largeScreen: 'full' }}
           />
         </div>
       </div>
