@@ -47,3 +47,5 @@ About.md
 # tools
 .obsidian/
 .claude/
+.playwright-mcp/
+.mcp.json
