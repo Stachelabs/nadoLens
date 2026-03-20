@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ThemeToggle } from "./ThemeToggle";
 
-const navLinks = [{ href: "/wallet", label: "Wallet" }];
+const navLinks = [{ href: "/wallet", label: "Wallet Explorer" }];
 
 export function Nav() {
   const pathname = usePathname();
