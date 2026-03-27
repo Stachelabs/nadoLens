@@ -29,6 +29,7 @@ export function Nav() {
         <div className="flex items-center gap-1">
           {navLinks.map(({ href, label }) => {
             const isActive = pathname?.startsWith(href);
+
             return (
               <Link
                 key={href}
@@ -51,8 +52,10 @@ export function Nav() {
               href={`/wallet/${address}`}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200",
-                pathname === `/wallet/${address}` && "bg-purple-500/20 text-purple-200",
+                "border border-purple-500/40 bg-purple-500/20 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:text-purple-600 dark:hover:text-purple-200",
+                pathname === `/wallet/${address}`,
+                // &&
+                // "bg-purple-500/20 text-purple-700",
               )}
             >
               My Wallet
@@ -62,8 +65,8 @@ export function Nav() {
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
           <WalletButton />
+          <ThemeToggle />
         </div>
       </div>
     </nav>

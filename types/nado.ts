@@ -12,7 +12,7 @@ export type { NadoPair } from '@/lib/schemas/nado'
 
 // ─── Account Health ───────────────────────────────────────────────────────────
 
-export interface AccountHealth {
+export type AccountHealth = {
   health_score: number
   total_collateral_usd: number
   maintenance_margin: number
@@ -25,7 +25,7 @@ export interface AccountHealth {
 
 // ─── Positions ────────────────────────────────────────────────────────────────
 
-export interface Position {
+export type Position = {
   product_id: number
   pair: string
   amount: number
@@ -40,7 +40,7 @@ export interface Position {
 
 // ─── Trade History ────────────────────────────────────────────────────────────
 
-export interface TradeMatch {
+export type TradeMatch = {
   timestamp: string
   product_id: number
   pair: string
@@ -54,7 +54,7 @@ export interface TradeMatch {
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
-export interface WalletStats {
+export type WalletStats = {
   address: string
   health_score: number
   total_equity_usd: number

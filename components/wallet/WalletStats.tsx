@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
-interface Props {
+type Props = {
   stats: WalletStats
 }
 

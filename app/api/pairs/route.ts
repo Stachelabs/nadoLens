@@ -1,28 +1,35 @@
 import { NextResponse } from 'next/server'
+import { NADO_GATEWAY_V2 } from '@/lib/nado'
+import { V2AssetsResponseSchema } from '@/lib/schemas/nado'
+import type { V2Asset } from '@/lib/schemas/nado'
 
 export const dynamic = 'force-dynamic'
 
+const FALLBACK: V2Asset[] = [
+  // Spot
+  { product_id: 0,  symbol: 'USDT0', market_type: null,    ticker_id: null,        name: 'USDT0',              maker_fee: null,   taker_fee: null,    can_withdraw: true,  can_deposit: true  },
+  { product_id: 1,  symbol: 'KBTC',  market_type: 'spot',  ticker_id: 'KBTC_USDT0', name: 'Kraken Wrapped BTC', maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: true,  can_deposit: true  },
+  { product_id: 3,  symbol: 'WETH',  market_type: 'spot',  ticker_id: 'WETH_USDT0', name: 'Wrapped ETH',        maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: true,  can_deposit: true  },
+  { product_id: 5,  symbol: 'USDC',  market_type: 'spot',  ticker_id: 'USDC_USDT0', name: 'USDC',               maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: true,  can_deposit: true  },
+  { product_id: 11, symbol: 'NLP',   market_type: 'spot',  ticker_id: 'NLP_USDT0',  name: 'Nado LP',            maker_fee: null,   taker_fee: null,    can_withdraw: true,  can_deposit: true  },
+  // Perp (top 3)
+  { product_id: 2,  symbol: 'BTC-PERP', market_type: 'perp', ticker_id: 'BTC-PERP_USDT0', name: 'Bitcoin Perp',  maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: false, can_deposit: false },
+  { product_id: 4,  symbol: 'ETH-PERP', market_type: 'perp', ticker_id: 'ETH-PERP_USDT0', name: 'Ethereum Perp', maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: false, can_deposit: false },
+  { product_id: 8,  symbol: 'SOL-PERP', market_type: 'perp', ticker_id: 'SOL-PERP_USDT0', name: 'Solana Perp',   maker_fee: 0.0001, taker_fee: 0.00035, can_withdraw: false, can_deposit: false },
+]
+
 export async function GET() {
   try {
-    const res = await fetch('https://gateway.prod.nado.xyz/v2/pairs', {
+    const res = await fetch(`${NADO_GATEWAY_V2}/assets`, {
       headers: { 'Accept-Encoding': 'gzip' },
       next: { revalidate: 3600 },
     })
     if (!res.ok) throw new Error('failed')
-    const data: unknown = await res.json()
-    return NextResponse.json(data)
+    const raw: unknown = await res.json()
+    const result = V2AssetsResponseSchema.safeParse(raw)
+    if (!result.success) throw new Error('invalid')
+    return NextResponse.json(result.data)
   } catch {
-    return NextResponse.json([
-      { product_id: 2, pair: 'BTCUSDT0', symbol: 'BTC' },
-      { product_id: 4, pair: 'ETHUSDT0', symbol: 'ETH' },
-      { product_id: 8, pair: 'SOLUSDT0', symbol: 'SOL' },
-      { product_id: 10, pair: 'ARBUSDT0', symbol: 'ARB' },
-      { product_id: 14, pair: 'BNBUSDT0', symbol: 'BNB' },
-      { product_id: 16, pair: 'AVAXUSDT0', symbol: 'AVAX' },
-      { product_id: 18, pair: 'OPUSDT0', symbol: 'OP' },
-      { product_id: 20, pair: 'MATICUSDT0', symbol: 'MATIC' },
-      { product_id: 22, pair: 'DOGEUSDT0', symbol: 'DOGE' },
-      { product_id: 24, pair: 'LINKUSDT0', symbol: 'LINK' },
-    ])
+    return NextResponse.json(FALLBACK)
   }
 }

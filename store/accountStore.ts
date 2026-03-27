@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { AccountHealth, Position } from '@/types/nado'
 
-interface AccountStore {
+type AccountStore = {
   health: AccountHealth | null
   positions: Position[]
   address: string | null
