@@ -271,7 +271,10 @@ export const OIBucketPostBodySchema = z.object({
 
 export const ArchiveSubaccountsResponseSchema = z.object({
   subaccounts: z
-    .array(z.object({ subaccount: z.string() }))
+    .array(z.object({
+      subaccount: z.string(),
+      isolated: z.boolean().optional().default(false),
+    }))
     .optional()
     .default([]),
 })

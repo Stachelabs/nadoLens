@@ -221,7 +221,35 @@ nonce = ((unix_epoch_ms + 50) << 20) + random_int  # bits 44:63 = recv_time_ms, 
 |---|---|
 | `GET /pairs?market=perp` | `[{ product_id, ticker_id: "BTC-PERP_USDT0", base, quote, market_type }]` |
 | `GET /orderbook?ticker_id=BTC-PERP_USDT0&depth=20` | `{ ticker_id, timestamp, bids: [[price,size]], asks }` ⚠️ param = `ticker_id` |
-| `GET /assets` | `[{ product_id, name, symbol, maker_fee, taker_fee, can_withdraw, can_deposit, ticker_id, market_type }]` |
+| `GET /assets` | `[{ product_id, name, symbol, maker_fee, taker_fee, can_withdraw, can_deposit, ticker_id, market_type }]` — **source préférée** : inclut tous les assets (spot + perp + USDT0) |
+
+### `/v2/assets` — Assets connus (live, vérifié 2026-03-27)
+
+**Spot (can_withdraw/deposit = true) :**
+| product_id | symbol | name |
+|---|---|---|
+| 0 | USDT0 | USDT0 (collateral quote, market_type = null) |
+| 1 | KBTC | Kraken Wrapped BTC |
+| 3 | WETH | Wrapped ETH |
+| 5 | USDC | USDC |
+| 11 | NLP | Nado LP |
+
+**Perp (~50 marchés, market_type = "perp") — IDs clés :**
+| product_id | symbol |
+|---|---|
+| 2 | BTC-PERP |
+| 4 | ETH-PERP |
+| 8 | SOL-PERP |
+| 10 | XRP-PERP |
+| 14 | BNB-PERP |
+| 16 | HYPE-PERP |
+| 22 | FARTCOIN-PERP |
+| 24 | SUI-PERP |
+| 52 | DOGE-PERP |
+| 90 | WTI-PERP (pétrole) |
+| 100 | SPY-PERP (S&P 500) |
+
+> ⚠️ Préférer `/v2/assets` à `/v2/pairs?market=perp` — inclut USDT0 (product_id=0) et les spots nécessaires au calcul de la valeur des collaterals.
 
 ## Archive V2 REST — `https://archive.prod.nado.xyz/v2`
 
@@ -303,4 +331,4 @@ const info = await client.subaccount.getSubaccountSummary({
 
 ---
 
-*NADO_API.md v3.0 — Vérifié contre docs.nado.xyz via Exa · 2026-03-19*
+*NADO_API.md v3.1 — Vérifié contre docs.nado.xyz via Exa · 2026-03-19 · `/v2/assets` ajouté 2026-03-27*

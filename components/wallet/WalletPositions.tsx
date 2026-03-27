@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtQty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 
-interface Props {
+type Props = {
   positions: Position[]
 }
 

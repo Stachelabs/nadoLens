@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Outfit, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
 import './globals.css'
 
-const geistSans = Geist({
+const outfit = Outfit({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 })
@@ -29,7 +29,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>

@@ -6,11 +6,11 @@ import type { TradeMatch } from '@/types/nado'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-interface Props {
+type Props = {
   trades: TradeMatch[]
 }
 
-interface ChartPoint {
+type ChartPoint = {
   time: import('lightweight-charts').UTCTimestamp
   value: number
 }

@@ -1,50 +1,31 @@
-// ─── Utility ────────────────────────────────────────────────────────────────
+// ─── Utility ─────────────────────────────────────────────────────────────────
 
 export const fromX18 = (val: string): number => parseFloat(val) / 1e18
 
-// ─── Risk ────────────────────────────────────────────────────────────────────
+// ─── Risk ─────────────────────────────────────────────────────────────────────
 
 export type RiskLevel = 'safe' | 'warning' | 'danger'
 
 // ─── Re-exports from schemas (single source of truth) ────────────────────────
 
 export type { NadoPair } from '@/lib/schemas/nado'
-export type { PredictedLiqLevel } from '@/lib/schemas/nado'
 
-// ─── Liquidation ─────────────────────────────────────────────────────────────
+// ─── Account Health ───────────────────────────────────────────────────────────
 
-export interface LiquidationEvent {
-  type: 'liquidation'
-  timestamp: string // nanoseconds
-  product_ids: number[]
-  liquidator: string // bytes32
-  liquidatee: string // bytes32
-  amount: string // x18 — positive = long, negative = short
-  price: string // x18 — oracle price
-  // Derived fields (optional, computed client-side)
-  amountUsd?: number
-  priceUsd?: number
-  side?: 'long' | 'short'
-  pair?: string
+export type AccountHealth = {
+  health_score: number
+  total_collateral_usd: number
+  maintenance_margin: number
+  maint_margin_usage: number
+  available_margin: number
+  total_notional: number
+  risk_level: RiskLevel
+  drop_tolerance: number
 }
 
-// ─── Orderbook ───────────────────────────────────────────────────────────────
+// ─── Positions ────────────────────────────────────────────────────────────────
 
-export interface OrderbookLevel {
-  price: number
-  size: number
-  total?: number
-}
-
-export interface OrderbookState {
-  bids: OrderbookLevel[]
-  asks: OrderbookLevel[]
-  lastUpdateMs: number
-}
-
-// ─── Positions & Account ─────────────────────────────────────────────────────
-
-export interface Position {
+export type Position = {
   product_id: number
   pair: string
   amount: number
@@ -57,53 +38,23 @@ export interface Position {
   isolated: boolean
 }
 
-export interface AccountHealth {
-  health_score: number
-  total_collateral_usd: number
-  maintenance_margin: number
-  maint_margin_usage: number
-  available_margin: number
-  total_notional: number
-  risk_level: RiskLevel
-  drop_tolerance: number
-}
+// ─── Trade History ────────────────────────────────────────────────────────────
 
-// ─── OI Heatmap ──────────────────────────────────────────────────────────────
-
-export interface OIBucket {
-  price_low: number
-  price_high: number
-  long_oi_usd: number
-  short_oi_usd: number
-  risk_score: number
-}
-
-// ─── Survival Metrics ────────────────────────────────────────────────────────
-
-export interface SurvivalMetrics {
-  dropTolerance: number
-  riskLevel: RiskLevel
-  isMaintWeightCritical: boolean
-  isCritical: boolean
-}
-
-// ─── Trade History ───────────────────────────────────────────────────────────
-
-export interface TradeMatch {
+export type TradeMatch = {
   timestamp: string
   product_id: number
   pair: string
-  amount: string // x18
-  price: string // x18
+  amount: string   // x18
+  price: string    // x18
   realized_pnl: string // x18
   closed_amount: string // x18
   fee: string
   side: 'long' | 'short'
 }
 
-// ─── Wallet ──────────────────────────────────────────────────────────────────
+// ─── Wallet ───────────────────────────────────────────────────────────────────
 
-export interface WalletStats {
+export type WalletStats = {
   address: string
   health_score: number
   total_equity_usd: number

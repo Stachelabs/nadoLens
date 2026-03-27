@@ -28,7 +28,7 @@ function fmtTime(nanosStr: string): string {
   })
 }
 
-interface Props {
+type Props = {
   trades: TradeMatch[]
 }
 

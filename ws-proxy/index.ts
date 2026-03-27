@@ -50,7 +50,7 @@ function connect(attempt = 0): void {
 
     const pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ method: 'ping' }))
+        ws.send(JSON.stringify({ id: 5, method: 'ping' }))
       } else {
         clearInterval(pingInterval)
       }
