@@ -1,10 +1,11 @@
 import { NadoSubaccountDataSchema } from '@/lib/schemas/nado'
 import { usePairsStore } from '@/store/pairsStore'
-import type { Position } from '@/types/nado'
+import type { Position, SpotBalance } from '@/types/nado'
 import { fromX18 } from '@/types/nado'
 
 export type ParsedSubaccountInfo = {
   positions: Position[]
+  spotBalances: SpotBalance[]
   healthScore: number
   totalCollateral: number
   totalMaintMargin: number
@@ -26,7 +27,8 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   if (!result.success) return null
 
   const data = result.data
-  const { byId } = usePairsStore.getState()
+  const { byId, assets } = usePairsStore.getState()
+  const assetsById = new Map(assets.map((a) => [a.product_id, a]))
 
   const perpProductMap = new Map(data.perp_products.map((p) => [p.product_id, p]))
   const spotProductMap = new Map(data.spot_products.map((p) => [p.product_id, p]))
@@ -64,12 +66,21 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       }
     })
 
-  const totalCollateral = data.spot_balances.reduce((s, sb) => {
-    const bal = fromX18(sb.balance?.amount ?? '0')
-    const market = spotProductMap.get(sb.product_id)
-    const price = market?.oracle_price_x18 ? fromX18(market.oracle_price_x18) : 1
-    return s + Math.max(0, bal) * price
-  }, 0)
+  const spotBalances: SpotBalance[] = data.spot_balances
+    .map((sb) => {
+      const amount = fromX18(sb.balance?.amount ?? '0')
+      const market = spotProductMap.get(sb.product_id)
+      const price = market?.oracle_price_x18 ? fromX18(market.oracle_price_x18) : 1
+      const asset = assetsById.get(sb.product_id)
+      return {
+        product_id: sb.product_id,
+        symbol: asset?.symbol ?? byId.get(sb.product_id) ?? `#${sb.product_id}`,
+        name: asset?.name ?? `#${sb.product_id}`,
+        amount,
+        value_usd: amount * price,
+      }
+    })
+  const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
 
   const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
   const totalNotional = positions.reduce((s, p) => s + Math.abs(p.amount) * p.mark_price, 0)
@@ -88,6 +99,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
 
   return {
     positions,
+    spotBalances,
     healthScore,
     totalCollateral,
     totalMaintMargin,
