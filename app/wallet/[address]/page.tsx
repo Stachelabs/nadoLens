@@ -5,22 +5,25 @@ import { isAddress } from "viem";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
+import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
 import { WalletStats } from "@/components/wallet/WalletStats";
 import { WalletPositions } from "@/components/wallet/WalletPositions";
 import { WalletTradeHistory } from "@/components/wallet/WalletTradeHistory";
 import { WalletEquityCurve } from "@/components/wallet/WalletEquityCurve";
+import { WalletSummary } from "@/components/wallet/WalletSummary";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Props = {
   params: Promise<{ address: string }>;
 }
 
 function WalletContent({ address }: { address: string }) {
-  const { stats, trades, loading, error } = useWalletData(address);
+  const { stats, trades, loading, tradesComplete, error } = useWalletData(address);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground text-sm">
-        Loading wallet data…
+      <div className="flex items-center justify-center py-24">
+        <Spinner size={48} />
       </div>
     );
   }
@@ -36,7 +39,9 @@ function WalletContent({ address }: { address: string }) {
   return (
     <div className="space-y-6">
       <WalletHeader stats={stats} />
-      <WalletStats stats={stats} />
+      <WalletSpotBalances balances={stats.spot_balances} />
+      <WalletSummary stats={stats} tradesComplete={tradesComplete} />
+      <WalletStats stats={stats} tradesComplete={tradesComplete} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <WalletEquityCurve trades={trades} />
         <WalletPositions positions={stats.positions} />

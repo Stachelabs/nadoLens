@@ -174,7 +174,9 @@ export const ArchiveLiqResponseSchema = z.object({
 export const ArchiveMatchSchema = z.object({
   order: z.object({ priceX18: x18 }),
   base_filled: x18,
+  quote_filled: x18.optional(),
   fee: x18,
+  sequencer_fee: x18.optional().default('0'),
   submission_idx: z.string(),
   closed_amount: x18,
   realized_pnl: x18,
@@ -211,8 +213,14 @@ export const ArchiveMatchSchema = z.object({
 })
 export type ArchiveMatch = z.infer<typeof ArchiveMatchSchema>
 
+const ArchiveTxSchema = z.object({
+  submission_idx: z.string(),
+  timestamp: z.string(), // Unix seconds as string
+})
+
 export const ArchiveMatchesResponseSchema = z.object({
   matches: z.array(ArchiveMatchSchema).optional().default([]),
+  txs: z.array(ArchiveTxSchema).optional().default([]),
 })
 
 // ─── Orderbook ────────────────────────────────────────────────────────────────
