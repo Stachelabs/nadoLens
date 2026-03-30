@@ -6,7 +6,7 @@
  * string can be very large (~1e18). Values above 1e12 are treated as ns-scale (÷1e6 → ms);
  * smaller strings are treated as raw seconds (×1000 → ms).
  */
-const SECONDS_VS_NS_THRESHOLD = 10n ** 12n
+const SECONDS_VS_NS_THRESHOLD = BigInt(10) ** BigInt(12)
 
 export function nanoStringToMs(raw: string): number | null {
   if (!raw || raw === "0") return null

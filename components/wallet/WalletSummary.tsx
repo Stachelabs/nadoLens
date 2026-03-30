@@ -131,12 +131,52 @@ export function WalletSummary({
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
+          <div className="flex flex-col gap-6 min-w-0">
+            <Section title="Trader Equity">
+              <Row label="Equity" value={fmtUsd.format(stats.total_equity_usd)} />
+              <Row label="Maintenance" value={fmtUsd.format(stats.maintenance_margin)} />
+            </Section>
 
-          <Section title="Trader Equity">
-            <Row label="Equity" value={fmtUsd.format(stats.total_equity_usd)} />
-            <Row label="Maintenance" value={fmtUsd.format(stats.maintenance_margin)} />
-          </Section>
+            <Section
+              title="Positions"
+              action={
+                onRefreshUnrealized ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                    disabled={unrealizedRefreshing}
+                    onClick={() => void onRefreshUnrealized()}
+                    aria-label="Refresh unrealized PnL and mark prices"
+                  >
+                    <RefreshCw
+                      className={cn('size-3', unrealizedRefreshing && 'animate-spin')}
+                      aria-hidden
+                    />
+                  </Button>
+                ) : null
+              }
+            >
+              <Row
+                label="Unrealized PnL"
+                value={`${isUnrealizedPositive ? '+' : ''}${fmtUsd.format(unrealizedPnl)}`}
+                valueClass={isUnrealizedPositive ? 'text-emerald-400' : 'text-red-400'}
+              />
+              <Row
+                label="All Time PnL"
+                value={
+                  tradesComplete ? (
+                    `${isAllTimePnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`
+                  ) : (
+                    <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-26')} aria-hidden />
+                  )
+                }
+                valueClass={isAllTimePnlPositive ? 'text-emerald-400' : 'text-red-400'}
+              />
+            </Section>
+          </div>
 
           <Section
             title="Overview"
@@ -243,45 +283,6 @@ export function WalletSummary({
                   <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-26')} aria-hidden />
                 )
               }
-            />
-          </Section>
-
-          <Section
-            title="Positions"
-            action={
-              onRefreshUnrealized ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-                  disabled={unrealizedRefreshing}
-                  onClick={() => void onRefreshUnrealized()}
-                  aria-label="Refresh unrealized PnL and mark prices"
-                >
-                  <RefreshCw
-                    className={cn('size-3', unrealizedRefreshing && 'animate-spin')}
-                    aria-hidden
-                  />
-                </Button>
-              ) : null
-            }
-          >
-            <Row
-              label="Unrealized PnL"
-              value={`${isUnrealizedPositive ? '+' : ''}${fmtUsd.format(unrealizedPnl)}`}
-              valueClass={isUnrealizedPositive ? 'text-emerald-400' : 'text-red-400'}
-            />
-            <Row
-              label="All Time PnL"
-              value={
-                tradesComplete ? (
-                  `${isAllTimePnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`
-                ) : (
-                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-26')} aria-hidden />
-                )
-              }
-              valueClass={isAllTimePnlPositive ? 'text-emerald-400' : 'text-red-400'}
             />
           </Section>
 
