@@ -97,6 +97,28 @@ Cache ISR : revalidate: 3600 (1h)
 Fallback statique : 5 spots (USDT0, KBTC, WETH, USDC, NLP) + 3 perps (BTC, ETH, SOL)
 ```
 
+### `/api/matches/route.ts`
+Proxy Archive pour `matches` avec validation Zod du body et de la réponse.
+
+```
+POST /api/matches
+  body: { subaccounts: string[], limit?: number, idx?: string, isolated?: boolean|null }
+  → POST https://archive.prod.nado.xyz/v1
+     body: { matches: { subaccounts, limit, idx?, isolated } }
+  → { matches: [...], txs: [...] }
+```
+
+### `/api/funding/route.ts`
+Proxy Archive pour `interest_and_funding` avec validation Zod du body et de la réponse.
+
+```
+POST /api/funding
+  body: { subaccount: string, product_ids: number[], limit?: number, max_idx?: string }
+  → POST https://archive.prod.nado.xyz/v1
+     body: { interest_and_funding: { subaccount, product_ids, limit, max_idx? } }
+  → { funding_payments: [...], interest_payments: [...], next_idx }
+```
+
 ---
 
 ## 4. pairsStore — Assets dynamiques
@@ -222,6 +244,11 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
 
 > Positions temps réel nécessiterait `position_change` stream authentifié (clé privée du wallet) — impossible pour un wallet tiers. Le polling 30s est la seule option pour observer un wallet quelconque.
 
+Pourquoi 30s ?
+- C'est un compromis charge/précision: vue "quasi live" sans spam API.
+- Le `subaccount_info` coûte du weight, donc 30s reste confortable même avec plusieurs subaccounts.
+- On ne peut pas s'abonner en WS auth sur un wallet tiers côté browser sans sa signature.
+
 ---
 
 ## 9. Rate Limits Wallet Explorer
@@ -244,3 +271,62 @@ Non disponible via API publique. Ignorer pour MVP → afficher "—" ou masquer.
 ---
 
 *ARCHI.md v3.0 — NadoLens Wallet Explorer — mis à jour 2026-03-27*
+
+---
+
+## README Architecture Block (copiable)
+
+```md
+## Wallet Volume Pipeline (NadoLens)
+
+1) User opens `/wallet/[address]` → `useWalletData(address)` starts.
+2) `GET /api/subaccounts/{address}` resolves all subaccounts (cross + isolated).
+3) Subaccounts are chunked by 5 (`matches` API limit: max 5 subaccounts/request).
+4) For each chunk, Nado Archive `matches` is fetched with pagination (`limit=500`, `idx` cursor).
+5) Raw matches are normalized by `parseMatchesBatch()` into internal `TradeMatch` records.
+6) Pages/chunks are merged, sorted by newest submission index, and deduplicated at trade identity level.
+7) Volumes are computed from `quote_filled`:
+   - `perp_volume_usd = sum(abs(quote_filled) where is_perp)`
+   - `spot_volume_usd = sum(abs(quote_filled) where !is_perp)`
+   - `total_volume_usd = perp + spot`
+8) Trading PnL uses PERP only (closing trades): `sum(realized_pnl)` on perp closing fills.
+9) Funding PnL uses historical paid amounts (`interest_and_funding` endpoint, paginated by `max_idx`).
+10) Final stats (`WalletStats`) are rendered in `WalletSummary` and `WalletStats`.
+```
+
+## 11. Conventions API routes Next.js (Zod)
+
+Toutes les routes proxy Nado sous `app/api/**/` suivent le même pattern:
+
+1. **Body entrant** (POST) : `SomeRequestSchema.safeParse(await request.json())` → `400` si invalide.
+2. **Appel** : `fetch(NADO_GATEWAY_REST | NADO_ARCHIVE_REST, { headers: { Accept-Encoding: gzip, br, deflate } })`.
+3. **Réponse** : `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` si shape invalide.
+4. **Réponse client** : JSON déjà validé (types = `z.infer<>`).
+
+Helper partagé : `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`.
+
+---
+
+## 12. Timestamps nanosecondes & stats “all-time”
+
+Les champs `timestamp` des trades sont des **nanosecondes** en string décimal (~1e18). **`parseInt` / `Number` dépassent `MAX_SAFE_INTEGER`** → dates fausses ou “futur”.
+
+- Conversion sûre : `lib/wallet/nanoTime.ts` → `nanoStringToMs` / `nanoStringToUnixSec` (BigInt).
+- **Premier / dernier trade** : dérivés des trades min/max `submission_idx`, pas des bords de tableau (après tri `sortTradesNewestFirst`).
+
+Tant que `trades_complete === false` (pagination matches en cours), les **volumes / fees / PnL agrégés / first-last trade** ne sont **pas** affichés (UI `—`) pour éviter les montants partiels qui changeaient à chaque page.
+
+---
+
+## Checklist Validation (10 lignes)
+
+- Subaccounts count matches archive response for the wallet.
+- Chunking is active when subaccounts > 5.
+- Each chunk paginates until final page (`< 500`) or safety cap.
+- No trade loss at page boundaries (idx overlap handled).
+- No duplicate trade inflation after merge.
+- `perp_volume_usd + spot_volume_usd === total_volume_usd`.
+- Perp/Spot volumes match Nado official UI on known wallet.
+- Trading PnL changes only with perp closing trades.
+- Funding PnL is built from historical `funding_payments.amount` (not funding-rate snapshot).
+- UI renders without chart ordering assertion errors.

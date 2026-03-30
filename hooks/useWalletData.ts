@@ -1,20 +1,39 @@
 "use client";
 
-import { NADO_ARCHIVE_V1 } from "@/lib/nado";
 import {
   type ArchiveMatch,
   ArchiveMatchesResponseSchema,
   ArchiveSubaccountsResponseSchema,
+  InterestAndFundingPaymentsResponseSchema,
 } from "@/lib/schemas/nado";
 import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
+import {
+  computeTradeMetrics,
+  mergePnl,
+} from "@/lib/wallet/performance";
 import { usePairsStore } from "@/store/pairsStore";
 import type { Position, SpotBalance, TradeMatch, WalletStats } from "@/types/nado";
-import { fromX18, fromX18BigInt } from "@/types/nado";
+import { fromX18BigInt } from "@/types/nado";
 import { useEffect, useRef, useState } from "react";
 
 const POSITIONS_POLL_MS = 30_000;
 const MATCHES_LIMIT = 500;
 const MAX_PAGES = 50;
+/** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
+const MATCHES_BURST_MS = 220;
+const MATCHES_429_MAX_ATTEMPTS = 8;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type MatchesPageResult = {
+  trades: TradeMatch[];
+  nextIdx: string | null;
+  done: boolean;
+  /** True when Archive kept returning 429 after retries — do not treat as end of history. */
+  rateLimited?: boolean;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,8 +99,14 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
       0;
     const baseFilled = parseFloat(m.base_filled ?? "0");
     const side: "long" | "short" = baseFilled >= 0 ? "long" : "short";
-    // Real timestamp from txs[] — fall back to 0 if missing
+    // Real timestamp from txs[] — Unix seconds per Nado docs; fall back to 0 if missing
     const timeSec = txMap.get(m.submission_idx) ?? 0;
+
+    // Encode as synthetic "large int" string — must use BigInt (timeSec * 1e9 exceeds Number precision)
+    const timestampStr =
+      timeSec > 0
+        ? (BigInt(timeSec) * BigInt(1_000_000_000)).toString()
+        : "0";
 
     // Actual fill price = |quote_filled / base_filled|, fallback to order priceX18
     const quoteFilled = parseFloat(m.quote_filled ?? "0");
@@ -92,11 +117,14 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
         : parseFloat(m.order?.priceX18 ?? "0") / 1e18;
 
     return {
-      timestamp: (timeSec * 1_000_000_000).toFixed(0),
+      digest: m.digest,
+      timestamp: timestampStr,
+      submission_idx: m.submission_idx,
       product_id: productId,
       pair: productName(productId),
       amount: m.base_filled ?? "0",
       price: (fillPrice * 1e18).toFixed(0),
+      quote_filled: m.quote_filled ?? "0",
       realized_pnl: m.realized_pnl ?? "0",
       closed_amount: m.closed_amount ?? "0",
       fee: m.fee ?? "0",
@@ -107,58 +135,50 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
   });
 }
 
-// ─── Trade stats helper ────────────────────────────────────────────────────────
+// ─── Trade/Funding helpers ─────────────────────────────────────────────────────
 
-function computeTradeStats(trades: TradeMatch[]) {
-  const closingTrades = trades.filter((t) => {
-    try { return BigInt(t.closed_amount) !== BigInt(0) } catch { return false }
-  })
-
-  const winningTrades = closingTrades.filter((t) => fromX18BigInt(t.realized_pnl) > 0)
-  const winRate = closingTrades.length > 0
-    ? (winningTrades.length / closingTrades.length) * 100
-    : 0
-
-  const trading_pnl_usd = closingTrades.reduce(
-    (s, t) => s + fromX18BigInt(t.realized_pnl),
-    0,
-  )
-
-  const total_fees_usd = trades.reduce(
-    (s, t) => s + Math.abs(fromX18BigInt(t.fee)) + Math.abs(fromX18BigInt(t.sequencer_fee)),
-    0,
-  )
-
-  const funding_pnl_usd = 0
-
-  const net_pnl_usd = trading_pnl_usd - total_fees_usd + funding_pnl_usd
-
-  const total_volume_usd = trades.reduce(
-    (s, t) => s + Math.abs(fromX18BigInt(t.amount)) * fromX18BigInt(t.price),
-    0,
-  )
-  const avg_trade_size_usd = trades.length > 0 ? total_volume_usd / trades.length : 0
-
-  const perpTrades = trades.filter((t) => t.is_perp)
-  const spotTrades = trades.filter((t) => !t.is_perp)
-
-  const last_trade_at = trades.length > 0 ? trades[0].timestamp : null
-  const first_trade_at =
-    trades.length > 0 ? trades[trades.length - 1].timestamp : null
-
-  return {
-    win_rate: winRate,
-    trading_pnl_usd,
-    total_fees_usd,
-    funding_pnl_usd,
-    net_pnl_usd,
-    total_volume_usd,
-    avg_trade_size_usd,
-    perp_trades_count: perpTrades.length,
-    spot_trades_count: spotTrades.length,
-    first_trade_at,
-    last_trade_at,
+function chunk<T>(arr: T[], size: number): T[][] {
+  if (arr.length === 0) return [];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
   }
+  return out;
+}
+
+function sortTradesNewestFirst(trades: TradeMatch[]): TradeMatch[] {
+  return [...trades].sort((a, b) => {
+    try {
+      const ai = BigInt(a.submission_idx);
+      const bi = BigInt(b.submission_idx);
+      if (ai > bi) return -1;
+      if (ai < bi) return 1;
+      return (a.digest ?? "").localeCompare(b.digest ?? "");
+    } catch {
+      return b.timestamp.localeCompare(a.timestamp);
+    }
+  });
+}
+
+function buildPnlStats(
+  trades: TradeMatch[],
+  funding_pnl_usd: number,
+) {
+  const tradeMetrics = computeTradeMetrics(trades);
+  return mergePnl(tradeMetrics, funding_pnl_usd);
+}
+
+function tradeIdentity(trade: TradeMatch): string {
+  return [
+    trade.submission_idx,
+    trade.digest ?? "",
+    trade.product_id,
+    trade.amount,
+    trade.quote_filled ?? "0",
+    trade.realized_pnl,
+    trade.closed_amount,
+    trade.fee,
+  ].join(":");
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -171,25 +191,43 @@ export type WalletData = {
   loading: boolean;
   tradesComplete: boolean;
   error: string | null;
+  /** True while re-fetching subaccounts + matches + funding (manual refresh). */
+  refreshing: boolean;
+  /** True while re-fetching Gateway subaccount_info for live marks / unrealized only. */
+  unrealizedRefreshing: boolean;
+  /** Reloads account snapshot, trade history, and funding — not polled automatically. */
+  refresh: () => Promise<void>;
+  /** Re-query Gateway for positions + unrealized only (same as 30s poll, immediate). */
+  refreshUnrealizedPnl: () => Promise<void>;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWalletData(rawAddress: string): WalletData {
-  const [data, setData] = useState<WalletData>({
+  const [data, setData] = useState<
+    Omit<WalletData, "refresh" | "refreshUnrealizedPnl">
+  >({
     stats: null,
     trades: [],
     loading: true,
     tradesComplete: false,
     error: null,
+    refreshing: false,
+    unrealizedRefreshing: false,
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
+  const tradesRef = useRef<TradeMatch[]>([]);
+  /** Funding total from full pagination — expensive; only updated on full load / refresh. */
+  const fundingPaidUsdRef = useRef(0);
+  const refreshImplRef = useRef<() => Promise<void>>(async () => {});
+  const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!rawAddress) return;
 
     let cancelled = false;
+    fundingPaidUsdRef.current = 0;
 
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
@@ -289,61 +327,235 @@ export function useWalletData(rawAddress: string): WalletData {
       };
     };
 
-    // 4. Fetch a single page of matches
+    // 4. Fetch a single page of matches (retry 429 — Archive IP limits)
     const fetchOnePage = async (
       subs: string[],
       lastIdx?: string,
-    ): Promise<{ trades: TradeMatch[]; nextIdx: string | null; done: boolean }> => {
-      try {
+    ): Promise<MatchesPageResult> => {
+      const body: Record<string, unknown> = {
+        subaccounts: subs,
+        isolated: null,
+        limit: MATCHES_LIMIT,
+        ...(lastIdx ? { idx: lastIdx } : {}),
+      };
+
+      for (let attempt = 0; attempt < MATCHES_429_MAX_ATTEMPTS; attempt++) {
+        try {
+          const res = await fetch("/api/matches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            cache: "no-store",
+          });
+
+          if (res.status === 429) {
+            if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
+              const ra = res.headers.get("Retry-After");
+              const fromHeader = ra ? Math.min(parseInt(ra, 10) * 1000, 60_000) : 0;
+              const backoff = Math.min(
+                400 * 2 ** attempt + fromHeader,
+                60_000,
+              );
+              await sleep(backoff);
+              continue;
+            }
+            return {
+              trades: [],
+              nextIdx: lastIdx ?? null,
+              done: false,
+              rateLimited: true,
+            };
+          }
+
+          if (!res.ok) {
+            return { trades: [], nextIdx: null, done: true };
+          }
+
+          const raw: unknown = await res.json();
+          const result = ArchiveMatchesResponseSchema.safeParse(raw);
+          if (!result.success || result.data.matches.length === 0) {
+            return { trades: [], nextIdx: null, done: true };
+          }
+
+          const pageMatches = result.data.matches;
+          const txMap = new Map<string, number>();
+          for (const tx of result.data.txs) {
+            txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10));
+          }
+          const trades = parseMatchesBatch(pageMatches, txMap);
+          const done = pageMatches.length < MATCHES_LIMIT;
+          const nextIdx = done
+            ? null
+            : pageMatches[pageMatches.length - 1].submission_idx;
+          return { trades, nextIdx, done };
+        } catch {
+          return { trades: [], nextIdx: null, done: true };
+        }
+      }
+
+      return {
+        trades: [],
+        nextIdx: lastIdx ?? null,
+        done: false,
+        rateLimited: true,
+      };
+    };
+
+    const fetchFundingPaidBySubaccount = async (
+      subaccount: string,
+      productIds: number[],
+    ): Promise<number> => {
+      if (productIds.length === 0) return 0;
+      const LIMIT = 100;
+      const MAX_PAGES = 100;
+      let page = 0;
+      let maxIdx: string | undefined;
+      let totalFundingUsd = 0;
+      const seen = new Set<string>();
+
+      while (page < MAX_PAGES) {
+        page += 1;
         const body: Record<string, unknown> = {
-          matches: {
-            subaccounts: subs,
-            isolated: null,
-            limit: MATCHES_LIMIT,
-            ...(lastIdx ? { idx: lastIdx } : {}),
-          },
+          subaccount,
+          product_ids: productIds,
+          limit: LIMIT,
+          ...(maxIdx ? { max_idx: maxIdx } : {}),
         };
-        const res = await fetch(NADO_ARCHIVE_V1, {
+
+        const res = await fetch("/api/funding", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
+          cache: "no-store",
         });
-        if (!res.ok) return { trades: [], nextIdx: null, done: true };
-        const raw: unknown = await res.json();
-        const result = ArchiveMatchesResponseSchema.safeParse(raw);
-        if (!result.success || result.data.matches.length === 0)
-          return { trades: [], nextIdx: null, done: true };
+        if (!res.ok) break;
 
-        const pageMatches = result.data.matches;
-        const txMap = new Map<string, number>();
-        for (const tx of result.data.txs) {
-          txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10));
+        const raw: unknown = await res.json();
+        const result = InterestAndFundingPaymentsResponseSchema.safeParse(raw);
+        if (!result.success) break;
+
+        for (const payment of result.data.funding_payments) {
+          const key = `${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          totalFundingUsd += fromX18BigInt(payment.amount);
         }
-        const trades = parseMatchesBatch(pageMatches, txMap);
-        const done = pageMatches.length < MATCHES_LIMIT;
-        const nextIdx = done
-          ? null
-          : pageMatches[pageMatches.length - 1].submission_idx;
-        return { trades, nextIdx, done };
+
+        const nextIdx = result.data.next_idx;
+        if (nextIdx === null || nextIdx === undefined) break;
+        maxIdx = String(nextIdx);
+      }
+
+      return totalFundingUsd;
+    };
+
+    /** One paginated stream per subaccount — serialized to avoid bursting Archive. */
+    const fetchFundingPaidAllSubaccounts = async (
+      subs: string[],
+      productIds: number[],
+    ): Promise<number> => {
+      if (subs.length === 0 || productIds.length === 0) return 0;
+      let total = 0;
+      for (let i = 0; i < subs.length; i++) {
+        const subaccount = subs[i]!;
+        total += await fetchFundingPaidBySubaccount(subaccount, productIds);
+        if (i < subs.length - 1) await sleep(120);
+      }
+      return total;
+    };
+
+    const getAllPerpProductIds = (): number[] => {
+      const { perp } = usePairsStore.getState();
+      return Array.from(new Set(perp.map((asset) => asset.product_id)));
+    };
+
+    const fetchFundingPaid = async (
+      subaccounts: string[],
+      fallbackProductIds: number[],
+    ): Promise<number> => {
+      const allPerpIds = getAllPerpProductIds();
+      const productIds = allPerpIds.length > 0
+        ? allPerpIds
+        : Array.from(new Set(fallbackProductIds));
+      if (productIds.length === 0) return 0;
+
+      try {
+        return await fetchFundingPaidAllSubaccounts(subaccounts, productIds);
       } catch {
-        return { trades: [], nextIdx: null, done: true };
+        return 0;
       }
     };
 
-    const init = async () => {
+    const loadWallet = async (mode: "initial" | "refresh") => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      if (mode === "refresh") {
+        setData((prev) => ({
+          ...prev,
+          refreshing: true,
+          error: null,
+        }));
+      }
+
+      try {
       const subs = await fetchSubaccounts();
       if (cancelled) return;
       subaccountsRef.current = subs;
       const subAddrs = subs.map((s) => s.subaccount);
 
-      // Fetch positions + first page of trades in parallel
-      const [positionData, firstPage] = await Promise.all([
-        fetchAllPositions(subs),
-        fetchOnePage(subAddrs),
-      ]);
+      const subaccountChunks = chunk(subAddrs, 5);
+
+      let positionData: Awaited<ReturnType<typeof fetchAllPositions>>;
+      let firstPages: MatchesPageResult[];
+      try {
+        [positionData, firstPages] = await Promise.all([
+          fetchAllPositions(subs),
+          (async (): Promise<MatchesPageResult[]> => {
+            const pages: MatchesPageResult[] = [];
+            for (let c = 0; c < subaccountChunks.length; c++) {
+              const subChunk = subaccountChunks[c]!;
+              const p = await fetchOnePage(subChunk);
+              if (p.rateLimited) throw new Error("RATE_LIMIT");
+              pages.push(p);
+              if (c < subaccountChunks.length - 1) await sleep(MATCHES_BURST_MS);
+            }
+            return pages;
+          })(),
+        ]);
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof Error && e.message === "RATE_LIMIT") {
+          setData({
+            stats: null,
+            trades: [],
+            loading: false,
+            tradesComplete: false,
+            refreshing: false,
+            unrealizedRefreshing: false,
+            error:
+              "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
+          });
+          return;
+        }
+        throw e;
+      }
       if (cancelled) return;
 
-      let allTrades = firstPage.trades;
+      let allTrades = sortTradesNewestFirst(firstPages.flatMap((page) => page.trades));
+      const seenTradeIds = new Set(allTrades.map(tradeIdentity));
+      tradesRef.current = allTrades;
+      const fundingPaidUsd = await fetchFundingPaid(
+        subAddrs,
+        positionData.positions.map((position) => position.product_id),
+      );
+      fundingPaidUsdRef.current = fundingPaidUsd;
+      const initialPnlStats = buildPnlStats(
+        allTrades,
+        fundingPaidUsd,
+      );
 
       // Render dashboard immediately after first page
       setData({
@@ -357,50 +569,99 @@ export function useWalletData(rawAddress: string): WalletData {
           positions: positionData.positions,
           spot_balances: positionData.spotBalances,
           trades: allTrades,
-          trades_complete: firstPage.done,
-          ...computeTradeStats(allTrades),
+          trades_complete: firstPages.every((page) => page.done),
+          ...initialPnlStats,
         },
         trades: allTrades,
         loading: false,
-        tradesComplete: firstPage.done,
+        refreshing: false,
+        unrealizedRefreshing: false,
+        tradesComplete: firstPages.every((page) => page.done),
         error: null,
       });
 
-      // Background: fetch remaining pages
-      if (!firstPage.done) {
-        let nextIdx = firstPage.nextIdx;
-        for (let page = 1; page < MAX_PAGES && nextIdx && !cancelled; page++) {
-          const result = await fetchOnePage(subAddrs, nextIdx);
-          if (cancelled) break;
+      // Background: fetch remaining pages (per chunk, because matches max=5 subaccounts/request)
+      if (firstPages.some((page) => !page.done)) {
+        const chunkStates = firstPages.map((page, idx) => ({
+          chunk: subaccountChunks[idx],
+          done: page.done,
+          nextIdx: page.nextIdx,
+        }));
+        let truncatedByPageLimit = false;
+        outerMatches: for (let page = 1; page < MAX_PAGES && !cancelled; page++) {
+          const active = chunkStates.filter((state) => !state.done);
+          if (active.length === 0) break;
 
-          allTrades = [...allTrades, ...result.trades];
-          const updatedStats = computeTradeStats(allTrades);
+          for (let a = 0; a < active.length; a++) {
+            const state = active[a]!;
+            const result = await fetchOnePage(
+              state.chunk,
+              state.nextIdx ?? undefined,
+            );
+            if (cancelled) break outerMatches;
+            if (result.rateLimited) {
+              setData((prev) => ({
+                ...prev,
+                error:
+                  prev.error ??
+                  "Archive rate limit while loading history — partial data shown.",
+                tradesComplete: false,
+                stats: prev.stats
+                  ? { ...prev.stats, trades_complete: false }
+                  : null,
+              }));
+              break outerMatches;
+            }
+
+            state.done = result.done;
+            state.nextIdx = result.nextIdx;
+            const uniqueTrades = result.trades.filter((trade) => {
+              const id = tradeIdentity(trade);
+              if (seenTradeIds.has(id)) return false;
+              seenTradeIds.add(id);
+              return true;
+            });
+            allTrades = sortTradesNewestFirst([...allTrades, ...uniqueTrades]);
+            if (a < active.length - 1) await sleep(MATCHES_BURST_MS);
+          }
+
+          tradesRef.current = allTrades;
+          const updatedStats = buildPnlStats(allTrades, fundingPaidUsd);
+          const allDone = chunkStates.every((state) => state.done);
 
           setData((prev) => ({
             ...prev,
             trades: allTrades,
-            tradesComplete: result.done || page === MAX_PAGES - 1,
+            tradesComplete: allDone || page === MAX_PAGES - 1,
             stats: prev.stats
-              ? { ...prev.stats, trades: allTrades, trades_complete: result.done || page === MAX_PAGES - 1, ...updatedStats }
+              ? {
+                  ...prev.stats,
+                  trades: allTrades,
+                  trades_complete: allDone || page === MAX_PAGES - 1,
+                  ...updatedStats,
+                }
               : null,
           }));
 
-          if (result.done) break;
-          nextIdx = result.nextIdx;
+          if (allDone) break;
+          if (page === MAX_PAGES - 1) truncatedByPageLimit = true;
         }
 
-        // Ensure tradesComplete is set when MAX_PAGES is reached
+        // Ensure UI keeps "loading history" when we hit local page cap.
         if (!cancelled) {
           setData((prev) => ({
             ...prev,
-            tradesComplete: true,
-            stats: prev.stats ? { ...prev.stats, trades_complete: true } : null,
+            tradesComplete: !truncatedByPageLimit,
+            stats: prev.stats
+              ? { ...prev.stats, trades_complete: !truncatedByPageLimit }
+              : null,
           }));
         }
       }
 
-      // Poll positions every 30s
-      intervalRef.current = setInterval(async () => {
+      // Poll live position marks / unrealized only — same Gateway route as load, but we do not
+      // overwrite equity, overview metrics, or PnL-from-history until refresh.
+      const pollPositionsOnly = async () => {
         if (cancelled) return;
         const pd = await fetchAllPositions(subaccountsRef.current);
         setData((prev) => ({
@@ -410,22 +671,65 @@ export function useWalletData(rawAddress: string): WalletData {
                 ...prev.stats,
                 positions: pd.positions,
                 spot_balances: pd.spotBalances,
-                total_equity_usd: pd.equityUsd,
-                available_margin: pd.availableMargin,
-                maintenance_margin: pd.maintenanceMargin,
-                health_score: pd.healthScore,
                 unrealized_pnl_usd: pd.unrealizedTotal,
               }
             : null,
         }));
+      };
+
+      intervalRef.current = setInterval(() => {
+        void pollPositionsOnly();
       }, POSITIONS_POLL_MS);
+
+      refreshUnrealizedImplRef.current = async () => {
+        if (cancelled) return;
+        setData((prev) => ({ ...prev, unrealizedRefreshing: true }));
+        try {
+          const pd = await fetchAllPositions(subaccountsRef.current);
+          if (cancelled) return;
+          setData((prev) => ({
+            ...prev,
+            unrealizedRefreshing: false,
+            stats: prev.stats
+              ? {
+                  ...prev.stats,
+                  positions: pd.positions,
+                  spot_balances: pd.spotBalances,
+                  unrealized_pnl_usd: pd.unrealizedTotal,
+                }
+              : null,
+          }));
+        } catch {
+          setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
+        }
+      };
+      } finally {
+        if (cancelled && mode === "refresh") {
+          setData((prev) => ({ ...prev, refreshing: false }));
+        }
+      }
     };
 
-    void init().catch(() => {
+    refreshImplRef.current = async () => {
+      if (cancelled) return;
+      try {
+        await loadWallet("refresh");
+      } catch {
+        setData((prev) => ({
+          ...prev,
+          refreshing: false,
+          error: prev.error ?? "Refresh failed",
+        }));
+      }
+    };
+
+    void loadWallet("initial").catch(() => {
       if (!cancelled)
         setData((p) => ({
           ...p,
           loading: false,
+          refreshing: false,
+          unrealizedRefreshing: false,
           tradesComplete: true,
           stats: p.stats ? { ...p.stats, trades_complete: true } : null,
           error: "Failed to load wallet data",
@@ -434,9 +738,14 @@ export function useWalletData(rawAddress: string): WalletData {
 
     return () => {
       cancelled = true;
+      tradesRef.current = [];
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [rawAddress]);
 
-  return data;
+  return {
+    ...data,
+    refresh: () => refreshImplRef.current(),
+    refreshUnrealizedPnl: () => refreshUnrealizedImplRef.current(),
+  };
 }

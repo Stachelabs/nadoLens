@@ -1,8 +1,12 @@
 'use client'
 
+import type { ReactNode } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { fromX18 } from '@/types/nado'
+import { nanoStringToMs } from '@/lib/wallet/nanoTime'
 import type { WalletStats } from '@/types/nado'
 
 const fmtUsd = new Intl.NumberFormat('en-US', {
@@ -18,9 +22,10 @@ const fmtUsdCompact = new Intl.NumberFormat('en-US', {
 })
 
 function formatTimestamp(nanoTs: string | null): string {
-  if (!nanoTs) return '—'
-  const ms = parseInt(nanoTs) / 1_000_000
+  const ms = nanoTs ? nanoStringToMs(nanoTs) : null
+  if (ms === null) return '—'
   const d = new Date(ms)
+  if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -32,8 +37,8 @@ function formatTimestamp(nanoTs: string | null): string {
 }
 
 function timeAgo(nanoTs: string | null): string {
-  if (!nanoTs) return '—'
-  const ms = parseInt(nanoTs) / 1_000_000
+  const ms = nanoTs ? nanoStringToMs(nanoTs) : null
+  if (ms === null) return '—'
   const diffMs = Date.now() - ms
   const diffSec = Math.floor(diffMs / 1000)
   if (diffSec < 60) return `${diffSec}s ago`
@@ -50,6 +55,12 @@ function timeAgo(nanoTs: string | null): string {
 type Props = {
   stats: WalletStats
   tradesComplete?: boolean
+  /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
+  onRefresh?: () => void | Promise<void>
+  refreshing?: boolean
+  /** Re-fetch Gateway subaccount_info — live unrealized only (not all-time PnL). */
+  onRefreshUnrealized?: () => void | Promise<void>
+  unrealizedRefreshing?: boolean
 }
 
 function Row({
@@ -58,7 +69,7 @@ function Row({
   valueClass,
 }: {
   label: string
-  value: string
+  value: ReactNode
   valueClass?: string
 }) {
   return (
@@ -66,28 +77,53 @@ function Row({
       <span className="text-[11px] uppercase tracking-wider text-muted-foreground/70 shrink-0">
         {label}
       </span>
-      <span className={cn('text-sm font-bold tabular-nums font-mono text-right', valueClass ?? 'text-foreground')}>
+      <span
+        className={cn(
+          'text-sm font-bold tabular-nums font-mono text-right min-h-5 flex items-center justify-end',
+          valueClass ?? 'text-foreground',
+        )}
+      >
         {value}
       </span>
     </div>
   )
 }
 
-function Section({ title, loading, children }: { title: string; loading?: boolean; children: React.ReactNode }) {
+function Section({
+  title,
+  loading,
+  action,
+  children,
+}: {
+  title: string
+  loading?: boolean
+  action?: ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-2">
-        {title}
-        {loading && (
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-        )}
+      <div className="flex items-center justify-between gap-2 mb-2 min-h-6">
+        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70">
+          {title}
+          {loading && (
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+          )}
+        </div>
+        {action}
       </div>
       {children}
     </div>
   )
 }
 
-export function WalletSummary({ stats, tradesComplete = true }: Props) {
+export function WalletSummary({
+  stats,
+  tradesComplete = true,
+  onRefresh,
+  refreshing = false,
+  onRefreshUnrealized,
+  unrealizedRefreshing = false,
+}: Props) {
   const unrealizedPnl = stats.positions.reduce((s, p) => s + p.unrealized_pnl, 0)
   const isUnrealizedPositive = unrealizedPnl >= 0
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0
@@ -102,20 +138,135 @@ export function WalletSummary({ stats, tradesComplete = true }: Props) {
             <Row label="Maintenance" value={fmtUsd.format(stats.maintenance_margin)} />
           </Section>
 
-          <Section title="Overview" loading={!tradesComplete}>
-            <Row label="Total Volume" value={fmtUsdCompact.format(stats.total_volume_usd)} />
-            <Row label="Spot Trades" value={stats.spot_trades_count.toString()} />
-            <Row label="Perp Trades" value={stats.perp_trades_count.toString()} />
+          <Section
+            title="Overview"
+            loading={!tradesComplete}
+            action={
+              onRefresh ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                  disabled={refreshing}
+                  onClick={() => void onRefresh()}
+                  aria-label="Refresh account snapshot, volumes, and funding"
+                >
+                  <RefreshCw
+                    className={cn('size-3', refreshing && 'animate-spin')}
+                    aria-hidden
+                  />
+                </Button>
+              ) : null
+            }
+          >
+            <Row
+              label="Total Volume"
+              value={
+                tradesComplete ? (
+                  fmtUsdCompact.format(stats.total_volume_usd)
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-30')} aria-hidden />
+                )
+              }
+            />
+            <Row
+              label="Perp Volume"
+              value={
+                tradesComplete ? (
+                  fmtUsdCompact.format(stats.perp_volume_usd)
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-30')} aria-hidden />
+                )
+              }
+            />
+            <Row
+              label="Spot Volume"
+              value={
+                tradesComplete ? (
+                  fmtUsdCompact.format(stats.spot_volume_usd)
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-20')} aria-hidden />
+                )
+              }
+            />
+            <Row
+              label="Spot Trades"
+              value={
+                tradesComplete ? (
+                  stats.spot_trades_count.toString()
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-10')} aria-hidden />
+                )
+              }
+            />
+            <Row
+              label="Perp Trades"
+              value={
+                tradesComplete ? (
+                  stats.perp_trades_count.toString()
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-12')} aria-hidden />
+                )
+              }
+            />
             <Row
               label="Total Fees"
-              value={fmtUsd.format(stats.total_fees_usd)}
+              value={
+                tradesComplete ? (
+                  fmtUsd.format(stats.total_fees_usd)
+                ) : (
+                  <Skeleton
+                    className={cn('h-4 shrink-0 rounded-sm', 'w-21', 'bg-red-400/15')}
+                    aria-hidden
+                  />
+                )
+              }
               valueClass="text-red-400"
             />
-            <Row label="First Trade" value={formatTimestamp(stats.first_trade_at)} />
-            <Row label="Last Trade" value={timeAgo(stats.last_trade_at)} />
+            <Row
+              label="First Trade"
+              value={
+                tradesComplete ? (
+                  formatTimestamp(stats.first_trade_at)
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-44')} aria-hidden />
+                )
+              }
+            />
+            <Row
+              label="Last Trade"
+              value={
+                tradesComplete ? (
+                  timeAgo(stats.last_trade_at)
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-26')} aria-hidden />
+                )
+              }
+            />
           </Section>
 
-          <Section title="Positions">
+          <Section
+            title="Positions"
+            action={
+              onRefreshUnrealized ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                  disabled={unrealizedRefreshing}
+                  onClick={() => void onRefreshUnrealized()}
+                  aria-label="Refresh unrealized PnL and mark prices"
+                >
+                  <RefreshCw
+                    className={cn('size-3', unrealizedRefreshing && 'animate-spin')}
+                    aria-hidden
+                  />
+                </Button>
+              ) : null
+            }
+          >
             <Row
               label="Unrealized PnL"
               value={`${isUnrealizedPositive ? '+' : ''}${fmtUsd.format(unrealizedPnl)}`}
@@ -123,7 +274,13 @@ export function WalletSummary({ stats, tradesComplete = true }: Props) {
             />
             <Row
               label="All Time PnL"
-              value={`${isAllTimePnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`}
+              value={
+                tradesComplete ? (
+                  `${isAllTimePnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`
+                ) : (
+                  <Skeleton className={cn('h-4 shrink-0 rounded-sm', 'w-26')} aria-hidden />
+                )
+              }
               valueClass={isAllTimePnlPositive ? 'text-emerald-400' : 'text-red-400'}
             />
           </Section>

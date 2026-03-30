@@ -3,11 +3,14 @@
 import { useEffect, useRef } from 'react'
 import { fromX18 } from '@/types/nado'
 import type { TradeMatch } from '@/types/nado'
+import { nanoStringToUnixSec } from '@/lib/wallet/nanoTime'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 type Props = {
   trades: TradeMatch[]
+  /** When false, cumulative PnL / volumes are incomplete — hide misleading chart */
+  tradesComplete?: boolean
 }
 
 type ChartPoint = {
@@ -16,31 +19,46 @@ type ChartPoint = {
 }
 
 function buildEquityCurve(trades: TradeMatch[]): ChartPoint[] {
-  const sorted = [...trades].sort(
-    (a, b) => parseInt(a.timestamp) - parseInt(b.timestamp)
-  )
+  const sorted = [...trades].sort((a, b) => {
+    try {
+      const ai = BigInt(a.submission_idx)
+      const bi = BigInt(b.submission_idx)
+      if (ai < bi) return -1
+      if (ai > bi) return 1
+      return (a.digest ?? '').localeCompare(b.digest ?? '')
+    } catch {
+      return 0
+    }
+  })
 
   let cumPnl = 0
-  const points: ChartPoint[] = []
+  const bySecond = new Map<number, number>()
 
   for (const t of sorted) {
     const pnl = fromX18(t.realized_pnl)
     cumPnl += pnl
-    const timeSec = Math.floor(parseInt(t.timestamp) / 1_000_000_000)
-    if (!isNaN(timeSec) && timeSec > 0) {
-      points.push({ time: timeSec as import('lightweight-charts').UTCTimestamp, value: cumPnl })
+    const timeSec = nanoStringToUnixSec(t.timestamp)
+    if (timeSec !== null && timeSec > 0) {
+      // Lightweight Charts requires strictly ascending time points.
+      // Keep only the latest cumulative value for each second.
+      bySecond.set(timeSec, cumPnl)
     }
   }
 
-  return points
+  return Array.from(bySecond.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([time, value]) => ({
+      time: time as import('lightweight-charts').UTCTimestamp,
+      value,
+    }))
 }
 
-export function WalletEquityCurve({ trades }: Props) {
+export function WalletEquityCurve({ trades, tradesComplete = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<import('lightweight-charts').IChartApi | null>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerRef.current || !tradesComplete) return
 
     const points = buildEquityCurve(trades)
     if (points.length < 2) return
@@ -112,9 +130,9 @@ export function WalletEquityCurve({ trades }: Props) {
         chartRef.current = null
       }
     }
-  }, [trades])
+  }, [trades, tradesComplete])
 
-  const points = buildEquityCurve(trades)
+  const points = tradesComplete ? buildEquityCurve(trades) : []
   const finalValue = points[points.length - 1]?.value ?? 0
 
   return (
@@ -129,7 +147,11 @@ export function WalletEquityCurve({ trades }: Props) {
             </div>
           )}
         </div>
-        {points.length < 2 ? (
+        {!tradesComplete ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+            Loading full trade history…
+          </div>
+        ) : points.length < 2 ? (
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
             Not enough trade data to plot curve
           </div>

@@ -58,11 +58,14 @@ export type Position = {
 // ─── Trade History ────────────────────────────────────────────────────────────
 
 export type TradeMatch = {
+  digest?: string
   timestamp: string
+  submission_idx: string
   product_id: number
   pair: string
   amount: string        // x18
   price: string         // x18
+  quote_filled?: string // x18
   realized_pnl: string  // x18
   closed_amount: string // x18
   fee: string           // x18 — taker/maker fee
@@ -104,6 +107,8 @@ export type WalletStats = {
   // Trade stats
   trades: TradeMatch[]
   win_rate: number
+  perp_volume_usd: number
+  spot_volume_usd: number
   total_volume_usd: number
   avg_trade_size_usd: number
   perp_trades_count: number

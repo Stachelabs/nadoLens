@@ -14,15 +14,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { nanoStringToMs } from '@/lib/wallet/nanoTime'
 
 const PAGE_SIZE = 50
 
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtQty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 
-function fmtTime(nanosStr: string): string {
-  const ms = parseInt(nanosStr) / 1_000_000
-  if (isNaN(ms)) return '—'
+function fmtTime(ts: string): string {
+  const ms = nanoStringToMs(ts)
+  if (ms === null) return '—'
   const d = new Date(ms)
   return d.toLocaleString('en-US', {
     month: 'short', day: 'numeric',

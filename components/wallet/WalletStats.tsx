@@ -13,43 +13,47 @@ type Props = {
 export function WalletStats({ stats, tradesComplete = true }: Props) {
   const isPnlPositive = stats.net_pnl_usd >= 0
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count
+  const dash = '—'
 
   const items = [
     {
       label: 'Win Rate',
-      value: `${stats.win_rate.toFixed(1)}%`,
+      value: tradesComplete ? `${stats.win_rate.toFixed(1)}%` : dash,
       color: stats.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400',
       sub: null,
     },
     {
       label: 'Total PnL',
-      value: `${isPnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`,
+      value: tradesComplete
+        ? `${isPnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`
+        : dash,
       color: isPnlPositive ? 'text-emerald-400' : 'text-red-400',
       sub: null,
     },
     {
       label: 'Volume',
-      value: fmtUsd.format(stats.total_volume_usd),
+      value: tradesComplete ? fmtUsd.format(stats.total_volume_usd) : dash,
       color: 'text-foreground',
       sub: null,
     },
     {
       label: 'Avg Trade',
-      value: fmtUsd.format(stats.avg_trade_size_usd),
+      value: tradesComplete ? fmtUsd.format(stats.avg_trade_size_usd) : dash,
       color: 'text-foreground/70',
       sub: null,
     },
     {
       label: 'Trades',
-      value: totalTrades.toString(),
+      value: tradesComplete ? totalTrades.toString() : dash,
       color: 'text-foreground/70',
-      sub: stats.perp_trades_count > 0 || stats.spot_trades_count > 0
-        ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
-        : null,
+      sub:
+        tradesComplete && (stats.perp_trades_count > 0 || stats.spot_trades_count > 0)
+          ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
+          : null,
     },
     {
       label: 'Total Fees',
-      value: fmtUsd.format(stats.total_fees_usd),
+      value: tradesComplete ? fmtUsd.format(stats.total_fees_usd) : dash,
       color: 'text-red-400',
       sub: null,
     },

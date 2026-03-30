@@ -1,5 +1,8 @@
 import { NADO_GATEWAY_REST } from "@/lib/nado";
-import { NadoSubaccountDataSchema, SubaccountOrdersDataSchema } from "@/lib/schemas/nado";
+import {
+  NadoSubaccountDataSchema,
+  SubaccountOrdersDataSchema,
+} from "@/lib/schemas/nado";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { z } from "zod";
@@ -47,7 +50,8 @@ export async function GET(request: NextRequest, { params }: Props) {
   const raw: unknown = await response.json();
 
   if (query === "subaccount_info") {
-    const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const r =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
     const inner = r.data ?? raw;
     const result = NadoSubaccountDataSchema.safeParse(inner);
     if (!result.success) {
@@ -60,7 +64,8 @@ export async function GET(request: NextRequest, { params }: Props) {
   }
 
   if (query === "subaccount_orders") {
-    const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const r =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
     const inner = r.data ?? raw;
     const result = SubaccountOrdersDataSchema.safeParse(inner);
     if (!result.success) {

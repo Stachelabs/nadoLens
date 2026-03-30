@@ -38,7 +38,15 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     .map((b): Position => {
       const market = perpProductMap.get(b.product_id)
       const amount = fromX18(b.balance.amount)
+      const vQuote = fromX18(b.balance.v_quote_balance)
+      // Mark = oracle from Gateway `perp_products` (same field Nado uses for risk / margin).
       const markPrice = market ? fromX18(market.oracle_price_x18) : 0
+      // Implied average entry from position state: unrealized = v_quote + amount * mark
+      // ⇒ entry = -v_quote / amount (linear perp; same as Nado internal marking).
+      const rawImplied =
+        Math.abs(amount) > 1e-18 ? -vQuote / amount : markPrice
+      const impliedEntry =
+        Number.isFinite(rawImplied) && rawImplied > 0 ? rawImplied : markPrice
       const isLong = amount >= 0
       const maintWeight = market
         ? isLong
@@ -50,13 +58,13 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       const liquidationPrice = isLong
         ? markPrice * (1 - 1 / leverage + maintMarginRate)
         : markPrice * (1 + 1 / leverage - maintMarginRate)
-      const unrealizedPnl = fromX18(b.balance.v_quote_balance) + amount * markPrice
+      const unrealizedPnl = vQuote + amount * markPrice
 
       return {
         product_id: b.product_id,
         pair: byId.get(b.product_id) ?? `#${b.product_id}`,
         amount,
-        entry_price: markPrice,
+        entry_price: impliedEntry,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: Math.max(0, liquidationPrice),

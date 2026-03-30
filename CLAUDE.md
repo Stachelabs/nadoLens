@@ -81,6 +81,8 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 
 - `/api/pairs` — liste des paires Nado
 - `/api/wallet/[address]` — proxy Nado Gateway (évite CORS)
+- `/api/matches` — proxy Archive `matches` (chunk <= 5 subaccounts + pagination idx côté client)
+- `/api/funding` — proxy Archive `interest_and_funding` (pagination max_idx côté client)
 - Valider tous les bodies et réponses externes avec Zod `safeParse()`
 
 **WS Proxy (Railway — Bun)**
@@ -146,7 +148,7 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 
 - Chain ID Ink L2 mainnet : **57073** (wagmi/viem) — ne pas confondre avec d'autres IDs
 - Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
-- Valeurs en **x18** → `fromX18()` systématiquement
+- Valeurs en **x18** → `fromX18BigInt()` pour les agrégations financières (volume, fees, pnl)
 - ⚠️ **Exception V2** : `/v2/tickers` et `/v2/trades` retournent des **décimaux normaux**, PAS x18
 - Subaccount bytes32 : `0x{address}64656661756c740000000000` (default)
 - `product_id: null` sur stream `liquidation` = toutes les paires

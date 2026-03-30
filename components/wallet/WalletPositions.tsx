@@ -1,8 +1,10 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import type { Position } from '@/types/nado'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -18,9 +20,16 @@ const fmtQty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 
 type Props = {
   positions: Position[]
+  /** Re-fetch Gateway subaccount_info for live marks / unrealized only. */
+  onRefreshUnrealized?: () => void | Promise<void>
+  unrealizedRefreshing?: boolean
 }
 
-export function WalletPositions({ positions }: Props) {
+export function WalletPositions({
+  positions,
+  onRefreshUnrealized,
+  unrealizedRefreshing = false,
+}: Props) {
   if (positions.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -35,14 +44,29 @@ export function WalletPositions({ positions }: Props) {
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
-          Open Positions <span className="ml-1 text-muted-foreground/50">({positions.length})</span>
+        <div className="flex items-center justify-between gap-2 mb-3 min-h-6">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+            Open Positions <span className="ml-1 text-muted-foreground/50">({positions.length})</span>
+          </div>
+          {onRefreshUnrealized ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+              disabled={unrealizedRefreshing}
+              onClick={() => void onRefreshUnrealized()}
+              aria-label="Refresh mark prices and unrealized PnL"
+            >
+              <RefreshCw className={cn('size-3', unrealizedRefreshing && 'animate-spin')} aria-hidden />
+            </Button>
+          ) : null}
         </div>
         <div className="overflow-x-auto">
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                {['Pair', 'Side', 'Size', 'Entry', 'Mark', 'Unrealized PnL', 'Liq Price'].map((h) => (
+                {['Pair', 'Side', 'Size', 'Avg entry', 'Mark', 'Unrealized PnL', 'Liq Price'].map((h) => (
                   <TableHead key={h} className="font-normal text-muted-foreground/70 pb-2 pr-4">
                     {h}
                   </TableHead>

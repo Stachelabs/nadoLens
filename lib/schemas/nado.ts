@@ -172,6 +172,7 @@ export const ArchiveLiqResponseSchema = z.object({
 // ─── Archive: Trade Matches ───────────────────────────────────────────────────
 
 export const ArchiveMatchSchema = z.object({
+  digest: z.string().optional(),
   order: z.object({ priceX18: x18 }),
   base_filled: x18,
   quote_filled: x18.optional(),
@@ -221,6 +222,47 @@ const ArchiveTxSchema = z.object({
 export const ArchiveMatchesResponseSchema = z.object({
   matches: z.array(ArchiveMatchSchema).optional().default([]),
   txs: z.array(ArchiveTxSchema).optional().default([]),
+})
+
+export const MatchesQueryRequestSchema = z.object({
+  subaccounts: z.array(z.string()).min(1).max(5),
+  limit: z.number().int().positive().max(500).default(500),
+  idx: z.string().optional(),
+  isolated: z.boolean().nullable().optional().default(null),
+})
+
+export const FundingRateEntrySchema = z.object({
+  product_id: z.number(),
+  funding_rate_x18: x18,
+  update_time: z.union([z.string(), z.number()]),
+})
+
+export const FundingRatesResponseSchema = z.record(
+  z.string(),
+  FundingRateEntrySchema,
+)
+
+const FundingOrInterestPaymentSchema = z.object({
+  product_id: z.number(),
+  idx: z.string(),
+  timestamp: z.string(),
+  amount: x18,
+  balance_amount: x18.optional(),
+  rate_x18: x18.optional(),
+  oracle_price_x18: x18.optional(),
+})
+
+export const InterestAndFundingPaymentsResponseSchema = z.object({
+  interest_payments: z.array(FundingOrInterestPaymentSchema).optional().default([]),
+  funding_payments: z.array(FundingOrInterestPaymentSchema).optional().default([]),
+  next_idx: z.union([z.string(), z.number()]).nullable().optional(),
+})
+
+export const InterestAndFundingRequestSchema = z.object({
+  subaccount: z.string(),
+  product_ids: z.array(z.number().int().nonnegative()).min(1),
+  limit: z.number().int().positive().max(100).default(100),
+  max_idx: z.string().optional(),
 })
 
 // ─── Orderbook ────────────────────────────────────────────────────────────────

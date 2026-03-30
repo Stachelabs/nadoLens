@@ -18,7 +18,17 @@ type Props = {
 }
 
 function WalletContent({ address }: { address: string }) {
-  const { stats, trades, loading, tradesComplete, error } = useWalletData(address);
+  const {
+    stats,
+    trades,
+    loading,
+    tradesComplete,
+    error,
+    refresh,
+    refreshing,
+    refreshUnrealizedPnl,
+    unrealizedRefreshing,
+  } = useWalletData(address);
 
   if (loading) {
     return (
@@ -40,11 +50,22 @@ function WalletContent({ address }: { address: string }) {
     <div className="space-y-6">
       <WalletHeader stats={stats} />
       <WalletSpotBalances balances={stats.spot_balances} />
-      <WalletSummary stats={stats} tradesComplete={tradesComplete} />
+      <WalletSummary
+        stats={stats}
+        tradesComplete={tradesComplete}
+        onRefresh={refresh}
+        refreshing={refreshing}
+        onRefreshUnrealized={refreshUnrealizedPnl}
+        unrealizedRefreshing={unrealizedRefreshing}
+      />
       <WalletStats stats={stats} tradesComplete={tradesComplete} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <WalletEquityCurve trades={trades} />
-        <WalletPositions positions={stats.positions} />
+        <WalletEquityCurve trades={trades} tradesComplete={tradesComplete} />
+        <WalletPositions
+          positions={stats.positions}
+          onRefreshUnrealized={refreshUnrealizedPnl}
+          unrealizedRefreshing={unrealizedRefreshing}
+        />
       </div>
       <WalletTradeHistory trades={trades} />
     </div>

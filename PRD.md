@@ -62,6 +62,8 @@ Browser (React)
 Next.js Backend (Vercel) — pnpm
   ├── /api/pairs              → proxy liste paires Nado
   └── /api/wallet/[address]   → proxy queries Nado Gateway (évite CORS)
+  ├── /api/matches            → proxy archive matches (validation Zod)
+  └── /api/funding            → proxy archive interest_and_funding (validation Zod)
 
 WS Proxy (Railway) — Bun
   ├── GET /health     →  monitoring
@@ -96,9 +98,9 @@ Analyse n'importe quelle adresse Nado — wallet connecté ou wallet quelconque.
 |---|---|---|
 | En-tête | `subaccount_info` | Health score, equity totale, marge dispo |
 | Positions ouvertes | `subaccount_info` | Paire, côté, taille, mark price, PnL unrealized, liq price |
-| Historique trades | archive `matches` | Prix, quantité, PnL réalisé, fees, timestamp estimé |
+| Historique trades | archive `matches` via `/api/matches` | Prix, quantité, PnL réalisé, fees, timestamp |
 | Courbe d'equity | archive `matches` cumulés | TradingView Lightweight Charts — PnL cumulé dans le temps |
-| Stats globales | archive `matches` | Win rate, PnL total réalisé, volume total, avg trade size |
+| Stats globales | `matches` + `interest_and_funding` | Win rate, PnL trading (perp), funding payé, volume perp/spot/total |
 
 **Composants implémentés :**
 ```
@@ -117,7 +119,7 @@ hooks/useWalletData.ts                 ← fetch + polling + calcul stats
 - URL : `/wallet/0xc5a7...` — adresse en paramètre dynamique
 - Validation `isAddress(viem)` avant navigation + `notFound()` si invalide
 - Lien "My Wallet" dans Nav quand wallet connecté
-- Refresh positions toutes les 30s via setInterval
+- Refresh positions toutes les 30s via setInterval (pour suivre health/equity sans websocket auth)
 - Données publiques — aucune auth requise
 
 ---
