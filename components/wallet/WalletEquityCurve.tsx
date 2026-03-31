@@ -2,13 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { fromX18BigInt } from "@/types/nado";
 import type { TradeMatch } from "@/types/nado";
 import {
   buildEquityCurveData,
   type EquityPoint,
+  type FundingPaymentEntry,
 } from "@/lib/wallet/buildEquityCurve";
+import { isClosingTrade } from "@/lib/wallet/performance";
 import {
   filterTradesByPeriod,
+  filterFundingPaymentsByPeriod,
   formatEquityPeriodLabel,
   type EquityPeriod,
 } from "@/lib/wallet/equityPeriod";
@@ -30,7 +34,7 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   trades: TradeMatch[];
-  fundingPnlUsd: number;
+  fundingPayments: FundingPaymentEntry[];
   /** When false, cumulative PnL / volumes are incomplete — hide misleading chart */
   tradesComplete?: boolean;
 };
@@ -59,7 +63,7 @@ const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
 
 export function WalletEquityCurve({
   trades,
-  fundingPnlUsd,
+  fundingPayments,
   tradesComplete = true,
 }: Props) {
   const [period, setPeriod] = useState<EquityPeriod>("All time");
@@ -69,15 +73,43 @@ export function WalletEquityCurve({
     return filterTradesByPeriod(trades, period);
   }, [trades, tradesComplete, period]);
 
+  const fundingInPeriod = useMemo(() => {
+    if (!tradesComplete) return [];
+    return filterFundingPaymentsByPeriod(fundingPayments, period);
+  }, [fundingPayments, tradesComplete, period]);
+
+  const breakdown = useMemo(() => {
+    const tradingPnl = tradesInPeriod.reduce((sum, trade) => {
+      if (!trade.is_perp || !isClosingTrade(trade)) return sum;
+      return sum + fromX18BigInt(trade.realized_pnl);
+    }, 0);
+
+    const fees = tradesInPeriod.reduce(
+      (sum, trade) => sum + Math.abs(fromX18BigInt(trade.fee)),
+      0,
+    );
+
+    const fundingAndInterest = fundingInPeriod.reduce(
+      (sum, payment) => sum + fromX18BigInt(payment.amount),
+      0,
+    );
+
+    return {
+      tradingPnl,
+      fees,
+      fundingAndInterest,
+      totalNetPnl: tradingPnl - fees + fundingAndInterest,
+    };
+  }, [tradesInPeriod, fundingInPeriod]);
+
   const points = useMemo(
     () =>
       tradesComplete
         ? buildEquityCurveData(tradesInPeriod, {
-            applyFundingToEnd: period === "All time",
-            fundingPnlUsd,
+            fundingPayments: fundingInPeriod,
           })
         : [],
-    [tradesInPeriod, tradesComplete, period, fundingPnlUsd],
+    [tradesInPeriod, fundingInPeriod, tradesComplete],
   );
 
   const finalValue = points[points.length - 1]?.equity ?? 0;
@@ -227,6 +259,35 @@ export function WalletEquityCurve({
             </LineChart>
           </ChartContainer>
         )}
+        <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
+            <span className="text-muted-foreground">PnL</span>
+            <span className={cn("tabular-nums", breakdown.tradingPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+              {breakdown.tradingPnl >= 0 ? "+" : ""}
+              {fmtUsd.format(breakdown.tradingPnl)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
+            <span className="text-muted-foreground">Fees</span>
+            <span className="tabular-nums text-red-400">
+              -{fmtUsd.format(breakdown.fees)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
+            <span className="text-muted-foreground">Funding and Interest</span>
+            <span className={cn("tabular-nums", breakdown.fundingAndInterest >= 0 ? "text-emerald-400" : "text-red-400")}>
+              {breakdown.fundingAndInterest >= 0 ? "+" : ""}
+              {fmtUsd.format(breakdown.fundingAndInterest)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
+            <span className="font-medium text-foreground">Total PnL</span>
+            <span className={cn("font-semibold tabular-nums", breakdown.totalNetPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+              {breakdown.totalNetPnl >= 0 ? "+" : ""}
+              {fmtUsd.format(breakdown.totalNetPnl)}
+            </span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

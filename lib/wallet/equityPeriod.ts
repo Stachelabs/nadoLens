@@ -1,5 +1,6 @@
 import type { TradeMatch } from '@/types/nado'
 import { nanoStringToUnixSec } from '@/lib/wallet/nanoTime'
+import type { FundingPaymentEntry } from '@/lib/wallet/buildEquityCurve'
 
 export type EquityPeriod = '24 Hours' | '7 Days' | '30 Days' | 'All time'
 
@@ -34,6 +35,21 @@ export function filterTradesByPeriod(
 
   return trades.filter((t) => {
     const sec = nanoStringToUnixSec(t.timestamp)
+    if (sec === null || sec <= 0) return false
+    return sec >= bounds.startSec && sec <= bounds.endSec
+  })
+}
+
+export function filterFundingPaymentsByPeriod(
+  payments: FundingPaymentEntry[],
+  period: EquityPeriod,
+  nowMs: number = Date.now(),
+): FundingPaymentEntry[] {
+  const bounds = getPeriodBoundsUtc(period, nowMs)
+  if (!bounds) return payments
+
+  return payments.filter((p) => {
+    const sec = nanoStringToUnixSec(p.timestamp)
     if (sec === null || sec <= 0) return false
     return sec >= bounds.startSec && sec <= bounds.endSec
   })

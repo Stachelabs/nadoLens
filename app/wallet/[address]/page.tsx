@@ -21,6 +21,7 @@ function WalletContent({ address }: { address: string }) {
   const {
     stats,
     trades,
+    fundingPayments,
     loading,
     tradesComplete,
     error,
@@ -61,7 +62,7 @@ function WalletContent({ address }: { address: string }) {
       <WalletStats stats={stats} tradesComplete={tradesComplete} />
       <WalletEquityCurve
         trades={trades}
-        fundingPnlUsd={stats.funding_pnl_usd}
+        fundingPayments={fundingPayments}
         tradesComplete={tradesComplete}
       />
       <WalletPositions

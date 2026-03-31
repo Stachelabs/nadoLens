@@ -7,6 +7,7 @@ import {
   InterestAndFundingPaymentsResponseSchema,
 } from "@/lib/schemas/nado";
 import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
+import type { FundingPaymentEntry } from "@/lib/wallet/buildEquityCurve";
 import { mergePositionsWithVwapEntry } from "@/lib/wallet/perpVwapEntry";
 import {
   computeTradeMetrics,
@@ -34,6 +35,11 @@ type MatchesPageResult = {
   done: boolean;
   /** True when Archive kept returning 429 after retries — do not treat as end of history. */
   rateLimited?: boolean;
+};
+
+type FundingFetchResult = {
+  totalFundingUsd: number;
+  payments: FundingPaymentEntry[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -198,6 +204,7 @@ type SubaccountEntry = { subaccount: string; isolated: boolean };
 export type WalletData = {
   stats: WalletStats | null;
   trades: TradeMatch[];
+  fundingPayments: FundingPaymentEntry[];
   loading: boolean;
   tradesComplete: boolean;
   error: string | null;
@@ -219,6 +226,7 @@ export function useWalletData(rawAddress: string): WalletData {
   >({
     stats: null,
     trades: [],
+    fundingPayments: [],
     loading: true,
     tradesComplete: false,
     error: null,
@@ -235,6 +243,7 @@ export function useWalletData(rawAddress: string): WalletData {
   const vwapTradesRef = useRef<TradeMatch[]>([]);
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
+  const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
 
@@ -243,6 +252,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
     let cancelled = false;
     fundingPaidUsdRef.current = 0;
+    fundingPaymentsRef.current = [];
 
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
@@ -452,14 +462,17 @@ export function useWalletData(rawAddress: string): WalletData {
     const fetchFundingPaidBySubaccount = async (
       subaccount: string,
       productIds: number[],
-    ): Promise<number> => {
-      if (productIds.length === 0) return 0;
+    ): Promise<FundingFetchResult> => {
+      if (productIds.length === 0) {
+        return { totalFundingUsd: 0, payments: [] };
+      }
       const LIMIT = 100;
       const MAX_PAGES = 100;
       let page = 0;
       let maxIdx: string | undefined;
       let totalFundingUsd = 0;
       const seen = new Set<string>();
+      const payments: FundingPaymentEntry[] = [];
 
       while (page < MAX_PAGES) {
         page += 1;
@@ -482,34 +495,55 @@ export function useWalletData(rawAddress: string): WalletData {
         const result = InterestAndFundingPaymentsResponseSchema.safeParse(raw);
         if (!result.success) break;
 
-        for (const payment of result.data.funding_payments) {
-          const key = `${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          totalFundingUsd += fromX18BigInt(payment.amount);
-        }
+        const collectPayments = (
+          source: "funding" | "interest",
+          items: typeof result.data.funding_payments,
+        ) => {
+          for (const payment of items) {
+            const key = `${source}:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            totalFundingUsd += fromX18BigInt(payment.amount);
+            payments.push({
+              subaccount,
+              product_id: payment.product_id,
+              idx: payment.idx,
+              timestamp: payment.timestamp,
+              amount: payment.amount,
+              source,
+            });
+          }
+        };
+
+        collectPayments("funding", result.data.funding_payments);
+        collectPayments("interest", result.data.interest_payments);
 
         const nextIdx = result.data.next_idx;
         if (nextIdx === null || nextIdx === undefined) break;
         maxIdx = String(nextIdx);
       }
 
-      return totalFundingUsd;
+      return { totalFundingUsd, payments };
     };
 
     /** One paginated stream per subaccount — serialized to avoid bursting Archive. */
     const fetchFundingPaidAllSubaccounts = async (
       subs: string[],
       productIds: number[],
-    ): Promise<number> => {
-      if (subs.length === 0 || productIds.length === 0) return 0;
-      let total = 0;
+    ): Promise<FundingFetchResult> => {
+      if (subs.length === 0 || productIds.length === 0) {
+        return { totalFundingUsd: 0, payments: [] };
+      }
+      let totalFundingUsd = 0;
+      const payments: FundingPaymentEntry[] = [];
       for (let i = 0; i < subs.length; i++) {
         const subaccount = subs[i]!;
-        total += await fetchFundingPaidBySubaccount(subaccount, productIds);
+        const result = await fetchFundingPaidBySubaccount(subaccount, productIds);
+        totalFundingUsd += result.totalFundingUsd;
+        payments.push(...result.payments);
         if (i < subs.length - 1) await sleep(120);
       }
-      return total;
+      return { totalFundingUsd, payments };
     };
 
     const getAllPerpProductIds = (): number[] => {
@@ -520,17 +554,19 @@ export function useWalletData(rawAddress: string): WalletData {
     const fetchFundingPaid = async (
       subaccounts: string[],
       fallbackProductIds: number[],
-    ): Promise<number> => {
+    ): Promise<FundingFetchResult> => {
       const allPerpIds = getAllPerpProductIds();
       const productIds = allPerpIds.length > 0
         ? allPerpIds
         : Array.from(new Set(fallbackProductIds));
-      if (productIds.length === 0) return 0;
+      if (productIds.length === 0) {
+        return { totalFundingUsd: 0, payments: [] };
+      }
 
       try {
         return await fetchFundingPaidAllSubaccounts(subaccounts, productIds);
       } catch {
-        return 0;
+        return { totalFundingUsd: 0, payments: [] };
       }
     };
 
@@ -590,6 +626,7 @@ export function useWalletData(rawAddress: string): WalletData {
           setData({
             stats: null,
             trades: [],
+            fundingPayments: [],
             loading: false,
             tradesComplete: false,
             refreshing: false,
@@ -606,14 +643,15 @@ export function useWalletData(rawAddress: string): WalletData {
       let allTrades = sortTradesNewestFirst(firstPages.flatMap((page) => page.trades));
       const seenTradeIds = new Set(allTrades.map(tradeIdentity));
       tradesRef.current = allTrades;
-      const fundingPaidUsd = await fetchFundingPaid(
+      const fundingData = await fetchFundingPaid(
         subAddrs,
         positionData.positions.map((position) => position.product_id),
       );
-      fundingPaidUsdRef.current = fundingPaidUsd;
+      fundingPaidUsdRef.current = fundingData.totalFundingUsd;
+      fundingPaymentsRef.current = fundingData.payments;
       const initialPnlStats = buildPnlStats(
         allTrades,
-        fundingPaidUsd,
+        fundingData.totalFundingUsd,
       );
 
       // Render dashboard immediately after first page
@@ -637,6 +675,7 @@ export function useWalletData(rawAddress: string): WalletData {
           ...initialPnlStats,
         },
         trades: allTrades,
+        fundingPayments: fundingData.payments,
         loading: false,
         refreshing: false,
         unrealizedRefreshing: false,
@@ -690,7 +729,7 @@ export function useWalletData(rawAddress: string): WalletData {
           }
 
           tradesRef.current = allTrades;
-          const updatedStats = buildPnlStats(allTrades, fundingPaidUsd);
+          const updatedStats = buildPnlStats(allTrades, fundingData.totalFundingUsd);
           const allDone = chunkStates.every((state) => state.done);
 
           setData((prev) => ({
@@ -820,6 +859,7 @@ export function useWalletData(rawAddress: string): WalletData {
       cancelled = true;
       tradesRef.current = [];
       vwapTradesRef.current = [];
+      fundingPaymentsRef.current = [];
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [rawAddress]);
