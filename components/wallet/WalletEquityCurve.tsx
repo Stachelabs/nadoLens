@@ -89,7 +89,7 @@ export function WalletEquityCurve({
       0,
     );
 
-    const fundingAndInterest = fundingInPeriod.reduce(
+    const funding = fundingInPeriod.reduce(
       (sum, payment) => sum + fromX18BigInt(payment.amount),
       0,
     );
@@ -97,8 +97,8 @@ export function WalletEquityCurve({
     return {
       tradingPnl,
       fees,
-      fundingAndInterest,
-      totalNetPnl: tradingPnl - fees + fundingAndInterest,
+      funding,
+      totalNetPnl: tradingPnl - fees + funding,
     };
   }, [tradesInPeriod, fundingInPeriod]);
 
@@ -274,10 +274,10 @@ export function WalletEquityCurve({
             </span>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
-            <span className="text-muted-foreground">Funding and Interest</span>
-            <span className={cn("tabular-nums", breakdown.fundingAndInterest >= 0 ? "text-emerald-400" : "text-red-400")}>
-              {breakdown.fundingAndInterest >= 0 ? "+" : ""}
-              {fmtUsd.format(breakdown.fundingAndInterest)}
+            <span className="text-muted-foreground">Funding</span>
+            <span className={cn("tabular-nums", breakdown.funding >= 0 ? "text-emerald-400" : "text-red-400")}>
+              {breakdown.funding >= 0 ? "+" : ""}
+              {fmtUsd.format(breakdown.funding)}
             </span>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">

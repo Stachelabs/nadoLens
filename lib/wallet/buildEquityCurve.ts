@@ -9,7 +9,7 @@ export type FundingPaymentEntry = {
   idx: string
   timestamp: string
   amount: string
-  source: 'funding' | 'interest'
+  source: 'funding'
 }
 
 export type EquityPoint = {

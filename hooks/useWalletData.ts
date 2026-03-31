@@ -24,6 +24,8 @@ const MAX_PAGES = 50;
 /** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
 const MATCHES_BURST_MS = 220;
 const MATCHES_429_MAX_ATTEMPTS = 8;
+const FUNDING_BURST_MS = 120;
+const FUNDING_429_MAX_ATTEMPTS = 8;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,6 +42,8 @@ type MatchesPageResult = {
 type FundingFetchResult = {
   totalFundingUsd: number;
   payments: FundingPaymentEntry[];
+  complete: boolean;
+  rateLimited?: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -207,6 +211,7 @@ export type WalletData = {
   fundingPayments: FundingPaymentEntry[];
   loading: boolean;
   tradesComplete: boolean;
+  fundingComplete: boolean;
   error: string | null;
   /** True while re-fetching subaccounts + matches + funding (manual refresh). */
   refreshing: boolean;
@@ -229,6 +234,7 @@ export function useWalletData(rawAddress: string): WalletData {
     fundingPayments: [],
     loading: true,
     tradesComplete: false,
+    fundingComplete: false,
     error: null,
     refreshing: false,
     unrealizedRefreshing: false,
@@ -464,7 +470,11 @@ export function useWalletData(rawAddress: string): WalletData {
       productIds: number[],
     ): Promise<FundingFetchResult> => {
       if (productIds.length === 0) {
-        return { totalFundingUsd: 0, payments: [] };
+        return {
+          totalFundingUsd: 0,
+          payments: [],
+          complete: true,
+        };
       }
       const LIMIT = 100;
       const MAX_PAGES = 100;
@@ -473,6 +483,7 @@ export function useWalletData(rawAddress: string): WalletData {
       let totalFundingUsd = 0;
       const seen = new Set<string>();
       const payments: FundingPaymentEntry[] = [];
+      let complete = true;
 
       while (page < MAX_PAGES) {
         page += 1;
@@ -483,17 +494,38 @@ export function useWalletData(rawAddress: string): WalletData {
           ...(maxIdx ? { max_idx: maxIdx } : {}),
         };
 
-        const res = await fetch("/api/funding", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-        if (!res.ok) break;
+        let res: Response | null = null;
+        for (let attempt = 1; attempt <= FUNDING_429_MAX_ATTEMPTS; attempt++) {
+          res = await fetch("/api/funding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            cache: "no-store",
+          });
+          if (res.status !== 429) break;
+          if (attempt < FUNDING_429_MAX_ATTEMPTS) {
+            await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 2500));
+          }
+        }
+        if (!res || res.status === 429) {
+          return {
+            totalFundingUsd,
+            payments,
+            complete: false,
+            rateLimited: true,
+          };
+        }
+        if (!res.ok) {
+          complete = false;
+          break;
+        }
 
         const raw: unknown = await res.json();
         const result = InterestAndFundingPaymentsResponseSchema.safeParse(raw);
-        if (!result.success) break;
+        if (!result.success) {
+          complete = false;
+          break;
+        }
 
         const collectPayments = (
           source: "funding" | "interest",
@@ -503,27 +535,29 @@ export function useWalletData(rawAddress: string): WalletData {
             const key = `${source}:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
             if (seen.has(key)) continue;
             seen.add(key);
-            totalFundingUsd += fromX18BigInt(payment.amount);
+            const amount = fromX18BigInt(payment.amount);
+            totalFundingUsd += amount;
             payments.push({
               subaccount,
               product_id: payment.product_id,
               idx: payment.idx,
               timestamp: payment.timestamp,
               amount: payment.amount,
-              source,
+              source: "funding",
             });
           }
         };
 
         collectPayments("funding", result.data.funding_payments);
-        collectPayments("interest", result.data.interest_payments);
 
         const nextIdx = result.data.next_idx;
         if (nextIdx === null || nextIdx === undefined) break;
         maxIdx = String(nextIdx);
+        await sleep(FUNDING_BURST_MS);
       }
 
-      return { totalFundingUsd, payments };
+      if (page >= MAX_PAGES) complete = false;
+      return { totalFundingUsd, payments, complete };
     };
 
     /** One paginated stream per subaccount — serialized to avoid bursting Archive. */
@@ -532,18 +566,32 @@ export function useWalletData(rawAddress: string): WalletData {
       productIds: number[],
     ): Promise<FundingFetchResult> => {
       if (subs.length === 0 || productIds.length === 0) {
-        return { totalFundingUsd: 0, payments: [] };
+        return {
+          totalFundingUsd: 0,
+          payments: [],
+          complete: true,
+        };
       }
       let totalFundingUsd = 0;
       const payments: FundingPaymentEntry[] = [];
+      let complete = true;
       for (let i = 0; i < subs.length; i++) {
         const subaccount = subs[i]!;
         const result = await fetchFundingPaidBySubaccount(subaccount, productIds);
         totalFundingUsd += result.totalFundingUsd;
         payments.push(...result.payments);
-        if (i < subs.length - 1) await sleep(120);
+        if (!result.complete) complete = false;
+        if (result.rateLimited) {
+          return {
+            totalFundingUsd,
+            payments,
+            complete: false,
+            rateLimited: true,
+          };
+        }
+        if (i < subs.length - 1) await sleep(FUNDING_BURST_MS);
       }
-      return { totalFundingUsd, payments };
+      return { totalFundingUsd, payments, complete };
     };
 
     const getAllPerpProductIds = (): number[] => {
@@ -560,13 +608,21 @@ export function useWalletData(rawAddress: string): WalletData {
         ? allPerpIds
         : Array.from(new Set(fallbackProductIds));
       if (productIds.length === 0) {
-        return { totalFundingUsd: 0, payments: [] };
+        return {
+          totalFundingUsd: 0,
+          payments: [],
+          complete: true,
+        };
       }
 
       try {
         return await fetchFundingPaidAllSubaccounts(subaccounts, productIds);
       } catch {
-        return { totalFundingUsd: 0, payments: [] };
+        return {
+          totalFundingUsd: 0,
+          payments: [],
+          complete: false,
+        };
       }
     };
 
@@ -629,6 +685,7 @@ export function useWalletData(rawAddress: string): WalletData {
             fundingPayments: [],
             loading: false,
             tradesComplete: false,
+            fundingComplete: false,
             refreshing: false,
             unrealizedRefreshing: false,
             error:
@@ -680,7 +737,13 @@ export function useWalletData(rawAddress: string): WalletData {
         refreshing: false,
         unrealizedRefreshing: false,
         tradesComplete: firstPages.every((page) => page.done),
-        error: null,
+        fundingComplete: fundingData.complete,
+        error:
+          fundingData.rateLimited
+            ? "Archive rate limit while loading funding — partial funding data shown."
+            : !fundingData.complete
+              ? "Funding history may be partial (page cap or API error)."
+              : null,
       });
 
       // Background: fetch remaining pages (per chunk, because matches max=5 subaccounts/request)
@@ -729,7 +792,10 @@ export function useWalletData(rawAddress: string): WalletData {
           }
 
           tradesRef.current = allTrades;
-          const updatedStats = buildPnlStats(allTrades, fundingData.totalFundingUsd);
+          const updatedStats = buildPnlStats(
+            allTrades,
+            fundingData.totalFundingUsd,
+          );
           const allDone = chunkStates.every((state) => state.done);
 
           setData((prev) => ({

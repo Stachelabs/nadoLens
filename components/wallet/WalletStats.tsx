@@ -8,10 +8,16 @@ const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'US
 type Props = {
   stats: WalletStats
   tradesComplete?: boolean
+  fundingComplete?: boolean
 }
 
-export function WalletStats({ stats, tradesComplete = true }: Props) {
+export function WalletStats({
+  stats,
+  tradesComplete = true,
+  fundingComplete = true,
+}: Props) {
   const isPnlPositive = stats.net_pnl_usd >= 0
+  const pnlComplete = tradesComplete && fundingComplete
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count
   const dash = '—'
 
@@ -24,7 +30,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
     },
     {
       label: 'Total PnL',
-      value: tradesComplete
+      value: pnlComplete
         ? `${isPnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`
         : dash,
       color: isPnlPositive ? 'text-emerald-400' : 'text-red-400',

@@ -24,6 +24,7 @@ function WalletContent({ address }: { address: string }) {
     fundingPayments,
     loading,
     tradesComplete,
+    fundingComplete,
     error,
     refresh,
     refreshing,
@@ -33,7 +34,7 @@ function WalletContent({ address }: { address: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
         <Spinner size={48} />
       </div>
     );
@@ -54,12 +55,17 @@ function WalletContent({ address }: { address: string }) {
       <WalletSummary
         stats={stats}
         tradesComplete={tradesComplete}
+        fundingComplete={fundingComplete}
         onRefresh={refresh}
         refreshing={refreshing}
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
       />
-      <WalletStats stats={stats} tradesComplete={tradesComplete} />
+      <WalletStats
+        stats={stats}
+        tradesComplete={tradesComplete}
+        fundingComplete={fundingComplete}
+      />
       <WalletEquityCurve
         trades={trades}
         fundingPayments={fundingPayments}

@@ -118,6 +118,8 @@ export function mergePnl(
     ...tradeMetrics,
     funding_pnl_usd,
     net_pnl_usd:
-      tradeMetrics.trading_pnl_usd - tradeMetrics.total_fees_usd + funding_pnl_usd,
+      tradeMetrics.trading_pnl_usd -
+      tradeMetrics.total_fees_usd +
+      funding_pnl_usd,
   };
 }
