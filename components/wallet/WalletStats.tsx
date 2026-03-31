@@ -67,9 +67,12 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
           Loading trade history…
         </div>
       )}
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="flex flex-row flex-wrap gap-3 lg:flex-nowrap">
       {items.map(({ label, value, color, sub }) => (
-        <Card key={label} className="border-border bg-card">
+        <Card
+          key={label}
+          className="border-border bg-card min-w-0 flex-[1_1_calc(50%-6px)] sm:flex-[1_1_calc(33.333%-8px)] lg:flex-1"
+        >
           <CardContent className="p-3 text-center">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">{label}</div>
             <div className={`text-base font-bold tabular-nums ${color}`}>{value}</div>

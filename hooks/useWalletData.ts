@@ -7,6 +7,7 @@ import {
   InterestAndFundingPaymentsResponseSchema,
 } from "@/lib/schemas/nado";
 import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
+import { mergePositionsWithVwapEntry } from "@/lib/wallet/perpVwapEntry";
 import {
   computeTradeMetrics,
   mergePnl,
@@ -109,12 +110,21 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
         : "0";
 
     // Actual fill price = |quote_filled / base_filled|, fallback to order priceX18
-    const quoteFilled = parseFloat(m.quote_filled ?? "0");
-    const baseFilledAbs = Math.abs(baseFilled);
-    const fillPrice =
-      baseFilledAbs > 0 && m.quote_filled
-        ? Math.abs(quoteFilled) / baseFilledAbs
-        : parseFloat(m.order?.priceX18 ?? "0") / 1e18;
+    const WAD_LOCAL = BigInt(10) ** BigInt(18);
+    let priceX18Str: string;
+    try {
+      const baseB = BigInt(m.base_filled ?? "0");
+      if (baseB !== BigInt(0) && m.quote_filled) {
+        const quoteB = BigInt(m.quote_filled);
+        const absBase = baseB < BigInt(0) ? -baseB : baseB;
+        const absQuote = quoteB < BigInt(0) ? -quoteB : quoteB;
+        priceX18Str = ((absQuote * WAD_LOCAL) / absBase).toString();
+      } else {
+        priceX18Str = m.order?.priceX18 ?? "0";
+      }
+    } catch {
+      priceX18Str = m.order?.priceX18 ?? "0";
+    }
 
     return {
       digest: m.digest,
@@ -123,7 +133,7 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
       product_id: productId,
       pair: productName(productId),
       amount: m.base_filled ?? "0",
-      price: (fillPrice * 1e18).toFixed(0),
+      price: priceX18Str,
       quote_filled: m.quote_filled ?? "0",
       realized_pnl: m.realized_pnl ?? "0",
       closed_amount: m.closed_amount ?? "0",
@@ -218,6 +228,11 @@ export function useWalletData(rawAddress: string): WalletData {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
   const tradesRef = useRef<TradeMatch[]>([]);
+  /**
+   * Perp fills for open positions' product_ids only (Archive `matches` + product_ids).
+   * Used for avg-entry VWAP; avoids mixing other markets into replay on the first page.
+   */
+  const vwapTradesRef = useRef<TradeMatch[]>([]);
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
@@ -331,12 +346,16 @@ export function useWalletData(rawAddress: string): WalletData {
     const fetchOnePage = async (
       subs: string[],
       lastIdx?: string,
+      productIds?: number[],
     ): Promise<MatchesPageResult> => {
       const body: Record<string, unknown> = {
         subaccounts: subs,
         isolated: null,
         limit: MATCHES_LIMIT,
         ...(lastIdx ? { idx: lastIdx } : {}),
+        ...(productIds && productIds.length > 0
+          ? { product_ids: productIds }
+          : {}),
       };
 
       for (let attempt = 0; attempt < MATCHES_429_MAX_ATTEMPTS; attempt++) {
@@ -399,6 +418,35 @@ export function useWalletData(rawAddress: string): WalletData {
         done: false,
         rateLimited: true,
       };
+    };
+
+    /** Paginate Archive `matches` with product filter — correct VWAP replay without cross-market noise. */
+    const fetchAllMatchesForVwap = async (
+      chunks: string[][],
+      productIds: number[],
+    ): Promise<TradeMatch[]> => {
+      const out: TradeMatch[] = [];
+      const seen = new Set<string>();
+      for (let c = 0; c < chunks.length; c++) {
+        const chunk = chunks[c]!;
+        let nextIdx: string | undefined;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const result = await fetchOnePage(chunk, nextIdx, productIds);
+          if (result.rateLimited) break;
+          for (const t of result.trades) {
+            const id = tradeIdentity(t);
+            if (seen.has(id)) continue;
+            seen.add(id);
+            out.push(t);
+          }
+          if (result.done) break;
+          nextIdx = result.nextIdx ?? undefined;
+          if (!nextIdx) break;
+          await sleep(MATCHES_BURST_MS);
+        }
+        if (c < chunks.length - 1) await sleep(MATCHES_BURST_MS);
+      }
+      return sortTradesNewestFirst(out);
     };
 
     const fetchFundingPaidBySubaccount = async (
@@ -508,11 +556,18 @@ export function useWalletData(rawAddress: string): WalletData {
 
       const subaccountChunks = chunk(subAddrs, 5);
 
-      let positionData: Awaited<ReturnType<typeof fetchAllPositions>>;
+      const positionData = await fetchAllPositions(subs);
+      if (cancelled) return;
+
+      const openProductIds = [
+        ...new Set(positionData.positions.map((p) => p.product_id)),
+      ];
+      vwapTradesRef.current = [];
+
       let firstPages: MatchesPageResult[];
+      let vwapTrades: TradeMatch[] = [];
       try {
-        [positionData, firstPages] = await Promise.all([
-          fetchAllPositions(subs),
+        [firstPages, vwapTrades] = await Promise.all([
           (async (): Promise<MatchesPageResult[]> => {
             const pages: MatchesPageResult[] = [];
             for (let c = 0; c < subaccountChunks.length; c++) {
@@ -524,7 +579,11 @@ export function useWalletData(rawAddress: string): WalletData {
             }
             return pages;
           })(),
+          openProductIds.length > 0
+            ? fetchAllMatchesForVwap(subaccountChunks, openProductIds)
+            : Promise.resolve([]),
         ]);
+        vwapTradesRef.current = vwapTrades;
       } catch (e) {
         if (cancelled) return;
         if (e instanceof Error && e.message === "RATE_LIMIT") {
@@ -566,7 +625,12 @@ export function useWalletData(rawAddress: string): WalletData {
           available_margin: positionData.availableMargin,
           maintenance_margin: positionData.maintenanceMargin,
           unrealized_pnl_usd: positionData.unrealizedTotal,
-          positions: positionData.positions,
+          positions: mergePositionsWithVwapEntry(
+            positionData.positions,
+            vwapTradesRef.current.length > 0
+              ? vwapTradesRef.current
+              : allTrades,
+          ),
           spot_balances: positionData.spotBalances,
           trades: allTrades,
           trades_complete: firstPages.every((page) => page.done),
@@ -639,6 +703,12 @@ export function useWalletData(rawAddress: string): WalletData {
                   trades: allTrades,
                   trades_complete: allDone || page === MAX_PAGES - 1,
                   ...updatedStats,
+                  positions: mergePositionsWithVwapEntry(
+                    prev.stats.positions,
+                    vwapTradesRef.current.length > 0
+                      ? vwapTradesRef.current
+                      : allTrades,
+                  ),
                 }
               : null,
           }));
@@ -669,7 +739,12 @@ export function useWalletData(rawAddress: string): WalletData {
           stats: prev.stats
             ? {
                 ...prev.stats,
-                positions: pd.positions,
+                positions: mergePositionsWithVwapEntry(
+                  pd.positions,
+                  vwapTradesRef.current.length > 0
+                    ? vwapTradesRef.current
+                    : tradesRef.current,
+                ),
                 spot_balances: pd.spotBalances,
                 unrealized_pnl_usd: pd.unrealizedTotal,
               }
@@ -693,7 +768,12 @@ export function useWalletData(rawAddress: string): WalletData {
             stats: prev.stats
               ? {
                   ...prev.stats,
-                  positions: pd.positions,
+                  positions: mergePositionsWithVwapEntry(
+                    pd.positions,
+                    vwapTradesRef.current.length > 0
+                      ? vwapTradesRef.current
+                      : tradesRef.current,
+                  ),
                   spot_balances: pd.spotBalances,
                   unrealized_pnl_usd: pd.unrealizedTotal,
                 }
@@ -739,6 +819,7 @@ export function useWalletData(rawAddress: string): WalletData {
     return () => {
       cancelled = true;
       tradesRef.current = [];
+      vwapTradesRef.current = [];
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [rawAddress]);

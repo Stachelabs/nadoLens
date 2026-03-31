@@ -45,6 +45,10 @@ export type AccountHealth = {
 export type Position = {
   product_id: number
   pair: string
+  /** Subaccount bytes32 from Gateway (disambiguates cross + isolated same product). */
+  subaccount: string
+  /** Raw x18 base size from Gateway — used to reconcile VWAP replay vs `subaccount_info`. */
+  amount_x18: string
   amount: number
   entry_price: number
   mark_price: number

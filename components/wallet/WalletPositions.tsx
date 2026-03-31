@@ -82,7 +82,10 @@ export function WalletPositions({
                   Math.abs(pos.mark_price - pos.liquidation_price) / pos.mark_price < 0.1
 
                 return (
-                  <TableRow key={pos.product_id} className="border-border/50">
+                  <TableRow
+                    key={`${pos.subaccount}-${pos.product_id}-${pos.isolated ? 'i' : 'c'}`}
+                    className="border-border/50"
+                  >
                     <TableCell className="py-2 pr-4 font-mono text-foreground">{pos.pair}</TableCell>
                     <TableCell className="py-2 pr-4">
                       <Badge

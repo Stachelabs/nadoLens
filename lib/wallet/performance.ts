@@ -16,7 +16,7 @@ export type TradeMetrics = {
   last_trade_at: string | null;
 };
 
-function isClosingTrade(trade: TradeMatch): boolean {
+export function isClosingTrade(trade: TradeMatch): boolean {
   try {
     return BigInt(trade.closed_amount) !== BigInt(0);
   } catch {

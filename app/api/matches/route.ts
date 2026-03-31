@@ -32,6 +32,9 @@ export async function POST(
         limit: bodyResult.data.limit,
         isolated: bodyResult.data.isolated,
         ...(bodyResult.data.idx ? { idx: bodyResult.data.idx } : {}),
+        ...(bodyResult.data.product_ids?.length
+          ? { product_ids: bodyResult.data.product_ids }
+          : {}),
       },
     }),
     cache: "no-store",

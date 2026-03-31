@@ -229,6 +229,8 @@ export const MatchesQueryRequestSchema = z.object({
   limit: z.number().int().positive().max(500).default(500),
   idx: z.string().optional(),
   isolated: z.boolean().nullable().optional().default(null),
+  /** When set, Archive returns only fills for these perp product ids (Nado matches API). */
+  product_ids: z.array(z.number().int().nonnegative()).min(1).optional(),
 })
 
 export const FundingRateEntrySchema = z.object({

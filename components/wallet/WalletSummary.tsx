@@ -93,15 +93,17 @@ function Section({
   title,
   loading,
   action,
+  className,
   children,
 }: {
   title: string
   loading?: boolean
   action?: ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   return (
-    <div>
+    <div className={cn(className)}>
       <div className="flex items-center justify-between gap-2 mb-2 min-h-6">
         <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/70">
           {title}
@@ -124,15 +126,16 @@ export function WalletSummary({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
-  const unrealizedPnl = stats.positions.reduce((s, p) => s + p.unrealized_pnl, 0)
+  // Same total as parseSubaccountInfo.unrealizedTotal (BigInt-safe); do not re-sum floats here.
+  const unrealizedPnl = stats.unrealized_pnl_usd
   const isUnrealizedPositive = unrealizedPnl >= 0
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0
 
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
-          <div className="flex flex-col gap-6 min-w-0">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
+          <div className="flex min-w-0 w-full flex-col gap-6 lg:flex-1 lg:basis-0">
             <Section title="Trader Equity">
               <Row label="Equity" value={fmtUsd.format(stats.total_equity_usd)} />
               <Row label="Maintenance" value={fmtUsd.format(stats.maintenance_margin)} />
@@ -179,6 +182,7 @@ export function WalletSummary({
           </div>
 
           <Section
+            className="min-w-0 w-full lg:flex-1 lg:basis-0"
             title="Overview"
             loading={!tradesComplete}
             action={
