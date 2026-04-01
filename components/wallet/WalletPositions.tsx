@@ -115,7 +115,17 @@ export function WalletPositions({
                   'Unrealized PnL',
                   'Liq Price',
                 ].map((h) => (
-                  <TableHead key={h} className="font-normal text-muted-foreground/70 pb-2 pr-4">
+                  <TableHead
+                    key={h}
+                    className={cn(
+                      'font-normal text-muted-foreground/70 pb-2',
+                      h === 'Side'
+                        ? 'text-center pr-2'
+                        : h === 'Pair' || h === 'Sub account'
+                          ? 'text-left pr-4'
+                          : 'text-right pr-4'
+                    )}
+                  >
                     {h}
                   </TableHead>
                 ))}
@@ -147,7 +157,7 @@ export function WalletPositions({
                         {displaySubaccount(pos)}
                       </TableCell>
                     ) : null}
-                    <TableCell className="py-2 pr-4">
+                    <TableCell className="py-2 pr-2 text-center">
                       <Badge
                         variant="outline"
                         className={cn(

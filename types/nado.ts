@@ -69,6 +69,8 @@ export type TradeMatch = {
   digest?: string
   /** Subaccount bytes32 from Archive `matches.order.sender` when available. */
   subaccount?: string
+  /** True when this fill is taker-side for the tracked sender. */
+  is_taker?: boolean
   timestamp: string
   submission_idx: string
   product_id: number

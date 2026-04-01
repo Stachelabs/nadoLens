@@ -145,6 +145,7 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
     return {
       digest: m.digest,
       subaccount: m.order?.sender,
+      is_taker: m.is_taker,
       timestamp: timestampStr,
       submission_idx: m.submission_idx,
       product_id: productId,

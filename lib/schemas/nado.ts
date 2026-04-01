@@ -187,6 +187,7 @@ export const ArchiveMatchSchema = z.object({
   quote_filled: x18.optional(),
   fee: x18,
   sequencer_fee: x18.optional().default('0'),
+  is_taker: z.boolean().optional(),
   submission_idx: z.string(),
   closed_amount: x18,
   realized_pnl: x18,

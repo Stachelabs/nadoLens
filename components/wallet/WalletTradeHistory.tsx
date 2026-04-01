@@ -19,7 +19,10 @@ import { nanoStringToMs } from '@/lib/wallet/nanoTime'
 const PAGE_SIZE = 50
 
 const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-const fmtQty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const fmtQty = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+})
 
 function fmtTime(ts: string): string {
   const ms = nanoStringToMs(ts)
@@ -90,8 +93,20 @@ export function WalletTradeHistory({ trades }: Props) {
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                {['Time', 'Pair', 'Side', 'Price', 'Qty', 'Realized PnL', 'Fee'].map((h, i) => (
-                  <TableHead key={h} className={cn('font-normal text-muted-foreground/70 pb-2 pr-4', i >= 3 ? 'text-right' : '')}>
+                {['Time', 'Pair', 'Side', 'Role', 'Price', 'Qty', 'Realized PnL', 'Fees'].map((h, i) => (
+                  <TableHead
+                    key={h}
+                    className={cn(
+                      'font-normal text-muted-foreground/70 pb-2',
+                      i <= 1
+                        ? 'text-left'
+                        : i >= 4
+                          ? i === 7
+                            ? 'text-right pr-2'
+                            : 'text-right pr-4'
+                          : 'text-center'
+                    )}
+                  >
                     {h}
                   </TableHead>
                 ))}
@@ -105,12 +120,14 @@ export function WalletTradeHistory({ trades }: Props) {
                 const fee = fromX18(t.fee)
                 const hasPnl = Math.abs(pnl) > 0.001
                 const pnlColor = pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                const role =
+                  t.is_taker === true ? 'TAKER' : t.is_taker === false ? 'MAKER' : 'UNKNOWN'
 
                 return (
                   <TableRow key={pageStart + i} className="border-border/50 hover:bg-muted/20">
                     <TableCell className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{fmtTime(t.timestamp)}</TableCell>
                     <TableCell className="py-2 pr-4 font-mono text-foreground/70">{t.pair}</TableCell>
-                    <TableCell className="py-2 pr-4">
+                    <TableCell className="py-2 text-center">
                       <Badge
                         variant="outline"
                         className={cn(
@@ -121,6 +138,21 @@ export function WalletTradeHistory({ trades }: Props) {
                         )}
                       >
                         {t.side.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-2 text-center">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'text-[10px] font-semibold',
+                          role === 'TAKER'
+                            ? 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+                            : role === 'MAKER'
+                              ? 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+                              : 'border-muted-foreground/20 bg-muted/10 text-muted-foreground'
+                        )}
+                      >
+                        {role}
                       </Badge>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtUsd.format(price)}</TableCell>
