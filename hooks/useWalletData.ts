@@ -120,9 +120,9 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
         ? (BigInt(timeSec) * BigInt(1_000_000_000)).toString()
         : "0";
 
-    // Fill price for avg-entry replay = |(quote_filled - fee) / base_filled| in x18.
-    // Nado UI entry appears fee-adjusted on open fills (matches latest screenshot parity).
-    // We do not subtract sequencer_fee separately because `fee` already includes it per docs.
+    // Fill price for avg-entry replay = |(quote_filled + fee) / base_filled| in x18.
+    // This follows Nado Definitions/Formulas docs for matches fill price.
+    // We do not add sequencer_fee separately because `fee` is the exchange fee field used in formula.
     const WAD_LOCAL = BigInt(10) ** BigInt(18);
     let priceX18Str: string;
     try {
@@ -131,10 +131,10 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
         const quoteB = BigInt(m.quote_filled);
         const feeB = BigInt(m.fee ?? "0");
         const absBase = baseB < BigInt(0) ? -baseB : baseB;
-        const absQuote = quoteB < BigInt(0) ? -quoteB : quoteB;
-        const absFee = feeB < BigInt(0) ? -feeB : feeB;
-        const netQuote = absQuote > absFee ? absQuote - absFee : absQuote;
-        priceX18Str = ((netQuote * WAD_LOCAL) / absBase).toString();
+        const signedNotional = quoteB + feeB;
+        const absSignedNotional =
+          signedNotional < BigInt(0) ? -signedNotional : signedNotional;
+        priceX18Str = ((absSignedNotional * WAD_LOCAL) / absBase).toString();
       } else {
         priceX18Str = m.order?.priceX18 ?? "0";
       }
@@ -254,6 +254,7 @@ export function useWalletData(rawAddress: string): WalletData {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
   const isolatedParentNameRef = useRef<Map<string, string>>(new Map());
+  const isolatedParentSubaccountRef = useRef<Map<string, string>>(new Map());
   const tradesRef = useRef<TradeMatch[]>([]);
   /**
    * Perp fills for open positions' product_ids only (Archive `matches` + product_ids).
@@ -297,10 +298,14 @@ export function useWalletData(rawAddress: string): WalletData {
       }
     };
 
-    const fetchIsolatedParentNameMap = async (
+    const fetchIsolatedParentMaps = async (
       subs: SubaccountEntry[],
-    ): Promise<Map<string, string>> => {
-      const out = new Map<string, string>();
+    ): Promise<{
+      parentNameByIsolatedSubaccount: Map<string, string>;
+      parentSubaccountByIsolatedSubaccount: Map<string, string>;
+    }> => {
+      const parentNameByIsolatedSubaccount = new Map<string, string>();
+      const parentSubaccountByIsolatedSubaccount = new Map<string, string>();
       const crossSubs = subs.filter((s) => !s.isolated);
       for (const c of crossSubs) {
         try {
@@ -313,16 +318,23 @@ export function useWalletData(rawAddress: string): WalletData {
           const parsed = IsolatedPositionsDataSchema.safeParse(raw);
           if (!parsed.success) continue;
           for (const iso of parsed.data.isolated_positions) {
-            out.set(
+            parentNameByIsolatedSubaccount.set(
               iso.subaccount.toLowerCase(),
               c.subaccount_name ?? "default",
+            );
+            parentSubaccountByIsolatedSubaccount.set(
+              iso.subaccount.toLowerCase(),
+              c.subaccount,
             );
           }
         } catch {
           // best effort only
         }
       }
-      return out;
+      return {
+        parentNameByIsolatedSubaccount,
+        parentSubaccountByIsolatedSubaccount,
+      };
     };
 
     // 2. Fetch positions for a single subaccount
@@ -354,6 +366,7 @@ export function useWalletData(rawAddress: string): WalletData {
     const fetchAllPositions = async (
       subs: SubaccountEntry[],
       isolatedParentNameBySubaccount: Map<string, string>,
+      isolatedParentSubaccountBySubaccount: Map<string, string>,
     ): Promise<{
       positions: Position[];
       spotBalances: SpotBalance[];
@@ -381,6 +394,9 @@ export function useWalletData(rawAddress: string): WalletData {
             "default",
           parent_subaccount_name: p.isolated
             ? isolatedParentNameBySubaccount.get(p.subaccount.toLowerCase())
+            : undefined,
+          parent_subaccount: p.isolated
+            ? isolatedParentSubaccountBySubaccount.get(p.subaccount.toLowerCase())
             : undefined,
         }));
       // Merge spot balances: sum amounts for same product_id across subaccounts
@@ -700,13 +716,23 @@ export function useWalletData(rawAddress: string): WalletData {
       const subs = await fetchSubaccounts();
       if (cancelled) return;
       subaccountsRef.current = subs;
-      isolatedParentNameRef.current = await fetchIsolatedParentNameMap(subs);
+      {
+        const parentMaps = await fetchIsolatedParentMaps(subs);
+        isolatedParentNameRef.current =
+          parentMaps.parentNameByIsolatedSubaccount;
+        isolatedParentSubaccountRef.current =
+          parentMaps.parentSubaccountByIsolatedSubaccount;
+      }
       if (
         isolatedParentNameRef.current.size === 0 &&
         subs.some((s) => s.isolated)
       ) {
         await sleep(200);
-        isolatedParentNameRef.current = await fetchIsolatedParentNameMap(subs);
+        const parentMaps = await fetchIsolatedParentMaps(subs);
+        isolatedParentNameRef.current =
+          parentMaps.parentNameByIsolatedSubaccount;
+        isolatedParentSubaccountRef.current =
+          parentMaps.parentSubaccountByIsolatedSubaccount;
       }
       if (cancelled) return;
       const subAddrs = subs.map((s) => s.subaccount);
@@ -716,6 +742,7 @@ export function useWalletData(rawAddress: string): WalletData {
       const positionData = await fetchAllPositions(
         subs,
         isolatedParentNameRef.current,
+        isolatedParentSubaccountRef.current,
       );
       if (cancelled) return;
 
@@ -909,6 +936,7 @@ export function useWalletData(rawAddress: string): WalletData {
         const pd = await fetchAllPositions(
           subaccountsRef.current,
           isolatedParentNameRef.current,
+          isolatedParentSubaccountRef.current,
         );
         setData((prev) => ({
           ...prev,
@@ -943,6 +971,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const pd = await fetchAllPositions(
             subaccountsRef.current,
             isolatedParentNameRef.current,
+            isolatedParentSubaccountRef.current,
           );
           if (cancelled) return;
           setData((prev) => ({
@@ -1008,6 +1037,7 @@ export function useWalletData(rawAddress: string): WalletData {
       tradesRef.current = [];
       vwapTradesRef.current = [];
       isolatedParentNameRef.current = new Map();
+      isolatedParentSubaccountRef.current = new Map();
       fundingPaymentsRef.current = [];
       if (intervalRef.current) clearInterval(intervalRef.current);
     };

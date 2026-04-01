@@ -51,6 +51,8 @@ export type Position = {
   subaccount_name?: string
   /** For isolated positions: parent cross subaccount name resolved via Gateway isolated_positions. */
   parent_subaccount_name?: string
+  /** For isolated positions: parent cross subaccount bytes32 for matches replay scoping. */
+  parent_subaccount?: string
   /** Raw x18 base size from Gateway — used to reconcile VWAP replay vs `subaccount_info`. */
   amount_x18: string
   amount: number

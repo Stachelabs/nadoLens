@@ -18,6 +18,11 @@ function signB(n: bigint): bigint {
   return ZERO;
 }
 
+function sameSubaccount(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 function avgEntryFromRecentOpenFillsX18(
   trades: TradeMatch[],
   productId: number,
@@ -32,7 +37,7 @@ function avgEntryFromRecentOpenFillsX18(
       (t) =>
         t.is_perp &&
         t.product_id === productId &&
-        (!subaccount || t.subaccount === subaccount),
+        (!subaccount || sameSubaccount(t.subaccount, subaccount)),
     )
     .sort((a, b) => {
       try {
@@ -92,7 +97,7 @@ export function replayPerpAvgEntryX18(
       (t) =>
         t.is_perp &&
         t.product_id === productId &&
-        (!subaccount || t.subaccount === subaccount),
+        (!subaccount || sameSubaccount(t.subaccount, subaccount)),
     )
     .sort((a, b) => {
       try {
@@ -210,11 +215,14 @@ export function mergePositionsWithVwapEntry(
 ): Position[] {
   if (trades.length === 0) return positions;
   return positions.map((p) => {
+    const replaySubaccount = p.isolated
+      ? p.parent_subaccount ?? p.subaccount
+      : p.subaccount;
     const vwap = perpAvgEntryUsdFromMatches(
       trades,
       p.product_id,
       p.amount_x18,
-      p.subaccount,
+      replaySubaccount,
     );
     if (vwap !== null) {
       return { ...p, entry_price: vwap };
