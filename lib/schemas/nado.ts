@@ -126,6 +126,15 @@ export const NadoSubaccountDataSchema = z.object({
 })
 export type NadoSubaccountData = z.infer<typeof NadoSubaccountDataSchema>
 
+export const IsolatedPositionSchema = z.object({
+  subaccount: z.string(),
+})
+
+export const IsolatedPositionsDataSchema = z.object({
+  isolated_positions: z.array(IsolatedPositionSchema).optional().default([]),
+})
+export type IsolatedPositionsData = z.infer<typeof IsolatedPositionsDataSchema>
+
 // ─── Liquidation Event (WS stream + DB API) ───────────────────────────────────
 
 export const LiquidationEventRawSchema = z.object({
@@ -173,7 +182,7 @@ export const ArchiveLiqResponseSchema = z.object({
 
 export const ArchiveMatchSchema = z.object({
   digest: z.string().optional(),
-  order: z.object({ priceX18: x18 }),
+  order: z.object({ priceX18: x18, sender: z.string().optional() }),
   base_filled: x18,
   quote_filled: x18.optional(),
   fee: x18,
@@ -324,7 +333,11 @@ export const OIBucketPostBodySchema = z.object({
 export const ArchiveSubaccountsResponseSchema = z.object({
   subaccounts: z
     .array(z.object({
+      id: z.string().optional(),
       subaccount: z.string(),
+      address: z.string().optional(),
+      subaccount_name: z.string().optional(),
+      created_at: z.string().optional(),
       isolated: z.boolean().optional().default(false),
     }))
     .optional()

@@ -30,6 +30,45 @@ export function WalletPositions({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
+  const normalizeCrossLabel = (name?: string): string => {
+    if (!name) return 'main'
+    if (name === 'default') return 'main'
+    const m = /^default_(\d+)$/.exec(name)
+    if (m) return m[1] ?? 'main'
+    return name
+  }
+
+  const displaySubaccount = (pos: Position): string => {
+    if (!pos.isolated) return normalizeCrossLabel(pos.subaccount_name)
+    if (pos.parent_subaccount_name) {
+      return normalizeCrossLabel(pos.parent_subaccount_name)
+    }
+    return `isolated ${pos.subaccount.slice(-4)}`
+  }
+
+  const accountSortRank = (name: string): number => {
+    if (name === 'main') return 0
+    const n = Number.parseInt(name, 10)
+    if (Number.isFinite(n)) return n
+    return Number.MAX_SAFE_INTEGER
+  }
+
+  const orderedPositions = [...positions].sort((a, b) => {
+    const aAcc = displaySubaccount(a)
+    const bAcc = displaySubaccount(b)
+    const byAccount = accountSortRank(aAcc) - accountSortRank(bAcc)
+    if (byAccount !== 0) return byAccount
+
+    // Within each account: cross first, then isolated.
+    if (a.isolated !== b.isolated) return a.isolated ? 1 : -1
+
+    // Stable secondary ordering for readability.
+    return a.pair.localeCompare(b.pair)
+  })
+
+  const hasMultipleSubaccounts =
+    new Set(positions.map((p) => p.subaccount.toLowerCase())).size > 1
+
   if (positions.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -66,7 +105,16 @@ export function WalletPositions({
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                {['Pair', 'Side', 'Size', 'Avg entry', 'Mark', 'Unrealized PnL', 'Liq Price'].map((h) => (
+                {[
+                  'Pair',
+                  ...(hasMultipleSubaccounts ? ['Sub account'] : []),
+                  'Side',
+                  'Size',
+                  'Avg entry',
+                  'Mark',
+                  'Unrealized PnL',
+                  'Liq Price',
+                ].map((h) => (
                   <TableHead key={h} className="font-normal text-muted-foreground/70 pb-2 pr-4">
                     {h}
                   </TableHead>
@@ -74,7 +122,7 @@ export function WalletPositions({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {positions.map((pos) => {
+              {orderedPositions.map((pos) => {
                 const isLong = pos.amount >= 0
                 const pnlColor = pos.unrealized_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
                 const nearLiq =
@@ -86,7 +134,19 @@ export function WalletPositions({
                     key={`${pos.subaccount}-${pos.product_id}-${pos.isolated ? 'i' : 'c'}`}
                     className="border-border/50"
                   >
-                    <TableCell className="py-2 pr-4 font-mono text-foreground">{pos.pair}</TableCell>
+                    <TableCell className="py-2 pr-4">
+                      <div className="flex flex-col">
+                        <span className="font-mono text-foreground">{pos.pair}</span>
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {pos.isolated ? 'Isolated' : 'Cross'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    {hasMultipleSubaccounts ? (
+                      <TableCell className="py-2 pr-4 text-foreground/80">
+                        {displaySubaccount(pos)}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="py-2 pr-4">
                       <Badge
                         variant="outline"

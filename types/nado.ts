@@ -47,6 +47,10 @@ export type Position = {
   pair: string
   /** Subaccount bytes32 from Gateway (disambiguates cross + isolated same product). */
   subaccount: string
+  /** Friendly name from Archive subaccounts endpoint (e.g. default, default_1). */
+  subaccount_name?: string
+  /** For isolated positions: parent cross subaccount name resolved via Gateway isolated_positions. */
+  parent_subaccount_name?: string
   /** Raw x18 base size from Gateway — used to reconcile VWAP replay vs `subaccount_info`. */
   amount_x18: string
   amount: number
@@ -63,6 +67,8 @@ export type Position = {
 
 export type TradeMatch = {
   digest?: string
+  /** Subaccount bytes32 from Archive `matches.order.sender` when available. */
+  subaccount?: string
   timestamp: string
   submission_idx: string
   product_id: number

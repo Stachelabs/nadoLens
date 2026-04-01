@@ -1,5 +1,6 @@
 import { NADO_GATEWAY_REST } from "@/lib/nado";
 import {
+  IsolatedPositionsDataSchema,
   NadoSubaccountDataSchema,
   SubaccountOrdersDataSchema,
 } from "@/lib/schemas/nado";
@@ -9,7 +10,7 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const QuerySchema = z.enum(["subaccount_info", "subaccount_orders"]);
+const QuerySchema = z.enum(["subaccount_info", "subaccount_orders", "isolated_positions"]);
 
 type Props = {
   params: Promise<{ address: string }>;
@@ -68,6 +69,20 @@ export async function GET(request: NextRequest, { params }: Props) {
       raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
     const inner = r.data ?? raw;
     const result = SubaccountOrdersDataSchema.safeParse(inner);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Invalid response from Gateway" },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json(result.data);
+  }
+
+  if (query === "isolated_positions") {
+    const r =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const inner = r.data ?? raw;
+    const result = IsolatedPositionsDataSchema.safeParse(inner);
     if (!result.success) {
       return NextResponse.json(
         { error: "Invalid response from Gateway" },

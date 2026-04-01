@@ -4,6 +4,7 @@ import {
   type ArchiveMatch,
   ArchiveMatchesResponseSchema,
   ArchiveSubaccountsResponseSchema,
+  IsolatedPositionsDataSchema,
   InterestAndFundingPaymentsResponseSchema,
 } from "@/lib/schemas/nado";
 import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
@@ -119,16 +120,21 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
         ? (BigInt(timeSec) * BigInt(1_000_000_000)).toString()
         : "0";
 
-    // Actual fill price = |quote_filled / base_filled|, fallback to order priceX18
+    // Fill price for avg-entry replay = |(quote_filled - fee) / base_filled| in x18.
+    // Nado UI entry appears fee-adjusted on open fills (matches latest screenshot parity).
+    // We do not subtract sequencer_fee separately because `fee` already includes it per docs.
     const WAD_LOCAL = BigInt(10) ** BigInt(18);
     let priceX18Str: string;
     try {
       const baseB = BigInt(m.base_filled ?? "0");
       if (baseB !== BigInt(0) && m.quote_filled) {
         const quoteB = BigInt(m.quote_filled);
+        const feeB = BigInt(m.fee ?? "0");
         const absBase = baseB < BigInt(0) ? -baseB : baseB;
         const absQuote = quoteB < BigInt(0) ? -quoteB : quoteB;
-        priceX18Str = ((absQuote * WAD_LOCAL) / absBase).toString();
+        const absFee = feeB < BigInt(0) ? -feeB : feeB;
+        const netQuote = absQuote > absFee ? absQuote - absFee : absQuote;
+        priceX18Str = ((netQuote * WAD_LOCAL) / absBase).toString();
       } else {
         priceX18Str = m.order?.priceX18 ?? "0";
       }
@@ -138,6 +144,7 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
 
     return {
       digest: m.digest,
+      subaccount: m.order?.sender,
       timestamp: timestampStr,
       submission_idx: m.submission_idx,
       product_id: productId,
@@ -203,7 +210,11 @@ function tradeIdentity(trade: TradeMatch): string {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SubaccountEntry = { subaccount: string; isolated: boolean };
+type SubaccountEntry = {
+  subaccount: string;
+  isolated: boolean;
+  subaccount_name?: string;
+};
 
 export type WalletData = {
   stats: WalletStats | null;
@@ -241,6 +252,7 @@ export function useWalletData(rawAddress: string): WalletData {
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
+  const isolatedParentNameRef = useRef<Map<string, string>>(new Map());
   const tradesRef = useRef<TradeMatch[]>([]);
   /**
    * Perp fills for open positions' product_ids only (Archive `matches` + product_ids).
@@ -263,7 +275,7 @@ export function useWalletData(rawAddress: string): WalletData {
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
       const fallback: SubaccountEntry[] = [
-        { subaccount: toSubaccount(rawAddress), isolated: false },
+        { subaccount: toSubaccount(rawAddress), isolated: false, subaccount_name: "default" },
       ];
       try {
         const res = await fetch(`/api/subaccounts/${rawAddress}`, {
@@ -277,10 +289,39 @@ export function useWalletData(rawAddress: string): WalletData {
         return result.data.subaccounts.map((s) => ({
           subaccount: s.subaccount,
           isolated: s.isolated ?? false,
+          subaccount_name: s.subaccount_name,
         }));
       } catch {
         return fallback;
       }
+    };
+
+    const fetchIsolatedParentNameMap = async (
+      subs: SubaccountEntry[],
+    ): Promise<Map<string, string>> => {
+      const out = new Map<string, string>();
+      const crossSubs = subs.filter((s) => !s.isolated);
+      for (const c of crossSubs) {
+        try {
+          const res = await fetch(
+            `/api/wallet/${c.subaccount}?query=isolated_positions`,
+            { cache: "no-store" },
+          );
+          if (!res.ok) continue;
+          const raw: unknown = await res.json();
+          const parsed = IsolatedPositionsDataSchema.safeParse(raw);
+          if (!parsed.success) continue;
+          for (const iso of parsed.data.isolated_positions) {
+            out.set(
+              iso.subaccount.toLowerCase(),
+              c.subaccount_name ?? "default",
+            );
+          }
+        } catch {
+          // best effort only
+        }
+      }
+      return out;
     };
 
     // 2. Fetch positions for a single subaccount
@@ -311,6 +352,7 @@ export function useWalletData(rawAddress: string): WalletData {
     // 3. Fetch positions for all subaccounts and merge
     const fetchAllPositions = async (
       subs: SubaccountEntry[],
+      isolatedParentNameBySubaccount: Map<string, string>,
     ): Promise<{
       positions: Position[];
       spotBalances: SpotBalance[];
@@ -325,7 +367,21 @@ export function useWalletData(rawAddress: string): WalletData {
           fetchPositions(subaccount, isolated),
         ),
       );
-      const allPositions = results.flatMap((r) => r.positions);
+      const subNameBySubaccount = new Map(
+        subs.map((s) => [s.subaccount.toLowerCase(), s.subaccount_name ?? "default"]),
+      );
+      const allPositions = results
+        .flatMap((r) => r.positions)
+        .map((p) => ({
+          ...p,
+          subaccount_name:
+            subNameBySubaccount.get(p.subaccount.toLowerCase()) ??
+            p.subaccount_name ??
+            "default",
+          parent_subaccount_name: p.isolated
+            ? isolatedParentNameBySubaccount.get(p.subaccount.toLowerCase())
+            : undefined,
+        }));
       // Merge spot balances: sum amounts for same product_id across subaccounts
       const spotMap = new Map<number, SpotBalance>()
       for (const r of results) {
@@ -644,11 +700,23 @@ export function useWalletData(rawAddress: string): WalletData {
       const subs = await fetchSubaccounts();
       if (cancelled) return;
       subaccountsRef.current = subs;
+      isolatedParentNameRef.current = await fetchIsolatedParentNameMap(subs);
+      if (
+        isolatedParentNameRef.current.size === 0 &&
+        subs.some((s) => s.isolated)
+      ) {
+        await sleep(200);
+        isolatedParentNameRef.current = await fetchIsolatedParentNameMap(subs);
+      }
+      if (cancelled) return;
       const subAddrs = subs.map((s) => s.subaccount);
 
       const subaccountChunks = chunk(subAddrs, 5);
 
-      const positionData = await fetchAllPositions(subs);
+      const positionData = await fetchAllPositions(
+        subs,
+        isolatedParentNameRef.current,
+      );
       if (cancelled) return;
 
       const openProductIds = [
@@ -838,7 +906,10 @@ export function useWalletData(rawAddress: string): WalletData {
       // overwrite equity, overview metrics, or PnL-from-history until refresh.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
-        const pd = await fetchAllPositions(subaccountsRef.current);
+        const pd = await fetchAllPositions(
+          subaccountsRef.current,
+          isolatedParentNameRef.current,
+        );
         setData((prev) => ({
           ...prev,
           stats: prev.stats
@@ -865,7 +936,10 @@ export function useWalletData(rawAddress: string): WalletData {
         if (cancelled) return;
         setData((prev) => ({ ...prev, unrealizedRefreshing: true }));
         try {
-          const pd = await fetchAllPositions(subaccountsRef.current);
+          const pd = await fetchAllPositions(
+            subaccountsRef.current,
+            isolatedParentNameRef.current,
+          );
           if (cancelled) return;
           setData((prev) => ({
             ...prev,
@@ -925,6 +999,7 @@ export function useWalletData(rawAddress: string): WalletData {
       cancelled = true;
       tradesRef.current = [];
       vwapTradesRef.current = [];
+      isolatedParentNameRef.current = new Map();
       fundingPaymentsRef.current = [];
       if (intervalRef.current) clearInterval(intervalRef.current);
     };

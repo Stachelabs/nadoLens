@@ -18,6 +18,65 @@ function signB(n: bigint): bigint {
   return ZERO;
 }
 
+function avgEntryFromRecentOpenFillsX18(
+  trades: TradeMatch[],
+  productId: number,
+  targetAmountX18: bigint,
+  subaccount?: string,
+): bigint | null {
+  if (targetAmountX18 === ZERO) return null;
+  const targetAbs = absB(targetAmountX18);
+  const side = signB(targetAmountX18);
+  const relevant = trades
+    .filter(
+      (t) =>
+        t.is_perp &&
+        t.product_id === productId &&
+        (!subaccount || t.subaccount === subaccount),
+    )
+    .sort((a, b) => {
+      try {
+        const ai = BigInt(a.submission_idx);
+        const bi = BigInt(b.submission_idx);
+        if (ai > bi) return -1;
+        if (ai < bi) return 1;
+        return (a.digest ?? "").localeCompare(b.digest ?? "");
+      } catch {
+        return 0;
+      }
+    });
+
+  let qty = ZERO;
+  let quote = ZERO;
+  for (const t of relevant) {
+    let dq: bigint;
+    let px: bigint;
+    let closed: bigint;
+    try {
+      dq = BigInt(t.amount);
+      px = BigInt(t.price);
+      closed = BigInt(t.closed_amount);
+    } catch {
+      continue;
+    }
+    if (dq === ZERO) continue;
+    if (signB(dq) !== side) continue;
+    // Keep only opening fills; closing fills carry non-zero closed_amount.
+    if (closed !== ZERO) continue;
+
+    const fillAbs = absB(dq);
+    const left = targetAbs - qty;
+    if (left <= ZERO) break;
+    const used = fillAbs <= left ? fillAbs : left;
+    qty += used;
+    quote += used * px;
+    if (qty === targetAbs) break;
+  }
+
+  if (qty !== targetAbs || qty === ZERO) return null;
+  return quote / qty;
+}
+
 /**
  * Replay perp fills (oldest first) with average-cost accounting to get VWAP entry price.
  * Matches how exchange UIs label "avg entry" (fill-weighted), unlike `-v_quote/amount` from
@@ -26,9 +85,15 @@ function signB(n: bigint): bigint {
 export function replayPerpAvgEntryX18(
   trades: TradeMatch[],
   productId: number,
+  subaccount?: string,
 ): { amountX18: bigint; avgEntryX18: bigint } | null {
   const relevant = trades
-    .filter((t) => t.is_perp && t.product_id === productId)
+    .filter(
+      (t) =>
+        t.is_perp &&
+        t.product_id === productId &&
+        (!subaccount || t.subaccount === subaccount),
+    )
     .sort((a, b) => {
       try {
         const ai = BigInt(a.submission_idx);
@@ -109,6 +174,7 @@ export function perpAvgEntryUsdFromMatches(
   trades: TradeMatch[],
   productId: number,
   targetAmountX18: string,
+  subaccount?: string,
 ): number | null {
   let target: bigint;
   try {
@@ -116,7 +182,18 @@ export function perpAvgEntryUsdFromMatches(
   } catch {
     return null;
   }
-  const replay = replayPerpAvgEntryX18(trades, productId);
+  const openFillAvgX18 = avgEntryFromRecentOpenFillsX18(
+    trades,
+    productId,
+    target,
+    subaccount,
+  );
+  if (openFillAvgX18 !== null) {
+    const usd = fromX18BigInt(openFillAvgX18.toString());
+    if (Number.isFinite(usd) && usd > 0) return usd;
+  }
+
+  const replay = replayPerpAvgEntryX18(trades, productId, subaccount);
   if (!replay) return null;
   const { amountX18, avgEntryX18 } = replay;
   const diff = amountX18 - target;
@@ -137,6 +214,7 @@ export function mergePositionsWithVwapEntry(
       trades,
       p.product_id,
       p.amount_x18,
+      p.subaccount,
     );
     if (vwap !== null) {
       return { ...p, entry_price: vwap };
