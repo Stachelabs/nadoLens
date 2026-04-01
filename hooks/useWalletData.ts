@@ -534,7 +534,7 @@ export function useWalletData(rawAddress: string): WalletData {
         };
       }
       const LIMIT = 100;
-      const MAX_PAGES = 100;
+      const FUNDING_MAX_PAGES = 100;
       let page = 0;
       let maxIdx: string | undefined;
       let totalFundingUsd = 0;
@@ -542,7 +542,7 @@ export function useWalletData(rawAddress: string): WalletData {
       const payments: FundingPaymentEntry[] = [];
       let complete = true;
 
-      while (page < MAX_PAGES) {
+      while (page < FUNDING_MAX_PAGES) {
         page += 1;
         const body: Record<string, unknown> = {
           subaccount,
@@ -585,11 +585,10 @@ export function useWalletData(rawAddress: string): WalletData {
         }
 
         const collectPayments = (
-          source: "funding" | "interest",
           items: typeof result.data.funding_payments,
         ) => {
           for (const payment of items) {
-            const key = `${source}:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
+            const key = `funding:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
             if (seen.has(key)) continue;
             seen.add(key);
             const amount = fromX18BigInt(payment.amount);
@@ -605,7 +604,7 @@ export function useWalletData(rawAddress: string): WalletData {
           }
         };
 
-        collectPayments("funding", result.data.funding_payments);
+        collectPayments(result.data.funding_payments);
 
         const nextIdx = result.data.next_idx;
         if (nextIdx === null || nextIdx === undefined) break;
@@ -613,7 +612,7 @@ export function useWalletData(rawAddress: string): WalletData {
         await sleep(FUNDING_BURST_MS);
       }
 
-      if (page >= MAX_PAGES) complete = false;
+      if (page >= FUNDING_MAX_PAGES) complete = false;
       return { totalFundingUsd, payments, complete };
     };
 
@@ -922,6 +921,10 @@ export function useWalletData(rawAddress: string): WalletData {
                     ? vwapTradesRef.current
                     : tradesRef.current,
                 ),
+                health_score: pd.healthScore,
+                total_equity_usd: pd.equityUsd,
+                available_margin: pd.availableMargin,
+                maintenance_margin: pd.maintenanceMargin,
                 spot_balances: pd.spotBalances,
                 unrealized_pnl_usd: pd.unrealizedTotal,
               }
@@ -954,6 +957,10 @@ export function useWalletData(rawAddress: string): WalletData {
                       ? vwapTradesRef.current
                       : tradesRef.current,
                   ),
+                  health_score: pd.healthScore,
+                  total_equity_usd: pd.equityUsd,
+                  available_margin: pd.availableMargin,
+                  maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
                   unrealized_pnl_usd: pd.unrealizedTotal,
                 }

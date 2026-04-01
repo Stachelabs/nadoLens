@@ -108,6 +108,29 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 
 ---
 
+## Documentation API Nado
+
+La documentation de l'API Nado est disponible dans le dossier `.claude/docs/`.
+Consulter le fichier approprié selon la tâche en cours :
+
+| Tâche | Fichier |
+|---|---|
+| Fetch de l'historique (matches, orders, subaccounts, pagination, calcul PnL/fees/volume) | `.claude/docs/NADO_ARCHIVE_API.md` |
+| Queries temps réel (subaccount info, positions ouvertes, produits, prix) | `.claude/docs/NADO_GATEWAY_API.md` |
+| Concepts (margin types, health, PnL settlement, fees, format bytes32, x18) | `.claude/docs/NADO_CONCEPTS.md` |
+| Gestion des 429, backoff, erreurs, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
+
+### Règles critiques (à toujours respecter)
+
+- Conversion x18 : toujours via `BigInt`, jamais `parseFloat` sur les grands nombres
+- `realized_pnl` : ne compter que si `closed_amount !== 0`
+- `totalFees = fee + sequencer_fee` (pas seulement `fee`)
+- Fetch subaccounts : récupérer TOUS les subaccounts (default + isolated) avant le fetch matches
+- `isolated: null` dans le body matches pour capturer cross ET isolated
+- Pagination matches : `idx = page[page.length - 1].submission_idx`, stop si `page.length < 500`
+
+---
+
 ## Règles composants
 
 - Un composant = un fichier = une responsabilité
@@ -202,4 +225,4 @@ Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque b
 
 ---
 
-_CLAUDE.md v2.2 — NadoLens_
+_CLAUDE.md v2.3 — NadoLens_

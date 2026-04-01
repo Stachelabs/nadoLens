@@ -134,7 +134,9 @@ export function WalletEquityCurve({
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
               Equity Curve
             </div>
-            <div className="text-xs text-muted-foreground">{periodLabel}</div>
+            <div className="text-xs text-muted-foreground">
+              {period === "All time" ? "All time" : periodLabel}
+            </div>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <Select
