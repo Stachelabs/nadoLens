@@ -56,6 +56,17 @@ function toSubaccount(address: string): string {
 
 La résolution réelle via `/api/subaccounts/[address]` découvre **tous** les subaccounts (default + isolated margin). Sans cet appel, les positions isolated ne seraient pas visibles.
 
+### Isolated margin — parent vs pocket bytes32
+
+Nado utilise **deux identifiants** pour une position isolée ouverte sous un sous-compte nommé (ex. `default_1`) :
+
+| Rôle | Bytes32 | Gateway / Archive |
+|------|---------|-------------------|
+| **Parent** | Celui retourné par Archive `subaccounts` pour le nom utilisateur (`isolated: false` côté listing) | `subaccount_info` peut avoir **size 0** sur le perp isolé ; **`matches`** : `order.sender` = parent, historique des fills |
+| **Pocket** (auto) | Second bytes32 référencé dans `isolated_positions(parent)[].subaccount` | `subaccount_info` **poche** = balances réelles du produit ; **`matches` sur la poche seule** → `[]` |
+
+Conséquence pour le Wallet Explorer : **agrégats trades / avg entry** → requêtes `matches` sur le(s) bytes32 **parents** (chunk ≤ 5). **État de position** pour un isolé → `isolated_positions(parent)` pour résoudre poche + `product_id`, ou `subaccount_info(pocket)`. Voir `CLAUDE.md` § marge isolée.
+
 ---
 
 ## 3. API Routes
@@ -277,7 +288,17 @@ Non disponible via API publique. Ignorer pour MVP → afficher "—" ou masquer.
 
 ---
 
-*ARCHI.md v3.0 — NadoLens Wallet Explorer — mis à jour 2026-03-27*
+## 11. Known Bugs
+
+| Fichier | Bug | Fix |
+|---|---|---|
+| `hooks/useNadoPairs.ts` | Attend `{ pair }` mais API retourne `{ ticker_id, base, quote }` | Update schema |
+| `app/api/orderbook/route.ts` | Param `?pair=BTCUSDT0` mais API attend `?ticker_id=BTC-PERP_USDT0&depth=N` | Fix param |
+| `app/api/predicted-liquidations/route.ts` | Parse `data.account_snapshots` mais réponse = `data.snapshots` | Fix key |
+
+---
+
+*ARCHI.md v3.1 — NadoLens Wallet Explorer — mis à jour 2026-04-02*
 
 ---
 

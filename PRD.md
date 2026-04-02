@@ -29,29 +29,7 @@
 
 ---
 
-## 2. Stack
-
-| Couche | Choix | Version |
-|---|---|---|
-| Framework | Next.js App Router | **16** |
-| Langage | TypeScript strict | latest |
-| UI | Tailwind CSS + shadcn/ui | v4 |
-| State | Zustand | 5.x |
-| Charts prix | TradingView Lightweight Charts | v5 |
-| Charts stats | Recharts | 3.x |
-| Wallet | wagmi + viem + RainbowKit | **2.x** |
-| DB | Neon (PostgreSQL) + Prisma | 5.x |
-| Validation | Zod | **4.x** |
-| Package manager app | **pnpm** | latest |
-| Package manager WS proxy | **Bun** | latest |
-| Deploy app | Vercel | — |
-| Deploy WS proxy | Railway | — |
-
-> ⚠️ Pas de SDK `@nadohq/client` — API Nado consommée via fetch direct (Gateway REST + Archive indexer).
-
----
-
-## 3. Architecture
+## 2. Architecture
 
 ```
 Browser (React)
@@ -81,8 +59,10 @@ Clé privée ne quitte jamais le wallet. Ordres envoyés directement vers Nado G
 
 ## 4. Nado API
 
-> **Référence complète → NADO_API.md** (endpoints, response shapes, rate limits, event payloads, signing)
-> Ne pas dupliquer ici — NADO_API.md est la source de vérité.
+> **Référence complète → `.claude/docs/`** (voir `CLAUDE.md` § Documentation API Nado pour le tableau de routing)
+> Ne pas dupliquer ici.
+
+> **Marge isolée** (deux bytes32 : parent vs « poche », fills `matches` côté parent) : règles → `CLAUDE.md` · data flow → `ARCHI.md` · détail Archive → `.claude/docs/NADO_ARCHIVE_API.md`.
 
 ---
 
@@ -128,7 +108,7 @@ hooks/useWalletData.ts                 ← fetch + polling + calcul stats
 
 ```
 nadolens/
-├── PRD.md · CLAUDE.md · ARCHI.md · NADO_API.md
+├── PRD.md · CLAUDE.md · ARCHI.md
 ├── package.json                      ← pnpm, scripts: prisma generate && next build
 ├── next.config.ts                    ← turbopack: {} + webpack externals
 ├── tsconfig.json                     ← ws-proxy/ exclu

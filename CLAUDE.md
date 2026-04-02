@@ -8,8 +8,7 @@
 
 | Doc                 | Contenu                                              |
 | ------------------- | ---------------------------------------------------- |
-| PRD.md              | Spec complète, API Nado, phases                      |
-| NADO_API.md         | Référence API complète, response shapes, rate limits |
+| PRD.md              | Spec complète, phases, roadmap                       |
 | ARCHI.md            | Architecture Wallet Explorer, data flow, composants  |
 | About.md            | Contexte business, hébergement, pitch Frank          |
 | lib/schemas/nado.ts | **Source de vérité des types** — Zod schemas         |
@@ -139,6 +138,13 @@ Rebuilder l'index : `pnpm docs:build:nado` (crawl + embed + verify)
 - Fetch subaccounts : récupérer TOUS les subaccounts (default + isolated) avant le fetch matches
 - `isolated: null` dans le body matches pour capturer cross ET isolated
 - Pagination matches : `idx = page[page.length - 1].submission_idx`, stop si `page.length < 500`
+
+### Marge isolée — parent vs poche (deux bytes32)
+
+- **Parent** (ex. `default_1`) : celui qui **signe** les ordres. L’**Archive `matches`** attache les fills à `order.sender` = **parent** (la poche n’a pas d’historique matché à ce bytes32).
+- **Poche** (auto-créée, autre bytes32) : **ledger** réel — `subaccount_info` sur la **poche** expose `perp_balances` du produit isolé ; sur le **parent**, le même `product_id` peut être à **amount 0** (position déplacée sur la poche).
+- **`isolated_positions` query sur le parent** : liste les entrées avec `data[].subaccount` = bytes32 **poche** + `product_id` / balances. **Sur la poche** : réponse souvent **vide** (ce n’est pas l’ancre de listing).
+- **App** : calcul **avg entry / VWAP depuis `matches`** → agréger par **parent** (et filtre produit / `isolated`). **Taille / quote** depuis Gateway → `subaccount_info` **poche** ou chaînage via `isolated_positions(parent)` → poche pour le `product_id`. Ne pas mélanger les deux bytes32 sans ce mapping.
 
 ---
 
