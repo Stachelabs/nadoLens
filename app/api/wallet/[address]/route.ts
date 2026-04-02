@@ -93,5 +93,5 @@ export async function GET(request: NextRequest, { params }: Props) {
     return NextResponse.json(parsed.data);
   }
 
-  return NextResponse.json(raw);
+  return NextResponse.json({ error: "Unhandled query type" }, { status: 400 });
 }
