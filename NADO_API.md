@@ -49,7 +49,7 @@
 - Subaccount = bytes32 hex : `0x{address_20b}{name_12b}` — "default" = `64656661756c740000000000`
 - Archive requests : header `Accept-Encoding: gzip` obligatoire
 - Gateway v1 response : `{ status: "success"|"failure", data?, error?, error_code?, request_type }`
-- Chain ID Ink L2 mainnet : **763373** | Ink Sepolia testnet : **763373** (même chain ID? à vérifier)
+- Chain ID Ink L2 mainnet : **57073** (source projet/implémentation)
 - Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c` (via query `contracts`)
 
 ### addressToSubaccount
@@ -273,8 +273,23 @@ Header : `Accept-Encoding: gzip`
 { "matches": { "subaccounts": ["0x...b32"], "product_ids": [1,2], "limit": 500, "idx": "last_submission_idx" } }
 ```
 → `{ matches: [{ digest, order: {sender, priceX18, amount}, base_filled(x18), quote_filled(x18), fee(x18), realized_pnl(x18), closed_amount(x18), submission_idx, is_taker, pre_balance, post_balance }], txs: [...] }`
-> Pagination : `idx` = submission_idx du dernier match → retourne les précédents (desc)
-> `fee` inclut taker/maker + sequencer fees
+> Pagination : `idx` est inclusif (`submission_idx <= idx`) → prévoir dédup côté client entre pages
+> `subaccounts` max 5 par requête
+> `fee` inclut taker/maker + sequencer fees (total) · `sequencer_fee` = breakdown séquenceur uniquement · utiliser `fee` seul pour `totalFees`
+
+### interest_and_funding — historique paiements funding/intérêt (max 100/req)
+```json
+{
+  "interest_and_funding": {
+    "subaccount": "0x...bytes32",
+    "product_ids": [2,4,8],
+    "limit": 100,
+    "max_idx": "1315836"
+  }
+}
+```
+→ `{ funding_payments: [...], interest_payments: [...], next_idx }`
+> `funding-rate` = taux snapshot, pas cashflow réalisé account-level
 
 ### orders — historique ordres
 `{ "orders": { "subaccounts": ["0x..."], "limit": 100 } }`

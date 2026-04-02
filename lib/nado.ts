@@ -12,3 +12,6 @@ export const NADO_ARCHIVE_V2 =
 // Utilisé par les hooks qui appellent Nado directement (ex: fetchMatches)
 export const NADO_ARCHIVE_V1 =
   process.env.NEXT_PUBLIC_NADO_ARCHIVE_V1 ?? "https://archive.prod.nado.xyz/v1";
+
+// Ink L2 public RPC — used to calibrate submission_idx → real block timestamp
+export const INK_L2_RPC = "https://rpc-gel.inkonchain.com";

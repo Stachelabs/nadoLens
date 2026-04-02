@@ -1,16 +1,39 @@
 import { NADO_GATEWAY_REST } from "@/lib/nado";
-import { NadoSubaccountDataSchema, SubaccountOrdersDataSchema } from "@/lib/schemas/nado";
+import {
+  IsolatedPositionsDataSchema,
+  NadoSubaccountDataSchema,
+  SubaccountOrdersDataSchema,
+} from "@/lib/schemas/nado";
+import { parseGatewayJson } from "@/lib/api/validateResponse";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const QuerySchema = z.enum(["subaccount_info", "subaccount_orders"]);
+const QuerySchema = z.enum(["subaccount_info", "subaccount_orders", "isolated_positions"]);
 
 type Props = {
   params: Promise<{ address: string }>;
 };
+
+function gatewayParseErrorResponse(parsed: {
+  ok: false;
+  kind: "invalid" | "gateway_failure";
+  error?: string;
+  error_code?: number;
+}) {
+  if (parsed.kind === "gateway_failure") {
+    return NextResponse.json(
+      { error: parsed.error ?? "Gateway query failed", error_code: parsed.error_code },
+      { status: 502 },
+    );
+  }
+  return NextResponse.json(
+    { error: "Invalid response from Gateway" },
+    { status: 502 },
+  );
+}
 
 export async function GET(request: NextRequest, { params }: Props) {
   const { address } = await params;
@@ -47,29 +70,27 @@ export async function GET(request: NextRequest, { params }: Props) {
   const raw: unknown = await response.json();
 
   if (query === "subaccount_info") {
-    const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const inner = r.data ?? raw;
-    const result = NadoSubaccountDataSchema.safeParse(inner);
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Invalid response from Gateway" },
-        { status: 502 },
-      );
+    const parsed = parseGatewayJson(NadoSubaccountDataSchema, raw);
+    if (!parsed.ok) {
+      return gatewayParseErrorResponse(parsed);
     }
-    return NextResponse.json(result.data);
+    return NextResponse.json(parsed.data);
   }
 
   if (query === "subaccount_orders") {
-    const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const inner = r.data ?? raw;
-    const result = SubaccountOrdersDataSchema.safeParse(inner);
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Invalid response from Gateway" },
-        { status: 502 },
-      );
+    const parsed = parseGatewayJson(SubaccountOrdersDataSchema, raw);
+    if (!parsed.ok) {
+      return gatewayParseErrorResponse(parsed);
     }
-    return NextResponse.json(result.data);
+    return NextResponse.json(parsed.data);
+  }
+
+  if (query === "isolated_positions") {
+    const parsed = parseGatewayJson(IsolatedPositionsDataSchema, raw);
+    if (!parsed.ok) {
+      return gatewayParseErrorResponse(parsed);
+    }
+    return NextResponse.json(parsed.data);
   }
 
   return NextResponse.json(raw);

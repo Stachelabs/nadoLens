@@ -126,6 +126,15 @@ export const NadoSubaccountDataSchema = z.object({
 })
 export type NadoSubaccountData = z.infer<typeof NadoSubaccountDataSchema>
 
+export const IsolatedPositionSchema = z.object({
+  subaccount: z.string(),
+})
+
+export const IsolatedPositionsDataSchema = z.object({
+  isolated_positions: z.array(IsolatedPositionSchema).optional().default([]),
+})
+export type IsolatedPositionsData = z.infer<typeof IsolatedPositionsDataSchema>
+
 // ─── Liquidation Event (WS stream + DB API) ───────────────────────────────────
 
 export const LiquidationEventRawSchema = z.object({
@@ -172,9 +181,13 @@ export const ArchiveLiqResponseSchema = z.object({
 // ─── Archive: Trade Matches ───────────────────────────────────────────────────
 
 export const ArchiveMatchSchema = z.object({
-  order: z.object({ priceX18: x18 }),
+  digest: z.string().optional(),
+  order: z.object({ priceX18: x18, sender: z.string().optional() }),
   base_filled: x18,
+  quote_filled: x18.optional(),
   fee: x18,
+  sequencer_fee: x18.optional().default('0'),
+  is_taker: z.boolean().optional(),
   submission_idx: z.string(),
   closed_amount: x18,
   realized_pnl: x18,
@@ -211,8 +224,57 @@ export const ArchiveMatchSchema = z.object({
 })
 export type ArchiveMatch = z.infer<typeof ArchiveMatchSchema>
 
+const ArchiveTxSchema = z.object({
+  submission_idx: z.string(),
+  timestamp: z.string(), // Unix seconds as string
+})
+
 export const ArchiveMatchesResponseSchema = z.object({
   matches: z.array(ArchiveMatchSchema).optional().default([]),
+  txs: z.array(ArchiveTxSchema).optional().default([]),
+})
+
+export const MatchesQueryRequestSchema = z.object({
+  subaccounts: z.array(z.string()).min(1).max(5),
+  limit: z.number().int().positive().max(500).default(500),
+  idx: z.string().optional(),
+  isolated: z.boolean().nullable().optional().default(null),
+  /** When set, Archive returns only fills for these perp product ids (Nado matches API). */
+  product_ids: z.array(z.number().int().nonnegative()).min(1).optional(),
+})
+
+export const FundingRateEntrySchema = z.object({
+  product_id: z.number(),
+  funding_rate_x18: x18,
+  update_time: z.union([z.string(), z.number()]),
+})
+
+export const FundingRatesResponseSchema = z.record(
+  z.string(),
+  FundingRateEntrySchema,
+)
+
+const FundingOrInterestPaymentSchema = z.object({
+  product_id: z.number(),
+  idx: z.string(),
+  timestamp: z.string(),
+  amount: x18,
+  balance_amount: x18.optional(),
+  rate_x18: x18.optional(),
+  oracle_price_x18: x18.optional(),
+})
+
+export const InterestAndFundingPaymentsResponseSchema = z.object({
+  interest_payments: z.array(FundingOrInterestPaymentSchema).optional().default([]),
+  funding_payments: z.array(FundingOrInterestPaymentSchema).optional().default([]),
+  next_idx: z.union([z.string(), z.number()]).nullable().optional(),
+})
+
+export const InterestAndFundingRequestSchema = z.object({
+  subaccount: z.string(),
+  product_ids: z.array(z.number().int().nonnegative()).min(1),
+  limit: z.number().int().positive().max(100).default(100),
+  max_idx: z.string().optional(),
 })
 
 // ─── Orderbook ────────────────────────────────────────────────────────────────
@@ -272,7 +334,11 @@ export const OIBucketPostBodySchema = z.object({
 export const ArchiveSubaccountsResponseSchema = z.object({
   subaccounts: z
     .array(z.object({
+      id: z.string().optional(),
       subaccount: z.string(),
+      address: z.string().optional(),
+      subaccount_name: z.string().optional(),
+      created_at: z.string().optional(),
       isolated: z.boolean().optional().default(false),
     }))
     .optional()

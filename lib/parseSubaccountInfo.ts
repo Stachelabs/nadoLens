@@ -1,10 +1,12 @@
 import { NadoSubaccountDataSchema } from '@/lib/schemas/nado'
 import { usePairsStore } from '@/store/pairsStore'
-import type { Position } from '@/types/nado'
-import { fromX18 } from '@/types/nado'
+import type { Position, SpotBalance } from '@/types/nado'
+import { perpAvgEntryUsdFromBalance } from '@/lib/wallet/perpAvgEntry'
+import { fromX18BigInt } from '@/types/nado'
 
 export type ParsedSubaccountInfo = {
   positions: Position[]
+  spotBalances: SpotBalance[]
   healthScore: number
   totalCollateral: number
   totalMaintMargin: number
@@ -26,35 +28,55 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   if (!result.success) return null
 
   const data = result.data
-  const { byId } = usePairsStore.getState()
+  const { byId, assets } = usePairsStore.getState()
+  const assetsById = new Map(assets.map((a) => [a.product_id, a]))
 
   const perpProductMap = new Map(data.perp_products.map((p) => [p.product_id, p]))
   const spotProductMap = new Map(data.spot_products.map((p) => [p.product_id, p]))
 
+  const subaccountHex = data.subaccount ?? ''
+
   const positions: Position[] = data.perp_balances
-    .filter((b) => parseFloat(b.balance?.amount ?? '0') !== 0)
+    .filter((b) => {
+      try {
+        return BigInt(b.balance?.amount ?? '0') !== BigInt(0)
+      } catch {
+        return false
+      }
+    })
     .map((b): Position => {
       const market = perpProductMap.get(b.product_id)
-      const amount = fromX18(b.balance.amount)
-      const markPrice = market ? fromX18(market.oracle_price_x18) : 0
+      // BigInt path — `parseFloat` in fromX18 loses precision on large x18 integers (PnL drift).
+      const amount = fromX18BigInt(b.balance.amount)
+      const vQuote = fromX18BigInt(b.balance.v_quote_balance)
+      // Mark = oracle from Gateway `perp_products` (same field Nado uses for risk / margin).
+      const markPrice = market ? fromX18BigInt(market.oracle_price_x18) : 0
+      // Avg entry: integer x18 path — float `-v_quote/amount` loses precision → ~mark (wrong).
+      const entryPrice = perpAvgEntryUsdFromBalance(
+        b.balance.amount,
+        b.balance.v_quote_balance,
+        markPrice,
+      )
       const isLong = amount >= 0
       const maintWeight = market
         ? isLong
-          ? fromX18(market.risk.long_weight_maintenance_x18)
-          : fromX18(market.risk.short_weight_maintenance_x18)
+          ? fromX18BigInt(market.risk.long_weight_maintenance_x18)
+          : fromX18BigInt(market.risk.short_weight_maintenance_x18)
         : 0.9875
       const maintMarginRate = 1 - Math.min(maintWeight, 1)
       const leverage = 10
       const liquidationPrice = isLong
         ? markPrice * (1 - 1 / leverage + maintMarginRate)
         : markPrice * (1 + 1 / leverage - maintMarginRate)
-      const unrealizedPnl = fromX18(b.balance.v_quote_balance) + amount * markPrice
+      const unrealizedPnl = vQuote + amount * markPrice
 
       return {
         product_id: b.product_id,
         pair: byId.get(b.product_id) ?? `#${b.product_id}`,
+        subaccount: subaccountHex,
+        amount_x18: b.balance.amount,
         amount,
-        entry_price: markPrice,
+        entry_price: entryPrice,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: Math.max(0, liquidationPrice),
@@ -64,12 +86,21 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       }
     })
 
-  const totalCollateral = data.spot_balances.reduce((s, sb) => {
-    const bal = fromX18(sb.balance?.amount ?? '0')
-    const market = spotProductMap.get(sb.product_id)
-    const price = market?.oracle_price_x18 ? fromX18(market.oracle_price_x18) : 1
-    return s + Math.max(0, bal) * price
-  }, 0)
+  const spotBalances: SpotBalance[] = data.spot_balances
+    .map((sb) => {
+      const amount = fromX18BigInt(sb.balance?.amount ?? '0')
+      const market = spotProductMap.get(sb.product_id)
+      const price = market?.oracle_price_x18 ? fromX18BigInt(market.oracle_price_x18) : 1
+      const asset = assetsById.get(sb.product_id)
+      return {
+        product_id: sb.product_id,
+        symbol: asset?.symbol ?? byId.get(sb.product_id) ?? `#${sb.product_id}`,
+        name: asset?.name ?? `#${sb.product_id}`,
+        amount,
+        value_usd: amount * price,
+      }
+    })
+  const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
 
   const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
   const totalNotional = positions.reduce((s, p) => s + Math.abs(p.amount) * p.mark_price, 0)
@@ -81,13 +112,14 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   let healthScore = Math.max(0, Math.min(1, 1 - maintMarginUsage))
   const maintHealth = data.healths[1]
   if (maintHealth) {
-    const assets = fromX18(maintHealth.assets)
-    const liabilities = fromX18(maintHealth.liabilities)
+    const assets = fromX18BigInt(maintHealth.assets)
+    const liabilities = fromX18BigInt(maintHealth.liabilities)
     if (assets > 0) healthScore = Math.max(0, Math.min(1, (assets - liabilities) / assets))
   }
 
   return {
     positions,
+    spotBalances,
     healthScore,
     totalCollateral,
     totalMaintMargin,

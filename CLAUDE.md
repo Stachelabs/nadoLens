@@ -81,6 +81,8 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 
 - `/api/pairs` — liste des paires Nado
 - `/api/wallet/[address]` — proxy Nado Gateway (évite CORS)
+- `/api/matches` — proxy Archive `matches` (chunk <= 5 subaccounts + pagination idx côté client)
+- `/api/funding` — proxy Archive `interest_and_funding` (pagination max_idx côté client)
 - Valider tous les bodies et réponses externes avec Zod `safeParse()`
 
 **WS Proxy (Railway — Bun)**
@@ -103,6 +105,29 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 - ❌ Signing côté serveur
 - ❌ `console.log` de payloads avec adresses ou signatures
 - ❌ Committer `.env`, `.env.local`, `About.md`
+
+---
+
+## Documentation API Nado
+
+La documentation de l'API Nado est disponible dans le dossier `.claude/docs/`.
+Consulter le fichier approprié selon la tâche en cours :
+
+| Tâche | Fichier |
+|---|---|
+| Fetch de l'historique (matches, orders, subaccounts, pagination, calcul PnL/fees/volume) | `.claude/docs/NADO_ARCHIVE_API.md` |
+| Queries temps réel (subaccount info, positions ouvertes, produits, prix) | `.claude/docs/NADO_GATEWAY_API.md` |
+| Concepts (margin types, health, PnL settlement, fees, format bytes32, x18) | `.claude/docs/NADO_CONCEPTS.md` |
+| Gestion des 429, backoff, erreurs, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
+
+### Règles critiques (à toujours respecter)
+
+- Conversion x18 : toujours via `BigInt`, jamais `parseFloat` sur les grands nombres
+- `realized_pnl` : ne compter que si `closed_amount !== 0`
+- `totalFees = fee` (`fee` inclut déjà taker/maker + sequencer — `sequencer_fee` = breakdown uniquement, ne pas sommer)
+- Fetch subaccounts : récupérer TOUS les subaccounts (default + isolated) avant le fetch matches
+- `isolated: null` dans le body matches pour capturer cross ET isolated
+- Pagination matches : `idx = page[page.length - 1].submission_idx`, stop si `page.length < 500`
 
 ---
 
@@ -146,7 +171,7 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 
 - Chain ID Ink L2 mainnet : **57073** (wagmi/viem) — ne pas confondre avec d'autres IDs
 - Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
-- Valeurs en **x18** → `fromX18()` systématiquement
+- Valeurs en **x18** → `fromX18BigInt()` pour les agrégations financières (volume, fees, pnl)
 - ⚠️ **Exception V2** : `/v2/tickers` et `/v2/trades` retournent des **décimaux normaux**, PAS x18
 - Subaccount bytes32 : `0x{address}64656661756c740000000000` (default)
 - `product_id: null` sur stream `liquidation` = toutes les paires
@@ -154,8 +179,7 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 - Mainnet WS Gateway : `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
 - Mainnet WS Subscribe : `wss://gateway.prod.nado.xyz/v1/subscribe` (streams temps réel)
 - Gateway v1 REST : `https://gateway.prod.nado.xyz/v1` | v2 : `https://gateway.prod.nado.xyz/v2`
-- Archive indexer : `https://archive.prod.nado.xyz/indexer` (POST JSON — pas REST)
-- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2`
+- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2` (POST JSON — pas REST)
 - ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404)
 
 ### addressToSubaccount — helper critique
@@ -200,4 +224,4 @@ Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque b
 
 ---
 
-_CLAUDE.md v2.2 — NadoLens_
+_CLAUDE.md v2.3 — NadoLens_
