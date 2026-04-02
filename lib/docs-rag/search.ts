@@ -39,6 +39,13 @@ export async function rankChunksByEmbedding(
   filters: SearchFilters = {},
 ): Promise<SearchHit[]> {
   const rows = loadAllChunksForSearch(db)
+  if (rows.length > 0 && rows[0].embedding.length !== queryEmbedding.length) {
+    throw new Error(
+      `Embedding dimension mismatch: index has ${rows[0].embedding.length}-dim vectors, ` +
+        `query is ${queryEmbedding.length}-dim. ` +
+        `Re-run pnpm docs:index:nado to rebuild the index with the current provider.`,
+    )
+  }
   const scored: SearchHit[] = []
   for (const row of rows) {
     if (filters.pathPrefix) {

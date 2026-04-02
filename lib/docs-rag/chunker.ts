@@ -78,12 +78,28 @@ export function chunkMarkdown(
   })
 }
 
+/**
+ * Split a text block by size, preferring to break at a newline or space
+ * within the last 200 chars of the budget to avoid mid-word cuts.
+ */
 function splitBySize(text: string, maxChars: number): string[] {
   const out: string[] = []
   let i = 0
   while (i < text.length) {
-    out.push(text.slice(i, i + maxChars))
-    i += maxChars
+    let end = Math.min(i + maxChars, text.length)
+    if (end < text.length) {
+      // Walk back up to 200 chars to find a natural break
+      let boundary = -1
+      for (let j = end; j > end - 200 && j > i; j--) {
+        if (text[j] === "\n" || text[j] === " ") {
+          boundary = j
+          break
+        }
+      }
+      if (boundary !== -1) end = boundary + 1
+    }
+    out.push(text.slice(i, end))
+    i = end
   }
-  return out
+  return out.filter((s) => s.trim().length > 0)
 }

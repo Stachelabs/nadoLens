@@ -92,10 +92,12 @@ async function runQuery(): Promise<void> {
     filter: filter ?? "none",
   })
 
+  const cfg = loadDocsRagConfig(process.env, nadoDocsDefaults)
   const results = await searchDocs(
     queryText,
     topK,
     filter ? { pathPrefix: filter } : {},
+    cfg,
   )
 
   const duration = ((Date.now() - start) / 1000).toFixed(2)

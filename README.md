@@ -1,40 +1,275 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NadoLens
 
-## Getting Started
+Outil d'analyse on-chain pour le protocole **[Nado](https://nado.xyz)** — DEX à carnet d'ordres centralisé (CLOB) déployé sur Ink L2.
 
-Install dependencies with **pnpm** (preferred) or **bun** — do not use npm.
+Conçu pour les traders actifs : heatmap de liquidation en temps réel, cockpit de survie du carnet d'ordres, et explorateur de wallet avec historique des trades, PnL réalisé, fees cumulés et taux de réussite par actif.
+
+---
+
+## Stack
+
+| Couche | Technologie |
+|---|---|
+| Framework | Next.js 16 — App Router + Turbopack |
+| Langage | TypeScript strict |
+| Style | Tailwind CSS v4 + shadcn/ui |
+| État client | Zustand 5 |
+| Wallet / Blockchain | wagmi 2 · viem 2 · RainbowKit 2 |
+| Charts trading | TradingView Lightweight Charts v5 |
+| Charts stats | Recharts |
+| Validation | Zod 4 |
+| Base de données | Prisma 5 + Neon (PostgreSQL serverless) |
+| WS Proxy | Bun (Railway — région eu-west4) |
+
+---
+
+## Prérequis
+
+- **Node.js** ≥ 20
+- **pnpm** ≥ 10 (`npm i -g pnpm`)
+- **Ollama** *(optionnel — pour le pipeline docs RAG)* : `ollama pull nomic-embed-text`
+
+---
+
+## Installation
 
 ```bash
 pnpm install
-# or
-bun install
+cp .env.example .env
+# Renseigner DATABASE_URL, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, WS_PROXY_URL
 ```
 
-Then run the development server:
+---
+
+## Variables d'environnement
+
+Copier `.env.example` → `.env` :
+
+| Variable | Requis | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ | Connexion Neon PostgreSQL |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ✅ | ID projet WalletConnect Cloud |
+| `WS_PROXY_URL` + `NEXT_PUBLIC_WS_PROXY_URL` | ✅ | URL publique du WS Proxy Railway |
+| `NADO_GATEWAY_REST` | ✅ | `https://gateway.prod.nado.xyz/v1` |
+| `NADO_ARCHIVE_REST` | ✅ | `https://archive.prod.nado.xyz/v1` |
+| `OPENAI_API_KEY` | ✗ | Uniquement si `NADO_DOCS_EMBED_PROVIDER=openai` dans la config RAG |
+
+> La configuration non-secrète du pipeline RAG (URLs, concurrence, modèles d'embedding) est dans [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) — pas besoin de variables d'environnement pour ces valeurs.
+
+---
+
+## Scripts disponibles
+
+### Application
+
+| Commande | Description |
+|---|---|
+| `pnpm dev` | Serveur de développement sur `http://localhost:3000` (Turbopack) |
+| `pnpm build` | Génère le client Prisma puis compile Next.js pour la production |
+| `pnpm start` | Démarre Next.js en mode production (nécessite `pnpm build` au préalable) |
+| `pnpm lint` | ESLint sur l'ensemble du projet |
+
+### Tests
+
+| Commande | Description |
+|---|---|
+| `pnpm test` | Lance Vitest en mode run-once (CI) |
+| `pnpm test:watch` | Lance Vitest en mode watch (développement) |
+
+Les tests d'intégration live (appels réels vers l'API Nado) nécessitent `NADO_DOCS_INTEGRATION=1` dans `.env`.
+
+---
+
+### Pipeline Docs RAG
+
+Le pipeline RAG permet d'interroger la documentation Nado en **langage naturel** depuis le terminal ou depuis Claude Code, sans passer par un navigateur.
+
+Il crawle `docs.nado.xyz`, découpe les pages en chunks markdown, les encode en vecteurs via Ollama ou OpenAI, et stocke le tout dans un SQLite local sous `.claude/docs/rag/`.
+
+**Prérequis Ollama** (provider par défaut) :
 
 ```bash
-pnpm dev
-# or
-bun dev
+ollama serve                        # démarrer Ollama si ce n'est pas déjà fait
+ollama pull nomic-embed-text        # télécharger le modèle d'embedding
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Pour utiliser OpenAI à la place : modifier `NADO_DOCS_EMBED_PROVIDER` dans [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) et ajouter `OPENAI_API_KEY` dans `.env`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### `pnpm docs:sync:nado` — Crawler
 
-## Learn More
+Crawle `https://docs.nado.xyz` à partir du sitemap et des liens internes, respecte `robots.txt`, convertit chaque page HTML en markdown propre.
 
-To learn more about Next.js, take a look at the following resources:
+**Artéfacts générés :**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Chemin | Contenu |
+|---|---|
+| `.claude/docs/rag/pages-md/` | Pages converties en Markdown (1 fichier / page) |
+| `.claude/docs/rag/pages-json/` | Métadonnées de chaque page (titre, headings, liens sortants, status HTTP) |
+| `.claude/docs/nado-manifest.json` | Manifeste complet (pages, graphe de liens, redirections, URLs sitemap) |
+| `.claude/docs/rag/crawl-state.json` | État de reprise (utilisé avec `NADO_DOCS_RESUME=1`) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Options principales** (éditables dans [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts)) :
 
-## Deploy on Vercel
+| Option | Défaut | Description |
+|---|---|---|
+| `NADO_DOCS_CONCURRENCY` | `2` | Pages crawlées en parallèle |
+| `NADO_DOCS_MAX_DEPTH` | `32` | Profondeur de crawl maximale |
+| `NADO_DOCS_MAX_RETRIES` | `4` | Tentatives par page en cas d'erreur réseau |
+| `NADO_DOCS_TIMEOUT_MS` | `45000` | Timeout HTTP par requête (ms) |
+| `NADO_DOCS_MAX_FAIL_RATIO` | `0.08` | Ratio d'échecs max avant erreur fatale (8 %) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Overrides ponctuels via env** :
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+NADO_DOCS_DRY_RUN=1 pnpm docs:sync:nado       # limite à 5 pages — test rapide
+NADO_DOCS_RESUME=1 pnpm docs:sync:nado         # reprend depuis crawl-state.json
+NADO_DOCS_LOG_LEVEL=debug pnpm docs:sync:nado  # logs détaillés
+```
+
+---
+
+#### `pnpm docs:index:nado` — Indexer
+
+Lit le manifeste, chunk chaque page markdown en sections (~2 200 chars), appelle le modèle d'embedding par batch, et stocke les vecteurs Float32 dans SQLite.
+
+**Artéfact généré :**
+
+| Chemin | Contenu |
+|---|---|
+| `.claude/docs/rag/rag.sqlite` | Base vectorielle (table `chunks` : texte + embedding + hash) |
+
+**Indexation incrémentale :** une page déjà indexée avec le même `contentHash` est automatiquement skippée — relancer l'index après un `sync` est toujours rapide.
+
+> ⚠️ Si tu changes de provider embedding (Ollama ↔ OpenAI), les dimensions vectorielles sont incompatibles (768 vs 1 536 dims). Toute tentative de requête avec des dimensions incorrectes lève une erreur explicite. Relancer `pnpm docs:index:nado` recrée l'index depuis zéro.
+
+**Options** :
+
+| Option | Défaut | Description |
+|---|---|---|
+| `NADO_DOCS_EMBED_PROVIDER` | `ollama` | `ollama` ou `openai` |
+| `NADO_DOCS_EMBED_BATCH_SIZE` | `12` | Textes envoyés par batch à l'embedder |
+| `NADO_DOCS_CHUNK_MAX_CHARS` | `2200` | Budget caractères par chunk |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | URL Ollama local |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Modèle Ollama |
+| `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | Modèle OpenAI |
+
+---
+
+#### `pnpm docs:verify:nado` — Vérifier la couverture
+
+Vérifie que toutes les URLs du menu de navigation sont bien présentes dans le manifeste, et détecte les liens internes cassés.
+
+**Artéfact généré :**
+
+| Chemin | Contenu |
+|---|---|
+| `.claude/docs/reports/nado-coverage-report.md` | Rapport de couverture (nav manquante + liens cassés) |
+
+**Exit code** `1` si des pages de navigation sont absentes de l'index.
+
+---
+
+#### `pnpm docs:build:nado` — Pipeline complet
+
+Enchaîne les trois étapes en une seule commande : **sync → index → verify**.
+
+```bash
+pnpm docs:build:nado
+```
+
+À relancer après une mise à jour significative de la documentation Nado, ou lors du premier setup.
+
+---
+
+#### `pnpm docs:query:nado "<question>"` — Recherche sémantique
+
+Interroge l'index local en langage naturel. Embed la question, calcule la similarité cosinus sur tous les chunks, affiche les top-K résultats avec score et extrait de texte.
+
+```bash
+# Recherche basique
+pnpm docs:query:nado "fee calculation matches archive"
+
+# Limiter le nombre de résultats
+pnpm docs:query:nado "pagination idx" --top-k 3
+
+# Filtrer par section de l'API
+pnpm docs:query:nado "rate limits" --filter /developer-resources/api
+```
+
+**Options :**
+
+| Option | Défaut | Description |
+|---|---|---|
+| `--top-k N` | `5` | Nombre de résultats retournés |
+| `--filter <path>` | — | Filtrer par préfixe de chemin URL (ex: `/developer-resources/api`) |
+
+**Exemple de sortie :**
+
+```
+Query  "fee calculation matches archive"
+
+  #1  score: 0.871  /developer-resources/api/archive-indexer/matches
+      "fee: The amount of trading fees + sequencer fees paid on this match..."
+
+  #2  score: 0.834  /developer-resources/concepts/fees
+      "The fee field already includes sequencer fees. Do not sum fee + sequencer_fee..."
+
+  #3  score: 0.801  /developer-resources/api/archive-indexer/matches
+      "sequencer_fee: Breakdown of the sequencer portion only — already included in fee..."
+```
+
+---
+
+#### Niveau de log
+
+Toutes les commandes `docs:*` utilisent `NADO_DOCS_LOG_LEVEL` :
+
+| Valeur | Usage |
+|---|---|
+| `debug` | Tous les détails (pages skippées, timings par batch, dedup) |
+| `info` | Standard — défaut |
+| `warn` | Avertissements et erreurs uniquement |
+| `error` | Erreurs fatales uniquement |
+
+```bash
+NADO_DOCS_LOG_LEVEL=debug pnpm docs:build:nado
+```
+
+---
+
+## Structure du projet
+
+```
+app/                      # Next.js App Router (pages, layouts, routes API)
+  api/
+    pairs/                # Liste des paires Nado (proxy Gateway)
+    wallet/[address]/     # Proxy Gateway — subaccount info
+    subaccounts/[address]/# Proxy Archive — liste des subaccounts
+    matches/              # Proxy Archive — historique des trades (chunks 5 subaccounts)
+    funding/              # Proxy Archive — intérêts & funding
+components/               # Composants React (heatmap, cockpit, wallet explorer…)
+hooks/                    # Hooks (useWalletData, useLiquidationStream, useOrderBook…)
+store/                    # Zustand stores (liquidation, pairs, wallet)
+lib/
+  docs-rag/               # Pipeline RAG complet (crawler, chunker, embeddings, SQLite)
+  schemas/                # Zod schemas — source de vérité des types Nado
+scripts/
+  docs-rag/               # CLI du pipeline RAG + config committée
+    cli.ts                # Point d'entrée des commandes docs:*
+    nado-docs.config.ts   # Config non-secrète (base URL, concurrence, modèles…)
+prisma/                   # Schema Prisma + migrations
+ws-proxy/                 # WS Proxy Bun (Railway) — relay WebSocket Nado
+.claude/
+  docs/                   # Documentation Nado (.md) + index RAG (rag.sqlite)
+  docs/rag/               # Artéfacts générés : pages-md/, pages-json/, crawl-state
+```
+
+---
+
+## Architecture
+
+Voir [`ARCHI.md`](ARCHI.md) pour le détail du data flow, des composants et des choix techniques.
+
+Voir [`CLAUDE.md`](CLAUDE.md) pour les règles de développement, les contraintes stack et les règles critiques de l'API Nado.
