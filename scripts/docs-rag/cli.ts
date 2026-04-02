@@ -1,4 +1,6 @@
+import "dotenv/config"
 import { loadDocsRagConfig } from "../../lib/docs-rag/config"
+import { nadoDocsDefaults } from "./nado-docs.config"
 import { runDocsSync } from "../../lib/docs-rag/crawler"
 import { runDocsIndex } from "../../lib/docs-rag/indexRunner"
 import { log } from "../../lib/docs-rag/logger"
@@ -143,12 +145,12 @@ async function main(): Promise<void> {
 
   switch (cmd) {
     case "sync": {
-      const cfg = loadDocsRagConfig()
+      const cfg = loadDocsRagConfig(process.env, nadoDocsDefaults)
       await runDocsSync(cfg)
       return
     }
     case "index": {
-      const cfg = loadDocsRagConfig()
+      const cfg = loadDocsRagConfig(process.env, nadoDocsDefaults)
       await runDocsIndex(cfg)
       return
     }
@@ -158,7 +160,7 @@ async function main(): Promise<void> {
       return
     }
     case "build": {
-      const cfg = loadDocsRagConfig()
+      const cfg = loadDocsRagConfig(process.env, nadoDocsDefaults)
       log("info", "build_start", { steps: "sync → index → verify" })
       await runDocsSync(cfg)
       await runDocsIndex(cfg)

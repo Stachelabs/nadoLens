@@ -49,8 +49,13 @@ export type DocsRagConfig = {
   integration: boolean
 }
 
-export function loadDocsRagConfig(env: NodeJS.ProcessEnv = process.env): DocsRagConfig {
-  const raw = BaseSchema.safeParse(env)
+export function loadDocsRagConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  fileDefaults: Record<string, string> = {},
+): DocsRagConfig {
+  // fileDefaults (committed config) < env vars — env always wins
+  const merged = { ...fileDefaults, ...env }
+  const raw = BaseSchema.safeParse(merged)
   if (!raw.success) {
     throw new Error(`Invalid docs-rag env: ${raw.error.message}`)
   }
@@ -62,8 +67,8 @@ export function loadDocsRagConfig(env: NodeJS.ProcessEnv = process.env): DocsRag
     timeoutMs: e.NADO_DOCS_TIMEOUT_MS,
     maxDepth: e.NADO_DOCS_MAX_DEPTH,
     maxFailRatio: e.NADO_DOCS_MAX_FAIL_RATIO,
-    dryRun: envBool(env.NADO_DOCS_DRY_RUN, false),
-    resume: envBool(env.NADO_DOCS_RESUME, false),
+    dryRun: envBool(merged.NADO_DOCS_DRY_RUN, false),
+    resume: envBool(merged.NADO_DOCS_RESUME, false),
     dryRunMaxPages: e.NADO_DOCS_DRY_RUN_MAX_PAGES,
     embedProvider: e.NADO_DOCS_EMBED_PROVIDER,
     ollamaHost: e.OLLAMA_HOST.replace(/\/$/, ""),
@@ -74,6 +79,6 @@ export function loadDocsRagConfig(env: NodeJS.ProcessEnv = process.env): DocsRag
     chunkMaxChars: e.NADO_DOCS_CHUNK_MAX_CHARS,
     embedBatchSize: e.NADO_DOCS_EMBED_BATCH_SIZE,
     logLevel: e.NADO_DOCS_LOG_LEVEL,
-    integration: envBool(env.NADO_DOCS_INTEGRATION, false),
+    integration: envBool(merged.NADO_DOCS_INTEGRATION, false),
   }
 }
