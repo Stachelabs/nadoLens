@@ -27,7 +27,7 @@ Conçu pour les traders actifs : heatmap de liquidation en temps réel, cockpit 
 
 - **Node.js** ≥ 20
 - **pnpm** ≥ 10 (`npm i -g pnpm`)
-- **Ollama** *(optionnel — pour le pipeline docs RAG)* : `ollama pull nomic-embed-text`
+- **Ollama** *(optionnel — pour le pipeline docs RAG)* — [installer](https://ollama.com/download), puis `ollama pull nomic-embed-text`. Doit tourner en arrière-plan (`ollama serve`) pendant toute utilisation des commandes `docs:*`.
 
 ---
 
@@ -86,11 +86,11 @@ Le pipeline RAG permet d'interroger la documentation Nado en **langage naturel**
 
 Il crawle `docs.nado.xyz`, découpe les pages en chunks markdown, les encode en vecteurs via Ollama ou OpenAI, et stocke le tout dans un SQLite local sous `.claude/docs/rag/`.
 
-**Prérequis Ollama** (provider par défaut) :
+**Prérequis Ollama** (provider par défaut) — doit tourner en arrière-plan pendant toute utilisation des commandes `docs:*` :
 
 ```bash
-ollama serve                        # démarrer Ollama si ce n'est pas déjà fait
-ollama pull nomic-embed-text        # télécharger le modèle d'embedding
+ollama serve                   # à lancer une fois, reste en arrière-plan
+ollama pull nomic-embed-text   # à faire une seule fois
 ```
 
 Pour utiliser OpenAI à la place : modifier `NADO_DOCS_EMBED_PROVIDER` dans [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) et ajouter `OPENAI_API_KEY` dans `.env`.
