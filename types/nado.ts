@@ -80,8 +80,8 @@ export type TradeMatch = {
   quote_filled?: string // x18
   realized_pnl: string  // x18
   closed_amount: string // x18
-  fee: string           // x18 — taker/maker fee
-  sequencer_fee: string // x18 — sequencer fee
+  fee: string           // x18 — taker/maker + sequencer fees (total) — utiliser ce champ pour totalFees
+  sequencer_fee: string // x18 — breakdown séquenceur uniquement (déjà inclus dans fee)
   side: 'long' | 'short'
   is_perp: boolean
 }

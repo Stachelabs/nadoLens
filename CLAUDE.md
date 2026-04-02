@@ -124,7 +124,7 @@ Consulter le fichier approprié selon la tâche en cours :
 
 - Conversion x18 : toujours via `BigInt`, jamais `parseFloat` sur les grands nombres
 - `realized_pnl` : ne compter que si `closed_amount !== 0`
-- `totalFees = fee + sequencer_fee` (pas seulement `fee`)
+- `totalFees = fee` (`fee` inclut déjà taker/maker + sequencer — `sequencer_fee` = breakdown uniquement, ne pas sommer)
 - Fetch subaccounts : récupérer TOUS les subaccounts (default + isolated) avant le fetch matches
 - `isolated: null` dans le body matches pour capturer cross ET isolated
 - Pagination matches : `idx = page[page.length - 1].submission_idx`, stop si `page.length < 500`
@@ -179,8 +179,7 @@ Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` ora
 - Mainnet WS Gateway : `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
 - Mainnet WS Subscribe : `wss://gateway.prod.nado.xyz/v1/subscribe` (streams temps réel)
 - Gateway v1 REST : `https://gateway.prod.nado.xyz/v1` | v2 : `https://gateway.prod.nado.xyz/v2`
-- Archive indexer : `https://archive.prod.nado.xyz/indexer` (POST JSON — pas REST)
-- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2`
+- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2` (POST JSON — pas REST)
 - ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404)
 
 ### addressToSubaccount — helper critique

@@ -141,8 +141,11 @@ nadolens/
 │   │   ├── page.tsx                  ← recherche wallet
 │   │   └── [address]/page.tsx        ← détail wallet (client component)
 │   └── api/
-│       ├── pairs/route.ts            ← liste paires Nado
-│       └── wallet/[address]/route.ts ← proxy Gateway (subaccount_info, etc.)
+│       ├── pairs/route.ts                    ← liste paires Nado
+│       ├── wallet/[address]/route.ts         ← proxy Gateway (subaccount_info, etc.)
+│       ├── subaccounts/[address]/route.ts    ← résolution adresse → bytes32 (Archive)
+│       ├── matches/route.ts                  ← proxy Archive matches (validation Zod)
+│       └── funding/route.ts                  ← proxy Archive interest_and_funding (validation Zod)
 ├── components/
 │   ├── Nav.tsx                       ← sticky nav, connect button, theme toggle
 │   ├── ThemeToggle.tsx               ← next-themes toggle

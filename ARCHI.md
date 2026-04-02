@@ -27,8 +27,8 @@ Browser → /wallet/0xabc...
   │         Merge : toutes positions + sum equity + health du subaccount primary
   │
   └── 3. fetch archive.prod.nado.xyz/v1
-            POST { matches: { subaccounts: [all_bytes32], limit: 200 } }
-            → historique trades avec realized_pnl, fees
+            POST { matches: { subaccounts: [all_bytes32], limit: 500, isolated: null } }
+            → historique trades avec realized_pnl, fees, sequencer_fee
 
 Résultats → WalletStats parsé dans useWalletData
          → composants wallet (WalletHeader, WalletStats, WalletPositions, etc.)
@@ -202,9 +202,16 @@ app/providers.tsx      ← PairsInitializer (headless) → usePairs() au démarr
 
 ### WalletStats (calculé dans useWalletData)
 ```typescript
-winRate = (trades.filter(t => parseFloat(t.realized_pnl) > 0).length / trades.length) * 100
-totalPnl = sum(fromX18(t.realized_pnl))
-totalVolume = sum(abs(fromX18(t.amount)) * fromX18(t.price))
+// Seules les fermetures de position ont un PnL réalisé (closed_amount !== "0")
+const closingTrades = trades.filter(t => t.closed_amount !== "0")
+
+winRate = closingTrades.length > 0
+  ? (closingTrades.filter(t => BigInt(t.realized_pnl) > 0n).length / closingTrades.length) * 100
+  : 0
+
+totalPnl = sum(fromX18BigInt(t.realized_pnl) for t in closingTrades)
+totalFees = sum(fromX18BigInt(t.fee))   // fee = taker/maker + sequencer (total) — sequencer_fee = breakdown, ne pas sommer
+totalVolume = sum(abs(fromX18BigInt(t.quote_filled ?? "0")))
 avgTradeSize = totalVolume / trades.length
 ```
 
@@ -219,7 +226,7 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
   const all = []
   let lastIdx: string | undefined
   while (all.length < maxTotal) {
-    const body = { matches: { subaccount, limit: 500, ...(lastIdx ? { idx: lastIdx } : {}) } }
+    const body = { matches: { subaccounts: [subaccount], limit: 500, isolated: null, ...(lastIdx ? { idx: lastIdx } : {}) } }
     const res = await fetch(ARCHIVE_URL, { method: 'POST', ... })
     const data = await res.json()
     if (!data.matches?.length) break

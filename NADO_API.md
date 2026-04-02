@@ -275,7 +275,7 @@ Header : `Accept-Encoding: gzip`
 → `{ matches: [{ digest, order: {sender, priceX18, amount}, base_filled(x18), quote_filled(x18), fee(x18), realized_pnl(x18), closed_amount(x18), submission_idx, is_taker, pre_balance, post_balance }], txs: [...] }`
 > Pagination : `idx` est inclusif (`submission_idx <= idx`) → prévoir dédup côté client entre pages
 > `subaccounts` max 5 par requête
-> `fee` inclut taker/maker + sequencer fees
+> `fee` inclut taker/maker + sequencer fees (total) · `sequencer_fee` = breakdown séquenceur uniquement · utiliser `fee` seul pour `totalFees`
 
 ### interest_and_funding — historique paiements funding/intérêt (max 100/req)
 ```json
