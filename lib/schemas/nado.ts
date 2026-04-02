@@ -383,30 +383,38 @@ export const ArchiveProductsResponseSchema = z.object({
 
 // ─── Archive: Account Snapshots ──────────────────────────────────────────────
 
-const PerpEntrySchema = z.object({
-  product_id: z.number().optional(),
-  balance: z.object({ amount: x18 }).optional(),
+/**
+ * Single event in the account_snapshots response.
+ * Only fields needed to compute avg entry price are captured here.
+ * formula: |net_entry_unrealized / post_balance.perp.balance.amount|
+ */
+export const AccountSnapshotEventSchema = z.object({
+  product_id: z.number(),
+  isolated: z.boolean(),
+  post_balance: z.object({
+    perp: z.object({
+      product_id: z.number().optional(),
+      balance: z.object({ amount: x18 }),
+    }).optional(),
+  }).optional(),
+  net_entry_unrealized: x18,
 })
-
-const SnapshotBaseSchema = z.union([
-  z.object({ perp: z.union([z.array(PerpEntrySchema), PerpEntrySchema]).optional() }),
-  z.array(PerpEntrySchema),
-])
-
-export const RawSnapshotSchema = z.object({
-  subaccount: z.string().optional(),
-  post_balance: z
-    .object({ base: SnapshotBaseSchema.optional() })
-    .optional(),
-})
-export type RawSnapshot = z.infer<typeof RawSnapshotSchema>
+export type AccountSnapshotEvent = z.infer<typeof AccountSnapshotEventSchema>
 
 /** Real response: { snapshots: { [subaccount]: { [timestamp]: events[] } } } */
 export const AccountSnapshotsResponseSchema = z.object({
   snapshots: z.record(
-    z.string(),
-    z.record(z.string(), z.array(RawSnapshotSchema))
+    z.string(),  // subaccount hex
+    z.record(
+      z.string(), // timestamp
+      z.array(AccountSnapshotEventSchema.partial().required({ product_id: true, isolated: true, net_entry_unrealized: true })),
+    ),
   ),
+})
+
+export const AccountSnapshotsRequestSchema = z.object({
+  subaccounts: z.array(z.string()).min(1),
+  isolated: z.boolean().optional(),
 })
 
 // ─── Gateway v1 — Response Envelope ──────────────────────────────────────────

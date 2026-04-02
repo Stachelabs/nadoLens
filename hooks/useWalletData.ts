@@ -11,6 +11,12 @@ import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
 import type { FundingPaymentEntry } from "@/lib/wallet/buildEquityCurve";
 import { mergePositionsWithVwapEntry } from "@/lib/wallet/perpVwapEntry";
 import {
+  applySnapshotEntryPrices,
+  buildEntryPriceMap,
+  type EntryPriceMap,
+} from "@/lib/wallet/snapshotEntryPrice";
+import { AccountSnapshotsResponseSchema } from "@/lib/schemas/nado";
+import {
   computeTradeMetrics,
   mergePnl,
 } from "@/lib/wallet/performance";
@@ -192,6 +198,22 @@ function buildPnlStats(
   return mergePnl(tradeMetrics, funding_pnl_usd);
 }
 
+/**
+ * Apply entry prices to positions.
+ * Snapshot (net_entry_unrealized/amount) is primary — matches Nado official dashboard.
+ * Falls back to VWAP from matches when snapshot map is empty (e.g. API failure).
+ */
+function applyEntryPrices(
+  positions: Position[],
+  snapshotMap: EntryPriceMap,
+  trades: TradeMatch[],
+): Position[] {
+  if (snapshotMap.size > 0) {
+    return applySnapshotEntryPrices(positions, snapshotMap);
+  }
+  return mergePositionsWithVwapEntry(positions, trades);
+}
+
 function tradeIdentity(trade: TradeMatch): string {
   return [
     trade.submission_idx,
@@ -257,6 +279,8 @@ export function useWalletData(rawAddress: string): WalletData {
    * Used for avg-entry VWAP; avoids mixing other markets into replay on the first page.
    */
   const vwapTradesRef = useRef<TradeMatch[]>([]);
+  /** Snapshot-derived entry prices — primary source; beats VWAP fallback. */
+  const entryPriceMapRef = useRef<EntryPriceMap>(new Map());
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
@@ -331,6 +355,33 @@ export function useWalletData(rawAddress: string): WalletData {
         parentNameByIsolatedSubaccount,
         parentSubaccountByIsolatedSubaccount,
       };
+    };
+
+    /**
+     * Fetch account_snapshots for the cross parent subaccounts.
+     * Both cross (isolated:false) and isolated (isolated:true) snapshots are fetched
+     * in a single call (no filter) so one request covers all positions.
+     * Returns an EntryPriceMap keyed by `${subaccount}:${product_id}:${isolated}`.
+     */
+    const fetchSnapshotEntryPrices = async (
+      crossSubaccounts: string[],
+    ): Promise<EntryPriceMap> => {
+      if (crossSubaccounts.length === 0) return new Map();
+      try {
+        const res = await fetch("/api/snapshots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subaccounts: crossSubaccounts }),
+          cache: "no-store",
+        });
+        if (!res.ok) return new Map();
+        const raw: unknown = await res.json();
+        const parsed = AccountSnapshotsResponseSchema.safeParse(raw);
+        if (!parsed.success) return new Map();
+        return buildEntryPriceMap(parsed.data.snapshots);
+      } catch {
+        return new Map();
+      }
     };
 
     // 2. Fetch positions for a single subaccount
@@ -742,6 +793,12 @@ export function useWalletData(rawAddress: string): WalletData {
       );
       if (cancelled) return;
 
+      // Fetch snapshot entry prices — uses net_entry_unrealized/amount (Nado official formula).
+      // Only cross (non-isolated) subaccounts are needed: they hold both cross + isolated events.
+      const crossSubaccounts = subs.filter((s) => !s.isolated).map((s) => s.subaccount);
+      entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubaccounts);
+      if (cancelled) return;
+
       const openProductIds = [
         ...new Set(positionData.positions.map((p) => p.product_id)),
       ];
@@ -811,11 +868,10 @@ export function useWalletData(rawAddress: string): WalletData {
           available_margin: positionData.availableMargin,
           maintenance_margin: positionData.maintenanceMargin,
           unrealized_pnl_usd: positionData.unrealizedTotal,
-          positions: mergePositionsWithVwapEntry(
+          positions: applyEntryPrices(
             positionData.positions,
-            vwapTradesRef.current.length > 0
-              ? vwapTradesRef.current
-              : allTrades,
+            entryPriceMapRef.current,
+            vwapTradesRef.current.length > 0 ? vwapTradesRef.current : allTrades,
           ),
           spot_balances: positionData.spotBalances,
           trades: allTrades,
@@ -899,11 +955,10 @@ export function useWalletData(rawAddress: string): WalletData {
                   trades: allTrades,
                   trades_complete: allDone || page === MAX_PAGES - 1,
                   ...updatedStats,
-                  positions: mergePositionsWithVwapEntry(
+                  positions: applyEntryPrices(
                     prev.stats.positions,
-                    vwapTradesRef.current.length > 0
-                      ? vwapTradesRef.current
-                      : allTrades,
+                    entryPriceMapRef.current,
+                    vwapTradesRef.current.length > 0 ? vwapTradesRef.current : allTrades,
                   ),
                 }
               : null,
@@ -939,11 +994,10 @@ export function useWalletData(rawAddress: string): WalletData {
           stats: prev.stats
             ? {
                 ...prev.stats,
-                positions: mergePositionsWithVwapEntry(
+                positions: applyEntryPrices(
                   pd.positions,
-                  vwapTradesRef.current.length > 0
-                    ? vwapTradesRef.current
-                    : tradesRef.current,
+                  entryPriceMapRef.current,
+                  vwapTradesRef.current.length > 0 ? vwapTradesRef.current : tradesRef.current,
                 ),
                 health_score: pd.healthScore,
                 total_equity_usd: pd.equityUsd,
@@ -970,17 +1024,25 @@ export function useWalletData(rawAddress: string): WalletData {
             isolatedParentSubaccountRef.current,
           );
           if (cancelled) return;
+          // Re-fetch snapshot entry prices in case a new fill happened since load
+          const refreshedCrossSubs = subaccountsRef.current
+            .filter((s) => !s.isolated)
+            .map((s) => s.subaccount);
+          const refreshedMap = await fetchSnapshotEntryPrices(refreshedCrossSubs);
+          if (!cancelled && refreshedMap.size > 0) {
+            entryPriceMapRef.current = refreshedMap;
+          }
+          if (cancelled) return;
           setData((prev) => ({
             ...prev,
             unrealizedRefreshing: false,
             stats: prev.stats
               ? {
                   ...prev.stats,
-                  positions: mergePositionsWithVwapEntry(
+                  positions: applyEntryPrices(
                     pd.positions,
-                    vwapTradesRef.current.length > 0
-                      ? vwapTradesRef.current
-                      : tradesRef.current,
+                    entryPriceMapRef.current,
+                    vwapTradesRef.current.length > 0 ? vwapTradesRef.current : tradesRef.current,
                   ),
                   health_score: pd.healthScore,
                   total_equity_usd: pd.equityUsd,
@@ -1032,6 +1094,7 @@ export function useWalletData(rawAddress: string): WalletData {
       cancelled = true;
       tradesRef.current = [];
       vwapTradesRef.current = [];
+      entryPriceMapRef.current = new Map();
       isolatedParentNameRef.current = new Map();
       isolatedParentSubaccountRef.current = new Map();
       fundingPaymentsRef.current = [];
