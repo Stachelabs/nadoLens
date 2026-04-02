@@ -15,7 +15,7 @@ import {
   extractTitle,
   htmlFragmentToMarkdown,
 } from "./htmlToMarkdown"
-import { log } from "./logger"
+import { clearProgress, log, logProgress } from "./logger"
 import { paths } from "./paths"
 import { isUrlAllowedByRobots, parseRobotsTxt } from "./robots"
 import { fetchAllSitemapPageUrls } from "./sitemap"
@@ -57,6 +57,7 @@ function recordStatus(httpStatus: number): PageRecord["status"] {
 }
 
 export async function runDocsSync(cfg: DocsRagConfig): Promise<Manifest> {
+  const syncStart = Date.now()
   const baseOrigin = cfg.baseUrl
   const fetchOpts = {
     timeoutMs: cfg.timeoutMs,
@@ -263,6 +264,11 @@ export async function runDocsSync(cfg: DocsRagConfig): Promise<Manifest> {
         headings,
         linksOut: anchors,
       })
+      log("debug", "page_ok", {
+        url: new URL(finalUrl).pathname,
+        status: res.status,
+        links: internalHrefs.length,
+      })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       log("error", "page_fetch_failed", { url: requestedUrl, err: msg })
@@ -277,12 +283,22 @@ export async function runDocsSync(cfg: DocsRagConfig): Promise<Manifest> {
   }
 
   let processed = 0
+  let failed = 0
+  const batchStart = Date.now()
+
   while (queue.length > 0) {
     if (cfg.dryRun && processed >= cfg.dryRunMaxPages) {
       log("warn", "dry_run_cap", { processed, cap: cfg.dryRunMaxPages })
       break
     }
     const batch = queue.splice(0, Math.min(cfg.concurrency, queue.length))
+    const currentUrl = new URL(batch[0].url).pathname
+    const estimated = processed + queue.length + batch.length
+    const elapsed = (Date.now() - batchStart) / 1000
+    const pps = elapsed > 0 ? (processed / elapsed).toFixed(1) : "—"
+    failed = pages.filter((p) => p.status === "failed").length
+    logProgress(processed, estimated, `${pps}p/s · fail:${failed} · ${currentUrl}`)
+
     await Promise.all(batch.map((b) => processOne(b)))
     processed += batch.length
 
@@ -290,6 +306,7 @@ export async function runDocsSync(cfg: DocsRagConfig): Promise<Manifest> {
       await persistState()
     }
   }
+  clearProgress()
 
   async function persistState(): Promise<void> {
     const state = {
@@ -341,6 +358,17 @@ export async function runDocsSync(cfg: DocsRagConfig): Promise<Manifest> {
   )
 
   const failRatio = totalDiscovered > 0 ? totalFailed / totalDiscovered : 0
+  const duration = ((Date.now() - syncStart) / 1000).toFixed(1)
+
+  log("success", "sync_complete", {
+    ok: totalOk,
+    failed: totalFailed,
+    total: totalDiscovered,
+    fail_ratio: failRatio.toFixed(4),
+    duration_s: duration,
+    dry_run: cfg.dryRun || undefined,
+  })
+
   if (failRatio > cfg.maxFailRatio) {
     throw new Error(
       `docs sync failed: fail ratio ${failRatio.toFixed(4)} > max ${cfg.maxFailRatio} (${totalFailed}/${totalDiscovered})`,

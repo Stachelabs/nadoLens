@@ -23,6 +23,8 @@ const BaseSchema = z.object({
   OPENAI_BASE_URL: z.string().url().optional(),
   OPENAI_EMBED_MODEL: z.string().min(1).default("text-embedding-3-small"),
   NADO_DOCS_CHUNK_MAX_CHARS: z.coerce.number().int().min(400).max(8000).default(2200),
+  NADO_DOCS_EMBED_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(12),
+  NADO_DOCS_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 })
 
 export type DocsRagConfig = {
@@ -42,6 +44,8 @@ export type DocsRagConfig = {
   openaiBaseUrl: string | undefined
   openaiEmbedModel: string
   chunkMaxChars: number
+  embedBatchSize: number
+  logLevel: "debug" | "info" | "warn" | "error"
   integration: boolean
 }
 
@@ -68,6 +72,8 @@ export function loadDocsRagConfig(env: NodeJS.ProcessEnv = process.env): DocsRag
     openaiBaseUrl: e.OPENAI_BASE_URL,
     openaiEmbedModel: e.OPENAI_EMBED_MODEL,
     chunkMaxChars: e.NADO_DOCS_CHUNK_MAX_CHARS,
+    embedBatchSize: e.NADO_DOCS_EMBED_BATCH_SIZE,
+    logLevel: e.NADO_DOCS_LOG_LEVEL,
     integration: envBool(env.NADO_DOCS_INTEGRATION, false),
   }
 }
