@@ -183,6 +183,24 @@ pnpm docs:build:nado
 
 ---
 
+#### Réinitialiser l'index depuis zéro
+
+À faire lors d'un changement de provider d'embedding (Ollama ↔ OpenAI), d'une restructuration profonde de la doc Nado, ou si l'index semble corrompu.
+
+```bash
+# Supprimer tous les artéfacts générés
+rm -rf .claude/docs/rag/               # SQLite, pages-md/, pages-json/, crawl-state
+rm -f .claude/docs/nado-manifest.json  # Manifeste du crawl
+rm -rf .claude/docs/reports/           # Rapports de couverture
+
+# Relancer le pipeline complet depuis zéro
+pnpm docs:build:nado
+```
+
+> Les fichiers `.md` dans `.claude/docs/` (`NADO_ARCHIVE_API.md`, `NADO_GATEWAY_API.md`, etc.) sont des docs **manuelles** — ne pas les supprimer.
+
+---
+
 #### `pnpm docs:query:nado "<question>"` — Recherche sémantique
 
 Interroge l'index local en langage naturel. Embed la question, calcule la similarité cosinus sur tous les chunks, affiche les top-K résultats avec score et extrait de texte.
@@ -219,6 +237,36 @@ Query  "fee calculation matches archive"
   #3  score: 0.801  /developer-resources/api/archive-indexer/matches
       "sequencer_fee: Breakdown of the sequencer portion only — already included in fee..."
 ```
+
+---
+
+#### Intégration Claude Code
+
+Claude Code lit `CLAUDE.md` au démarrage de chaque conversation. `CLAUDE.md` référence la commande `pnpm docs:query:nado` dans la section `## Documentation API Nado`. Claude peut donc interroger le RAG **directement depuis le chat**, sans copier-coller de docs.
+
+**Workflow :**
+1. S'assurer que l'index est à jour : `pnpm docs:build:nado`
+2. Ouvrir une conversation Claude Code dans ce repo
+3. Poser la question directement — Claude exécute `pnpm docs:query:nado` en arrière-plan si besoin
+
+**Exemples de questions utiles :**
+
+```bash
+# Comportement de l'API
+pnpm docs:query:nado "comment fonctionne la pagination avec submission_idx"
+pnpm docs:query:nado "fee calculation matches archive sequencer"
+pnpm docs:query:nado "format subaccount bytes32 default isolated"
+
+# Rate limits et erreurs
+pnpm docs:query:nado "rate limits weight par endpoint"
+pnpm docs:query:nado "gestion des 429 backoff"
+
+# Types de données
+pnpm docs:query:nado "x18 format conversion bigint"
+pnpm docs:query:nado "realized pnl closed_amount settlement"
+```
+
+> L'index doit être reconstruit (`pnpm docs:build:nado`) après chaque mise à jour majeure de la doc Nado pour que les réponses restent fiables.
 
 ---
 
