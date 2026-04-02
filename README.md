@@ -86,7 +86,7 @@ Le pipeline RAG permet d'interroger la documentation Nado en **langage naturel**
 
 Il crawle `docs.nado.xyz`, découpe les pages en chunks markdown, les encode en vecteurs via Ollama ou OpenAI, et stocke le tout dans un SQLite local sous `.claude/docs/rag/`.
 
-**Prérequis Ollama** (provider par défaut) — doit tourner en arrière-plan pendant toute utilisation des commandes `docs:*` :
+**Prérequis Ollama** (provider par défaut) — requis pour `docs:index:nado` **et** `docs:query:nado` (les deux embedent du texte via Ollama). `docs:sync:nado` et `docs:verify:nado` n'en ont pas besoin.
 
 ```bash
 ollama serve                   # à lancer une fois, reste en arrière-plan
