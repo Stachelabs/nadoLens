@@ -2,7 +2,7 @@
 
 Outil d'analyse on-chain pour le protocole **[Nado](https://nado.xyz)** — DEX à carnet d'ordres centralisé (CLOB) déployé sur Ink L2.
 
-Conçu pour les traders actifs : heatmap de liquidation en temps réel, cockpit de survie du carnet d'ordres, et explorateur de wallet avec historique des trades, PnL réalisé, fees cumulés et taux de réussite par actif.
+Projet en cours de développement. Actuellement implémenté : heatmap de liquidation temps réel, cockpit du carnet d'ordres, et explorateur de wallet (`/wallet/[address]`).
 
 ---
 
@@ -76,7 +76,6 @@ Copier `.env.example` → `.env` :
 | `pnpm test` | Lance Vitest en mode run-once (CI) |
 | `pnpm test:watch` | Lance Vitest en mode watch (développement) |
 
-Les tests d'intégration live (appels réels vers l'API Nado) nécessitent `NADO_DOCS_INTEGRATION=1` dans `.env`.
 
 ---
 
@@ -120,7 +119,7 @@ Crawle `https://docs.nado.xyz` à partir du sitemap et des liens internes, respe
 | `NADO_DOCS_TIMEOUT_MS` | `45000` | Timeout HTTP par requête (ms) |
 | `NADO_DOCS_MAX_FAIL_RATIO` | `0.08` | Ratio d'échecs max avant erreur fatale (8 %) |
 
-**Overrides ponctuels via env** :
+**Overrides ponctuels** — passés en préfixe de commande dans le shell (pas besoin de les mettre dans `.env`) :
 
 ```bash
 NADO_DOCS_DRY_RUN=1 pnpm docs:sync:nado       # limite à 5 pages — test rapide
@@ -144,7 +143,7 @@ Lit le manifeste, chunk chaque page markdown en sections (~2 200 chars), appelle
 
 > ⚠️ Si tu changes de provider embedding (Ollama ↔ OpenAI), les dimensions vectorielles sont incompatibles (768 vs 1 536 dims). Toute tentative de requête avec des dimensions incorrectes lève une erreur explicite. Relancer `pnpm docs:index:nado` recrée l'index depuis zéro.
 
-**Options** :
+**Options** — défauts dans [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts), surchargeables en préfixe de commande :
 
 | Option | Défaut | Description |
 |---|---|---|
