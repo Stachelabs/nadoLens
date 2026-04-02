@@ -1,7 +1,7 @@
 import { NADO_ARCHIVE_REST } from "@/lib/nado";
 import { ArchiveSubaccountsResponseSchema } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAddress, type Address } from "viem";
+import { isAddress } from "viem";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +23,10 @@ export async function GET(
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  const addr: Address = address as Address;
-
   const response = await fetch(NADO_ARCHIVE_REST, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept-Encoding": "gzip" },
-    body: JSON.stringify({ subaccounts: { address: addr } }),
+    body: JSON.stringify({ subaccounts: { address } }),
     cache: "no-store",
   });
 

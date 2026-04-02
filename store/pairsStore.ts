@@ -71,3 +71,8 @@ export const usePairsStore = create<PairsState>()(
     },
   ),
 )
+
+/** Resolve a product_id to its symbol string (e.g. "BTC-PERP"). Safe to call outside React. */
+export function productName(id: number): string {
+  return usePairsStore.getState().byId.get(id) ?? `#${id}`
+}

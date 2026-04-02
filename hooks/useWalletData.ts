@@ -14,7 +14,7 @@ import {
   computeTradeMetrics,
   mergePnl,
 } from "@/lib/wallet/performance";
-import { usePairsStore } from "@/store/pairsStore";
+import { usePairsStore, productName } from "@/store/pairsStore";
 import type { Position, SpotBalance, TradeMatch, WalletStats } from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { useEffect, useRef, useState } from "react";
@@ -53,11 +53,6 @@ function toSubaccount(address: string): string {
   const addr = address.toLowerCase().replace("0x", "");
   if (addr.length === 64) return `0x${addr}`; // already bytes32
   return `0x${addr}64656661756c740000000000`;
-}
-
-export function productName(id: number): string {
-  const { byId } = usePairsStore.getState();
-  return byId.get(id) ?? `#${id}`;
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
