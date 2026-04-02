@@ -73,6 +73,8 @@ export type TradeMatch = {
   subaccount?: string
   /** True when this fill is taker-side for the tracked sender. */
   is_taker?: boolean
+  /** True when this fill opened/closed an isolated margin position (from Archive `matches.isolated`). */
+  isolated?: boolean
   timestamp: string
   submission_idx: string
   product_id: number

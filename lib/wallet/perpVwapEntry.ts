@@ -23,11 +23,23 @@ function sameSubaccount(a?: string, b?: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
 
+/**
+ * Filter fills by isolated flag when the flag is present in the data.
+ * Cross positions must not include isolated fills and vice-versa.
+ * When positionIsIsolated is undefined (e.g. older data without the flag), no filter is applied.
+ */
+function matchesIsolatedFlag(t: TradeMatch, positionIsIsolated: boolean | undefined): boolean {
+  if (positionIsIsolated === undefined) return true;
+  if (t.isolated === undefined) return true;
+  return t.isolated === positionIsIsolated;
+}
+
 function avgEntryFromRecentOpenFillsX18(
   trades: TradeMatch[],
   productId: number,
   targetAmountX18: bigint,
   subaccount?: string,
+  positionIsIsolated?: boolean,
 ): bigint | null {
   if (targetAmountX18 === ZERO) return null;
   const targetAbs = absB(targetAmountX18);
@@ -37,7 +49,8 @@ function avgEntryFromRecentOpenFillsX18(
       (t) =>
         t.is_perp &&
         t.product_id === productId &&
-        (!subaccount || sameSubaccount(t.subaccount, subaccount)),
+        (!subaccount || sameSubaccount(t.subaccount, subaccount)) &&
+        matchesIsolatedFlag(t, positionIsIsolated),
     )
     .sort((a, b) => {
       try {
@@ -91,13 +104,15 @@ export function replayPerpAvgEntryX18(
   trades: TradeMatch[],
   productId: number,
   subaccount?: string,
+  positionIsIsolated?: boolean,
 ): { amountX18: bigint; avgEntryX18: bigint } | null {
   const relevant = trades
     .filter(
       (t) =>
         t.is_perp &&
         t.product_id === productId &&
-        (!subaccount || sameSubaccount(t.subaccount, subaccount)),
+        (!subaccount || sameSubaccount(t.subaccount, subaccount)) &&
+        matchesIsolatedFlag(t, positionIsIsolated),
     )
     .sort((a, b) => {
       try {
@@ -180,6 +195,7 @@ export function perpAvgEntryUsdFromMatches(
   productId: number,
   targetAmountX18: string,
   subaccount?: string,
+  positionIsIsolated?: boolean,
 ): number | null {
   let target: bigint;
   try {
@@ -192,13 +208,14 @@ export function perpAvgEntryUsdFromMatches(
     productId,
     target,
     subaccount,
+    positionIsIsolated,
   );
   if (openFillAvgX18 !== null) {
     const usd = fromX18BigInt(openFillAvgX18.toString());
     if (Number.isFinite(usd) && usd > 0) return usd;
   }
 
-  const replay = replayPerpAvgEntryX18(trades, productId, subaccount);
+  const replay = replayPerpAvgEntryX18(trades, productId, subaccount, positionIsIsolated);
   if (!replay) return null;
   const { amountX18, avgEntryX18 } = replay;
   const diff = amountX18 - target;
@@ -223,6 +240,7 @@ export function mergePositionsWithVwapEntry(
       p.product_id,
       p.amount_x18,
       replaySubaccount,
+      p.isolated,
     );
     if (vwap !== null) {
       return { ...p, entry_price: vwap };
