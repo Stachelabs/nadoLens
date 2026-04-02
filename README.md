@@ -1,33 +1,33 @@
 # NadoLens
 
-Outil d'analyse on-chain pour le protocole **[Nado](https://nado.xyz)** — DEX à carnet d'ordres centralisé (CLOB) déployé sur Ink L2.
+On-chain analytics tool for the **[Nado](https://nado.xyz)** protocol — a CLOB DEX deployed on Ink L2.
 
-Projet en cours de développement. Actuellement implémenté : heatmap de liquidation temps réel, cockpit du carnet d'ordres, et explorateur de wallet (`/wallet/[address]`).
+Work in progress. Currently implemented: wallet explorer (`/wallet/[address]`) with live open positions.
 
 ---
 
 ## Stack
 
-| Couche | Technologie |
+| Layer | Technology |
 |---|---|
 | Framework | Next.js 16 — App Router + Turbopack |
-| Langage | TypeScript strict |
-| Style | Tailwind CSS v4 + shadcn/ui |
-| État client | Zustand 5 |
+| Language | TypeScript strict |
+| Styling | Tailwind CSS v4 + shadcn/ui |
+| Client state | Zustand 5 |
 | Wallet / Blockchain | wagmi 2 · viem 2 · RainbowKit 2 |
-| Charts trading | TradingView Lightweight Charts v5 |
-| Charts stats | Recharts |
+| Trading charts | TradingView Lightweight Charts v5 |
+| Stats charts | Recharts |
 | Validation | Zod 4 |
-| Base de données | Prisma 5 + Neon (PostgreSQL serverless) |
-| WS Proxy | Bun (Railway — région eu-west4) |
+| Database | Prisma 5 + Neon (serverless PostgreSQL) |
+| WS Proxy | Bun (Railway — eu-west4) |
 
 ---
 
-## Prérequis
+## Prerequisites
 
 - **Node.js** ≥ 20
 - **pnpm** ≥ 10 (`npm i -g pnpm`)
-- **Ollama** *(optionnel — pour le pipeline docs RAG)* — [installer](https://ollama.com/download), puis `ollama pull nomic-embed-text`. Doit tourner en arrière-plan (`ollama serve`) pendant toute utilisation des commandes `docs:*`.
+- **Ollama** *(optional — for the docs RAG pipeline)* — [install](https://ollama.com/download), then `ollama pull nomic-embed-text`. Must be running in the background (`ollama serve`) when using any `docs:*` command.
 
 ---
 
@@ -36,193 +36,192 @@ Projet en cours de développement. Actuellement implémenté : heatmap de liquid
 ```bash
 pnpm install
 cp .env.example .env
-# Renseigner DATABASE_URL, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, WS_PROXY_URL
+# Fill in DATABASE_URL, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, WS_PROXY_URL
 ```
 
 ---
 
-## Variables d'environnement
+## Environment variables
 
-Copier `.env.example` → `.env` :
+Copy `.env.example` → `.env`:
 
-| Variable | Requis | Description |
+| Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | ✅ | Connexion Neon PostgreSQL |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ✅ | ID projet WalletConnect Cloud |
-| `WS_PROXY_URL` + `NEXT_PUBLIC_WS_PROXY_URL` | ✅ | URL publique du WS Proxy Railway |
+| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ✅ | WalletConnect Cloud project ID |
+| `WS_PROXY_URL` + `NEXT_PUBLIC_WS_PROXY_URL` | ✅ | Public URL of the Railway WS Proxy |
 | `NADO_GATEWAY_REST` | ✅ | `https://gateway.prod.nado.xyz/v1` |
 | `NADO_ARCHIVE_REST` | ✅ | `https://archive.prod.nado.xyz/v1` |
-| `OPENAI_API_KEY` | ✗ | Uniquement si `NADO_DOCS_EMBED_PROVIDER=openai` dans la config RAG |
+| `OPENAI_API_KEY` | ✗ | Only if `NADO_DOCS_EMBED_PROVIDER=openai` in the RAG config |
 
-> La configuration non-secrète du pipeline RAG (URLs, concurrence, modèles d'embedding) est dans [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) — pas besoin de variables d'environnement pour ces valeurs.
+> Non-secret RAG config (URLs, concurrency, embedding models) lives in [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) — no environment variables needed for those values.
 
 ---
 
-## Scripts disponibles
+## Available scripts
 
-### Application
+### App
 
-| Commande | Description |
+| Command | Description |
 |---|---|
-| `pnpm dev` | Serveur de développement sur `http://localhost:3000` (Turbopack) |
-| `pnpm build` | Génère le client Prisma puis compile Next.js pour la production |
-| `pnpm start` | Démarre Next.js en mode production (nécessite `pnpm build` au préalable) |
-| `pnpm lint` | ESLint sur l'ensemble du projet |
+| `pnpm dev` | Development server at `http://localhost:3000` (Turbopack) |
+| `pnpm build` | Generate Prisma client then compile Next.js for production |
+| `pnpm start` | Start Next.js in production mode (requires `pnpm build` first) |
+| `pnpm lint` | ESLint across the whole project |
 
 ### Tests
 
-| Commande | Description |
+| Command | Description |
 |---|---|
-| `pnpm test` | Lance Vitest en mode run-once (CI) |
-| `pnpm test:watch` | Lance Vitest en mode watch (développement) |
-
+| `pnpm test` | Run Vitest once (CI mode) |
+| `pnpm test:watch` | Run Vitest in watch mode (development) |
 
 ---
 
-### Pipeline Docs RAG
+### Docs RAG pipeline
 
-Le pipeline RAG permet d'interroger la documentation Nado en **langage naturel** depuis le terminal ou depuis Claude Code, sans passer par un navigateur.
+The RAG pipeline lets you query the Nado documentation in **natural language** from the terminal or from Claude Code, without opening a browser.
 
-Il crawle `docs.nado.xyz`, découpe les pages en chunks markdown, les encode en vecteurs via Ollama ou OpenAI, et stocke le tout dans un SQLite local sous `.claude/docs/rag/`.
+It crawls `docs.nado.xyz`, splits pages into markdown chunks, encodes them as vectors via Ollama or OpenAI, and stores everything in a local SQLite under `.claude/docs/rag/`.
 
-**Prérequis Ollama** (provider par défaut) — requis pour `docs:index:nado` **et** `docs:query:nado` (les deux embedent du texte via Ollama). `docs:sync:nado` et `docs:verify:nado` n'en ont pas besoin.
+**Ollama prerequisite** (default provider) — required for both `docs:index:nado` and `docs:query:nado` (both embed text). `docs:sync:nado` and `docs:verify:nado` do not need it.
 
 ```bash
-ollama serve                   # à lancer une fois, reste en arrière-plan
-ollama pull nomic-embed-text   # à faire une seule fois
+ollama serve                   # start once, stays in background
+ollama pull nomic-embed-text   # one-time download
 ```
 
-Pour utiliser OpenAI à la place : modifier `NADO_DOCS_EMBED_PROVIDER` dans [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) et ajouter `OPENAI_API_KEY` dans `.env`.
+To use OpenAI instead: set `NADO_DOCS_EMBED_PROVIDER` in [`scripts/docs-rag/nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts) and add `OPENAI_API_KEY` to `.env`.
 
 ---
 
-#### `pnpm docs:sync:nado` — Crawler
+#### `pnpm docs:sync:nado` — Crawl
 
-Crawle `https://docs.nado.xyz` à partir du sitemap et des liens internes, respecte `robots.txt`, convertit chaque page HTML en markdown propre.
+Crawls `https://docs.nado.xyz` from the sitemap and internal links, respects `robots.txt`, converts each HTML page to clean markdown.
 
-**Artéfacts générés :**
+**Generated artifacts:**
 
-| Chemin | Contenu |
+| Path | Content |
 |---|---|
-| `.claude/docs/rag/pages-md/` | Pages converties en Markdown (1 fichier / page) |
-| `.claude/docs/rag/pages-json/` | Métadonnées de chaque page (titre, headings, liens sortants, status HTTP) |
-| `.claude/docs/nado-manifest.json` | Manifeste complet (pages, graphe de liens, redirections, URLs sitemap) |
-| `.claude/docs/rag/crawl-state.json` | État de reprise (utilisé avec `NADO_DOCS_RESUME=1`) |
+| `.claude/docs/rag/pages-md/` | Pages as Markdown (one file per page) |
+| `.claude/docs/rag/pages-json/` | Page metadata (title, headings, outbound links, HTTP status) |
+| `.claude/docs/nado-manifest.json` | Full crawl manifest (pages, link graph, redirects, sitemap URLs) |
+| `.claude/docs/rag/crawl-state.json` | Resume state (used with `NADO_DOCS_RESUME=1`) |
 
-**Options principales** (éditables dans [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts)) :
+**Main options** (edit in [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts)):
 
-| Option | Défaut | Description |
+| Option | Default | Description |
 |---|---|---|
-| `NADO_DOCS_CONCURRENCY` | `2` | Pages crawlées en parallèle |
-| `NADO_DOCS_MAX_DEPTH` | `32` | Profondeur de crawl maximale |
-| `NADO_DOCS_MAX_RETRIES` | `4` | Tentatives par page en cas d'erreur réseau |
-| `NADO_DOCS_TIMEOUT_MS` | `45000` | Timeout HTTP par requête (ms) |
-| `NADO_DOCS_MAX_FAIL_RATIO` | `0.08` | Ratio d'échecs max avant erreur fatale (8 %) |
+| `NADO_DOCS_CONCURRENCY` | `2` | Pages crawled in parallel |
+| `NADO_DOCS_MAX_DEPTH` | `32` | Maximum crawl depth |
+| `NADO_DOCS_MAX_RETRIES` | `4` | Retries per page on network error |
+| `NADO_DOCS_TIMEOUT_MS` | `45000` | HTTP timeout per request (ms) |
+| `NADO_DOCS_MAX_FAIL_RATIO` | `0.08` | Max failure ratio before fatal error (8%) |
 
-**Overrides ponctuels** — passés en préfixe de commande dans le shell (pas besoin de les mettre dans `.env`) :
+**One-off overrides** — passed as shell prefixes, no need to add them to `.env`:
 
 ```bash
-NADO_DOCS_DRY_RUN=1 pnpm docs:sync:nado       # limite à 5 pages — test rapide
-NADO_DOCS_RESUME=1 pnpm docs:sync:nado         # reprend depuis crawl-state.json
-NADO_DOCS_LOG_LEVEL=debug pnpm docs:sync:nado  # logs détaillés
+NADO_DOCS_DRY_RUN=1 pnpm docs:sync:nado       # limit to 5 pages — quick test
+NADO_DOCS_RESUME=1 pnpm docs:sync:nado         # resume from crawl-state.json
+NADO_DOCS_LOG_LEVEL=debug pnpm docs:sync:nado  # verbose logs
 ```
 
 ---
 
-#### `pnpm docs:index:nado` — Indexer
+#### `pnpm docs:index:nado` — Index
 
-Lit le manifeste, chunk chaque page markdown en sections (~2 200 chars), appelle le modèle d'embedding par batch, et stocke les vecteurs Float32 dans SQLite.
+Reads the manifest, chunks each markdown page into sections (~2,200 chars), calls the embedding model in batches, and stores Float32 vectors in SQLite.
 
-**Artéfact généré :**
+**Generated artifact:**
 
-| Chemin | Contenu |
+| Path | Content |
 |---|---|
-| `.claude/docs/rag/rag.sqlite` | Base vectorielle (table `chunks` : texte + embedding + hash) |
+| `.claude/docs/rag/rag.sqlite` | Vector store (`chunks` table: text + embedding + hash) |
 
-**Indexation incrémentale :** une page déjà indexée avec le même `contentHash` est automatiquement skippée — relancer l'index après un `sync` est toujours rapide.
+**Incremental indexing:** a page already indexed with the same `contentHash` is automatically skipped — re-running after a sync is always fast.
 
-> ⚠️ Si tu changes de provider embedding (Ollama ↔ OpenAI), les dimensions vectorielles sont incompatibles (768 vs 1 536 dims). Toute tentative de requête avec des dimensions incorrectes lève une erreur explicite. Relancer `pnpm docs:index:nado` recrée l'index depuis zéro.
+> ⚠️ Switching embedding providers (Ollama ↔ OpenAI) produces incompatible vector dimensions (768 vs 1,536). Any query attempt with mismatched dimensions throws an explicit error. Re-run `pnpm docs:index:nado` to rebuild from scratch.
 
-**Options** — défauts dans [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts), surchargeables en préfixe de commande :
+**Options** — defaults in [`nado-docs.config.ts`](scripts/docs-rag/nado-docs.config.ts), overridable as shell prefixes:
 
-| Option | Défaut | Description |
+| Option | Default | Description |
 |---|---|---|
-| `NADO_DOCS_EMBED_PROVIDER` | `ollama` | `ollama` ou `openai` |
-| `NADO_DOCS_EMBED_BATCH_SIZE` | `12` | Textes envoyés par batch à l'embedder |
-| `NADO_DOCS_CHUNK_MAX_CHARS` | `2200` | Budget caractères par chunk |
-| `OLLAMA_HOST` | `http://127.0.0.1:11434` | URL Ollama local |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Modèle Ollama |
-| `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | Modèle OpenAI |
+| `NADO_DOCS_EMBED_PROVIDER` | `ollama` | `ollama` or `openai` |
+| `NADO_DOCS_EMBED_BATCH_SIZE` | `12` | Texts sent per batch to the embedder |
+| `NADO_DOCS_CHUNK_MAX_CHARS` | `2200` | Character budget per chunk |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Local Ollama URL |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | Ollama model |
+| `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | OpenAI model |
 
 ---
 
-#### `pnpm docs:verify:nado` — Vérifier la couverture
+#### `pnpm docs:verify:nado` — Verify coverage
 
-Vérifie que toutes les URLs du menu de navigation sont bien présentes dans le manifeste, et détecte les liens internes cassés.
+Checks that all navigation URLs are present in the manifest and detects broken internal links.
 
-**Artéfact généré :**
+**Generated artifact:**
 
-| Chemin | Contenu |
+| Path | Content |
 |---|---|
-| `.claude/docs/reports/nado-coverage-report.md` | Rapport de couverture (nav manquante + liens cassés) |
+| `.claude/docs/reports/nado-coverage-report.md` | Coverage report (missing nav pages + broken links) |
 
-**Exit code** `1` si des pages de navigation sont absentes de l'index.
+Exit code `1` if any navigation pages are missing from the index.
 
 ---
 
-#### `pnpm docs:build:nado` — Pipeline complet
+#### `pnpm docs:build:nado` — Full pipeline
 
-Enchaîne les trois étapes en une seule commande : **sync → index → verify**.
+Runs all three steps in one command: **sync → index → verify**.
 
 ```bash
 pnpm docs:build:nado
 ```
 
-À relancer après une mise à jour significative de la documentation Nado, ou lors du premier setup.
+Re-run after any significant update to the Nado documentation, or on first setup.
 
 ---
 
-#### Réinitialiser l'index depuis zéro
+#### Reset the index from scratch
 
-À faire lors d'un changement de provider d'embedding (Ollama ↔ OpenAI), d'une restructuration profonde de la doc Nado, ou si l'index semble corrompu.
+Do this when switching embedding providers (Ollama ↔ OpenAI), after a major restructuring of the Nado docs, or if the index seems corrupted.
 
 ```bash
-# Supprimer tous les artéfacts générés
+# Delete all generated artifacts
 rm -rf .claude/docs/rag/               # SQLite, pages-md/, pages-json/, crawl-state
-rm -f .claude/docs/nado-manifest.json  # Manifeste du crawl
-rm -rf .claude/docs/reports/           # Rapports de couverture
+rm -f .claude/docs/nado-manifest.json  # Crawl manifest
+rm -rf .claude/docs/reports/           # Coverage reports
 
-# Relancer le pipeline complet depuis zéro
+# Rebuild from scratch
 pnpm docs:build:nado
 ```
 
-> Les fichiers `.md` dans `.claude/docs/` (`NADO_ARCHIVE_API.md`, `NADO_GATEWAY_API.md`, etc.) sont des docs **manuelles** — ne pas les supprimer.
+> The `.md` files in `.claude/docs/` (`NADO_ARCHIVE_API.md`, `NADO_GATEWAY_API.md`, etc.) are **manually maintained** docs — do not delete them.
 
 ---
 
-#### `pnpm docs:query:nado "<question>"` — Recherche sémantique
+#### `pnpm docs:query:nado "<question>"` — Semantic search
 
-Interroge l'index local en langage naturel. Embed la question, calcule la similarité cosinus sur tous les chunks, affiche les top-K résultats avec score et extrait de texte.
+Queries the local index in natural language. Embeds the question, computes cosine similarity against all chunks, and returns the top-K results with scores and text excerpts.
 
 ```bash
-# Recherche basique
+# Basic search
 pnpm docs:query:nado "fee calculation matches archive"
 
-# Limiter le nombre de résultats
+# Limit number of results
 pnpm docs:query:nado "pagination idx" --top-k 3
 
-# Filtrer par section de l'API
+# Filter by API section
 pnpm docs:query:nado "rate limits" --filter /developer-resources/api
 ```
 
-**Options :**
+**Options:**
 
-| Option | Défaut | Description |
+| Option | Default | Description |
 |---|---|---|
-| `--top-k N` | `5` | Nombre de résultats retournés |
-| `--filter <path>` | — | Filtrer par préfixe de chemin URL (ex: `/developer-resources/api`) |
+| `--top-k N` | `5` | Number of results to return |
+| `--filter <path>` | — | Filter by URL path prefix (e.g. `/developer-resources/api`) |
 
-**Exemple de sortie :**
+**Example output:**
 
 ```
 Query  "fee calculation matches archive"
@@ -239,46 +238,41 @@ Query  "fee calculation matches archive"
 
 ---
 
-#### Intégration Claude Code
+#### Claude Code integration
 
-Claude Code lit `CLAUDE.md` au démarrage de chaque conversation. `CLAUDE.md` référence la commande `pnpm docs:query:nado` dans la section `## Documentation API Nado`. Claude peut donc interroger le RAG **directement depuis le chat**, sans copier-coller de docs.
+Claude Code reads `CLAUDE.md` at the start of every conversation. `CLAUDE.md` references `pnpm docs:query:nado` under `## Nado API Documentation`, so Claude can query the RAG **directly from the chat** without copy-pasting docs.
 
-**Workflow :**
-1. S'assurer que l'index est à jour : `pnpm docs:build:nado`
-2. Ouvrir une conversation Claude Code dans ce repo
-3. Poser la question directement — Claude exécute `pnpm docs:query:nado` en arrière-plan si besoin
+**Workflow:**
+1. Make sure the index is up to date: `pnpm docs:build:nado`
+2. Open a Claude Code session in this repo
+3. Ask your question — Claude will run `pnpm docs:query:nado` when needed
 
-**Exemples de questions utiles :**
+**Useful example queries:**
 
 ```bash
-# Comportement de l'API
-pnpm docs:query:nado "comment fonctionne la pagination avec submission_idx"
+pnpm docs:query:nado "how does pagination work with submission_idx"
 pnpm docs:query:nado "fee calculation matches archive sequencer"
-pnpm docs:query:nado "format subaccount bytes32 default isolated"
-
-# Rate limits et erreurs
-pnpm docs:query:nado "rate limits weight par endpoint"
-pnpm docs:query:nado "gestion des 429 backoff"
-
-# Types de données
-pnpm docs:query:nado "x18 format conversion bigint"
+pnpm docs:query:nado "subaccount bytes32 format default isolated"
+pnpm docs:query:nado "rate limits weight per endpoint"
+pnpm docs:query:nado "429 handling backoff retry"
+pnpm docs:query:nado "x18 format bigint conversion"
 pnpm docs:query:nado "realized pnl closed_amount settlement"
 ```
 
-> L'index doit être reconstruit (`pnpm docs:build:nado`) après chaque mise à jour majeure de la doc Nado pour que les réponses restent fiables.
+> Rebuild the index (`pnpm docs:build:nado`) after any major Nado docs update to keep answers accurate.
 
 ---
 
-#### Niveau de log
+#### Log levels
 
-Toutes les commandes `docs:*` utilisent `NADO_DOCS_LOG_LEVEL` :
+All `docs:*` commands respect `NADO_DOCS_LOG_LEVEL`:
 
-| Valeur | Usage |
+| Value | Usage |
 |---|---|
-| `debug` | Tous les détails (pages skippées, timings par batch, dedup) |
-| `info` | Standard — défaut |
-| `warn` | Avertissements et erreurs uniquement |
-| `error` | Erreurs fatales uniquement |
+| `debug` | Full details (skipped pages, per-batch timings, dedup) |
+| `info` | Standard — default |
+| `warn` | Warnings and errors only |
+| `error` | Fatal errors only |
 
 ```bash
 NADO_DOCS_LOG_LEVEL=debug pnpm docs:build:nado
@@ -286,37 +280,37 @@ NADO_DOCS_LOG_LEVEL=debug pnpm docs:build:nado
 
 ---
 
-## Structure du projet
+## Project structure
 
 ```
-app/                      # Next.js App Router (pages, layouts, routes API)
+app/                      # Next.js App Router (pages, layouts, API routes)
   api/
-    pairs/                # Liste des paires Nado (proxy Gateway)
-    wallet/[address]/     # Proxy Gateway — subaccount info
-    subaccounts/[address]/# Proxy Archive — liste des subaccounts
-    matches/              # Proxy Archive — historique des trades (chunks 5 subaccounts)
-    funding/              # Proxy Archive — intérêts & funding
-components/               # Composants React (heatmap, cockpit, wallet explorer…)
+    pairs/                # Nado pairs list (Gateway proxy)
+    wallet/[address]/     # Gateway proxy — subaccount info
+    subaccounts/[address]/# Archive proxy — subaccounts list
+    matches/              # Archive proxy — trade history (5-subaccount chunks)
+    funding/              # Archive proxy — interest & funding
+components/               # React components (wallet explorer…)
 hooks/                    # Hooks (useWalletData, useLiquidationStream, useOrderBook…)
 store/                    # Zustand stores (liquidation, pairs, wallet)
 lib/
-  docs-rag/               # Pipeline RAG complet (crawler, chunker, embeddings, SQLite)
-  schemas/                # Zod schemas — source de vérité des types Nado
+  docs-rag/               # Full RAG pipeline (crawler, chunker, embeddings, SQLite)
+  schemas/                # Zod schemas — source of truth for Nado types
 scripts/
-  docs-rag/               # CLI du pipeline RAG + config committée
-    cli.ts                # Point d'entrée des commandes docs:*
-    nado-docs.config.ts   # Config non-secrète (base URL, concurrence, modèles…)
-prisma/                   # Schema Prisma + migrations
-ws-proxy/                 # WS Proxy Bun (Railway) — relay WebSocket Nado
+  docs-rag/               # RAG pipeline CLI + committed config
+    cli.ts                # Entry point for docs:* commands
+    nado-docs.config.ts   # Non-secret config (base URL, concurrency, models…)
+prisma/                   # Prisma schema + migrations
+ws-proxy/                 # Bun WS Proxy (Railway) — Nado WebSocket relay
 .claude/
-  docs/                   # Documentation Nado (.md) + index RAG (rag.sqlite)
-  docs/rag/               # Artéfacts générés : pages-md/, pages-json/, crawl-state
+  docs/                   # Nado docs (.md) + RAG index (rag.sqlite)
+  docs/rag/               # Generated artifacts: pages-md/, pages-json/, crawl-state
 ```
 
 ---
 
 ## Architecture
 
-Voir [`ARCHI.md`](ARCHI.md) pour le détail du data flow, des composants et des choix techniques.
+See [`ARCHI.md`](ARCHI.md) for data flow, component breakdown, and technical decisions.
 
-Voir [`CLAUDE.md`](CLAUDE.md) pour les règles de développement, les contraintes stack et les règles critiques de l'API Nado.
+See [`CLAUDE.md`](CLAUDE.md) for development rules, stack constraints, and critical Nado API notes.
