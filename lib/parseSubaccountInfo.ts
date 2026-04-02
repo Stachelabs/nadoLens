@@ -36,6 +36,23 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
 
   const subaccountHex = data.subaccount ?? ''
 
+  // Spot balances computed first — totalCollateral needed for liquidation price formula.
+  const spotBalances: SpotBalance[] = data.spot_balances
+    .map((sb) => {
+      const amount = fromX18BigInt(sb.balance?.amount ?? '0')
+      const market = spotProductMap.get(sb.product_id)
+      const price = market?.oracle_price_x18 ? fromX18BigInt(market.oracle_price_x18) : 1
+      const asset = assetsById.get(sb.product_id)
+      return {
+        product_id: sb.product_id,
+        symbol: asset?.symbol ?? byId.get(sb.product_id) ?? `#${sb.product_id}`,
+        name: asset?.name ?? `#${sb.product_id}`,
+        amount,
+        value_usd: amount * price,
+      }
+    })
+  const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
+
   const positions: Position[] = data.perp_balances
     .filter((b) => {
       try {
@@ -64,10 +81,14 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
           : fromX18BigInt(market.risk.short_weight_maintenance_x18)
         : 0.9875
       const maintMarginRate = 1 - Math.min(maintWeight, 1)
-      const leverage = 10
-      const liquidationPrice = isLong
-        ? markPrice * (1 - 1 / leverage + maintMarginRate)
-        : markPrice * (1 + 1 / leverage - maintMarginRate)
+      // Cross-margin liq price: price at which portfolio health = 0 (all else constant).
+      // health = totalCollateral + amount * liqPrice * maintWeight + vQuote = 0
+      // liqPrice = -(totalCollateral + vQuote) / (amount * maintWeight)
+      // Approximation: multi-position portfolios share collateral — actual liq price may be higher.
+      const liqDenom = amount * maintWeight
+      const liquidationPrice = Math.abs(liqDenom) > 1e-12
+        ? -(totalCollateral + vQuote) / liqDenom
+        : 0
       const unrealizedPnl = vQuote + amount * markPrice
 
       return {
@@ -86,22 +107,6 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       }
     })
 
-  const spotBalances: SpotBalance[] = data.spot_balances
-    .map((sb) => {
-      const amount = fromX18BigInt(sb.balance?.amount ?? '0')
-      const market = spotProductMap.get(sb.product_id)
-      const price = market?.oracle_price_x18 ? fromX18BigInt(market.oracle_price_x18) : 1
-      const asset = assetsById.get(sb.product_id)
-      return {
-        product_id: sb.product_id,
-        symbol: asset?.symbol ?? byId.get(sb.product_id) ?? `#${sb.product_id}`,
-        name: asset?.name ?? `#${sb.product_id}`,
-        amount,
-        value_usd: amount * price,
-      }
-    })
-  const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
-
   const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
   const totalNotional = positions.reduce((s, p) => s + Math.abs(p.amount) * p.mark_price, 0)
   const maintMarginUsage = totalNotional > 0 ? totalMaintMargin / totalNotional : 0
@@ -112,9 +117,9 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   let healthScore = Math.max(0, Math.min(1, 1 - maintMarginUsage))
   const maintHealth = data.healths[1]
   if (maintHealth) {
-    const assets = fromX18BigInt(maintHealth.assets)
+    const healthAssets = fromX18BigInt(maintHealth.assets)
     const liabilities = fromX18BigInt(maintHealth.liabilities)
-    if (assets > 0) healthScore = Math.max(0, Math.min(1, (assets - liabilities) / assets))
+    if (healthAssets > 0) healthScore = Math.max(0, Math.min(1, (healthAssets - liabilities) / healthAssets))
   }
 
   return {
