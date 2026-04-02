@@ -35,6 +35,26 @@ function tm(
 }
 
 describe("replayPerpAvgEntryX18", () => {
+  it("position reversal: long 10 then sell 15 → net short 5 at reversal price", () => {
+    const P68000 = BigInt(68000) * WAD;
+    const long10 = (BigInt(10) * BigInt(10) ** BigInt(15)).toString();   // +0.010
+    const sell15 = (-BigInt(15) * BigInt(10) ** BigInt(15)).toString();  // -0.015
+    const target = (-BigInt(5) * BigInt(10) ** BigInt(15)).toString();   // -0.005 net short
+
+    const trades = [
+      tm("1", 2, long10, P67575.toString()),
+      tm("2", 2, sell15, P68000.toString()),
+    ];
+
+    const out = replayPerpAvgEntryX18(trades, 2);
+    expect(out).not.toBeNull();
+    expect(out!.amountX18.toString()).toBe(target);
+    expect(out!.avgEntryX18).toBe(P68000); // avg entry = reversal fill price
+
+    const usd = perpAvgEntryUsdFromMatches(trades, 2, target);
+    expect(usd).toBeCloseTo(68000, 1);
+  });
+
   it("two adds at same price keep that VWAP", () => {
     const neg8m = (-BigInt(8) * BigInt(10) ** BigInt(15)).toString();
     const trades = [
