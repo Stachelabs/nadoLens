@@ -120,6 +120,17 @@ Consulter le fichier approprié selon la tâche en cours :
 | Concepts (margin types, health, PnL settlement, fees, format bytes32, x18) | `.claude/docs/NADO_CONCEPTS.md` |
 | Gestion des 429, backoff, erreurs, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
 
+### Interroger le RAG en langage naturel
+
+```bash
+pnpm docs:query:nado "<question>"
+# Ex: pnpm docs:query:nado "fee calculation matches archive"
+# Ex: pnpm docs:query:nado "pagination idx" --top-k 3
+# Ex: pnpm docs:query:nado "rate limits" --filter /developer-resources/api
+```
+
+Rebuilder l'index : `pnpm docs:build:nado` (crawl + embed + verify)
+
 ### Règles critiques (à toujours respecter)
 
 - Conversion x18 : toujours via `BigInt`, jamais `parseFloat` sur les grands nombres

@@ -90,6 +90,9 @@ importers:
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0
+      dotenv:
+        specifier: ^17.4.0
+        version: 17.4.0
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.6.1)
@@ -2846,8 +2849,8 @@ packages:
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
 
-  dotenv@17.3.1:
-    resolution: {integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==}
+  dotenv@17.4.0:
+    resolution: {integrity: sha512-kCKF62fwtzwYm0IGBNjRUjtJgMfGapII+FslMHIjMR5KTnwEmBmWLDRSnc3XSNP8bNy34tekgQyDT0hr7pERRQ==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -5997,7 +6000,7 @@ snapshots:
   '@dotenvx/dotenvx@1.57.0':
     dependencies:
       commander: 11.1.0
-      dotenv: 17.3.1
+      dotenv: 17.4.0
       eciesjs: 0.4.18
       execa: 5.1.1
       fdir: 6.5.0(picomatch@4.0.3)
@@ -9256,7 +9259,7 @@ snapshots:
       domelementtype: 2.3.0
       domhandler: 5.0.3
 
-  dotenv@17.3.1: {}
+  dotenv@17.4.0: {}
 
   dunder-proto@1.0.1:
     dependencies:
