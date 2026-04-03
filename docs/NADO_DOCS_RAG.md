@@ -25,15 +25,17 @@ node --env-file=.env.local pnpm docs:sync:nado
 
 ## Outputs
 
-| Path | Committed | Description |
-| --- | --- | --- |
-| `nado-rag/nado-manifest.json` | ✅ | All URLs, fetch status, content hash, depth, parents, redirects, nav + sitemap lists |
-| `nado-rag/pages-md/*.md` | ✅ | Normalized Markdown with YAML frontmatter (`title`, `source_url`, `fetched_at`, `section_path`) |
-| `nado-rag/pages-json/*.json` | ✅ | Raw metadata per page (title, headings, links out) |
-| `nado-rag/link-graph.json` | ✅ | Adjacency list of internal links |
-| `nado-rag/reports/nado-coverage-report.md` | ✅ | Human-readable coverage / broken links |
-| `nado-rag/rag.sqlite` | ❌ gitignored | Chunk embeddings — regenerate with `pnpm docs:index:nado` |
-| `nado-rag/crawl-state.json` | ❌ gitignored | Transient resume state |
+All outputs land in `nado-rag/` which is fully gitignored — each developer runs the pipeline locally.
+
+| Path | Description |
+| --- | --- |
+| `nado-rag/nado-manifest.json` | All URLs, fetch status, content hash, depth, parents, redirects, nav + sitemap lists |
+| `nado-rag/pages-md/*.md` | Normalized Markdown with YAML frontmatter (`title`, `source_url`, `fetched_at`, `section_path`) |
+| `nado-rag/pages-json/*.json` | Raw metadata per page (title, headings, links out) |
+| `nado-rag/link-graph.json` | Adjacency list of internal links |
+| `nado-rag/reports/nado-coverage-report.md` | Human-readable coverage / broken links |
+| `nado-rag/rag.sqlite` | Chunk embeddings — regenerate with `pnpm docs:index:nado` |
+| `nado-rag/crawl-state.json` | Transient resume state (`NADO_DOCS_RESUME=1`) |
 
 ## Querying the index (priority: local)
 
