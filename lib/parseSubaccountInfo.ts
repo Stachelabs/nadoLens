@@ -62,7 +62,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     })
     .map((b): Position => {
       const market = perpProductMap.get(b.product_id)
-      // BigInt path — `parseFloat` in fromX18 loses precision on large x18 integers (PnL drift).
+      // fromX18BigInt — avoids parseFloat precision loss on large x18 integers.
       const amount = fromX18BigInt(b.balance.amount)
       const vQuote = fromX18BigInt(b.balance.v_quote_balance)
       // Mark = oracle from Gateway `perp_products` (same field Nado uses for risk / margin).

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // ─── Primitive ────────────────────────────────────────────────────────────────
 
-/** Raw x18 string — conversion to number done by fromX18() */
+/** Raw x18 string — use fromX18BigInt() to convert to number */
 const x18 = z.string()
 
 // ─── Pairs ────────────────────────────────────────────────────────────────────

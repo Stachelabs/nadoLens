@@ -1,11 +1,6 @@
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
-export const fromX18 = (val: string): number => parseFloat(val) / 1e18
-
-/**
- * Conversion x18 string → number via BigInt.
- * Avoids parseFloat precision errors on large amounts.
- */
+/** x18 string → number via BigInt. Avoids parseFloat precision loss on large amounts. */
 export const fromX18BigInt = (val: string): number => {
   if (!val || val === '0') return 0
   try {
