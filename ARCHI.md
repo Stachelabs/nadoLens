@@ -1,5 +1,5 @@
 # ARCHI.md — NadoLens Wallet Explorer Architecture
-> Architecture technique pour la Feature Wallet Explorer — `/wallet/[address]`
+> Technical architecture for the Wallet Explorer feature — `/wallet/[address]`
 
 ---
 
@@ -8,71 +8,71 @@
 ```
 Browser → /wallet/0xabc...
   │
-  │ useWalletData(address) — hook client
+  │ useWalletData(address) — client hook
   │
-  ├── 0. pairsStore.init() — via PairsInitializer (au démarrage de l'app)
+  ├── 0. pairsStore.init() — via PairsInitializer (on app startup)
   │         fetch /api/pairs → GET gateway.prod.nado.xyz/v2/assets
-  │         → Map<product_id, symbol> + perp[] + spot[] (persisté localStorage, TTL 1h)
+  │         → Map<product_id, symbol> + perp[] + spot[] (persisted in localStorage, TTL 1h)
   │
   ├── 1. fetch /api/subaccounts/{address}
   │         Next.js API Route → POST archive.prod.nado.xyz/v1
   │         body: { subaccounts: { address } }
   │         → [{ subaccount: bytes32, isolated: bool }]
-  │         Fallback si échec : subaccount "default" calculé localement
+  │         Fallback on failure: "default" subaccount computed locally
   │
-  ├── 2. Promise.all → pour chaque subaccount :
+  ├── 2. Promise.all → for each subaccount:
   │         fetch /api/wallet/{subaccount}?query=subaccount_info
   │         Next.js API Route → POST gateway.prod.nado.xyz/v1/query
   │         → health, balances, positions, oracle prices
-  │         Merge : toutes positions + sum equity + health du subaccount primary
+  │         Merge: all positions + sum equity + health of primary subaccount
   │
   └── 3. fetch archive.prod.nado.xyz/v1
             POST { matches: { subaccounts: [all_bytes32], limit: 500, isolated: null } }
-            → historique trades avec realized_pnl, fees, sequencer_fee
+            → trade history with realized_pnl, fees, sequencer_fee
 
-Résultats → WalletStats parsé dans useWalletData
-         → composants wallet (WalletHeader, WalletStats, WalletPositions, etc.)
+Results → WalletStats parsed in useWalletData
+         → wallet components (WalletHeader, WalletStats, WalletPositions, etc.)
 
-Refresh stratégie :
-  - Positions : polling 30s via setInterval (toutes subaccounts via subaccountsRef)
-  - Trade history : fetch initial uniquement
-  - Assets (pairsStore) : TTL 1h, localStorage comme fallback entre sessions
+Refresh strategy:
+  - Positions: 30s polling via setInterval (all subaccounts via subaccountsRef)
+  - Trade history: initial fetch only
+  - Assets (pairsStore): TTL 1h, localStorage as fallback between sessions
 ```
 
 ---
 
 ## 2. Subaccount Resolution
 
-Un wallet Ethereum (20 bytes) est converti en subaccount bytes32 :
+An Ethereum wallet (20 bytes) is converted to a subaccount bytes32:
 
 ```typescript
 function toSubaccount(address: string): string {
   const addr = address.toLowerCase().replace('0x', '')
-  if (addr.length === 64) return `0x${addr}` // déjà bytes32
-  return `0x${addr}64656661756c740000000000`  // "default" encodé
+  if (addr.length === 64) return `0x${addr}` // already bytes32
+  return `0x${addr}64656661756c740000000000`  // "default" encoded
 }
-// Exemple : 0xc5a7... → 0xc5a7...64656661756c740000000000
+// Example: 0xc5a7... → 0xc5a7...64656661756c740000000000
 ```
 
-La résolution réelle via `/api/subaccounts/[address]` découvre **tous** les subaccounts (default + isolated margin). Sans cet appel, les positions isolated ne seraient pas visibles.
+The actual resolution via `/api/subaccounts/[address]` discovers **all** subaccounts (default + isolated margin). Without this call, isolated positions would not be visible.
 
 ### Isolated margin — parent vs pocket bytes32
 
-Nado utilise **deux identifiants** pour une position isolée ouverte sous un sous-compte nommé (ex. `default_1`) :
+Nado uses **two identifiers** for an open isolated position under a named subaccount (e.g. `default_1`):
 
-| Rôle | Bytes32 | Gateway / Archive |
+| Role | Bytes32 | Gateway / Archive |
 |------|---------|-------------------|
-| **Parent** | Celui retourné par Archive `subaccounts` pour le nom utilisateur (`isolated: false` côté listing) | `subaccount_info` peut avoir **size 0** sur le perp isolé ; **`matches`** : `order.sender` = parent, historique des fills |
-| **Pocket** (auto) | Second bytes32 référencé dans `isolated_positions(parent)[].subaccount` | `subaccount_info` **poche** = balances réelles du produit ; **`matches` sur la poche seule** → `[]` |
+| **Parent** | The one returned by Archive `subaccounts` for the user name (`isolated: false` on listing side) | `subaccount_info` may have **size 0** on the isolated perp; **`matches`**: `order.sender` = parent, fill history |
+| **Pocket** (auto) | Second bytes32 referenced in `isolated_positions(parent)[].subaccount` | `subaccount_info` **pocket** = real product balances; **`matches` on pocket alone** → `[]` |
 
-Conséquence pour le Wallet Explorer : **agrégats trades / avg entry** → requêtes `matches` sur le(s) bytes32 **parents** (chunk ≤ 5). **État de position** pour un isolé → `isolated_positions(parent)` pour résoudre poche + `product_id`, ou `subaccount_info(pocket)`. Voir `CLAUDE.md` § marge isolée.
+Consequence for the Wallet Explorer: **trade aggregates / avg entry** → `matches` requests on **parent** bytes32(es) (chunk ≤ 5). **Position state** for an isolated → `isolated_positions(parent)` to resolve pocket + `product_id`, or `subaccount_info(pocket)`. See `CLAUDE.md` § isolated margin.
 
 ---
 
 ## 3. API Routes
 
 ### `/api/subaccounts/[address]/route.ts`
-Résolution des subaccounts via Archive. Requiert une adresse EVM valide (20 bytes).
+Subaccount resolution via Archive. Requires a valid EVM address (20 bytes).
 
 ```
 GET /api/subaccounts/{address}
@@ -80,36 +80,36 @@ GET /api/subaccounts/{address}
      body: { subaccounts: { address } }
   → { subaccounts: [{ subaccount: bytes32, isolated: bool }] }
 
-Validation : isAddress(address) from viem → cast Address
-Fallback retourné si échec : [{ subaccount: toSubaccount(address), isolated: false }]
+Validation: isAddress(address) from viem → cast Address
+Fallback returned on failure: [{ subaccount: toSubaccount(address), isolated: false }]
 ```
 
 ### `/api/wallet/[address]/route.ts`
-Proxy positions/health. Accepte adresse EVM (20 bytes) **ou** bytes32 (64 hex chars).
+Positions/health proxy. Accepts EVM address (20 bytes) **or** bytes32 (64 hex chars).
 
 ```
 GET /api/wallet/{subaccount}?query=subaccount_info
   → POST https://gateway.prod.nado.xyz/v1/query
      body: { type: query, subaccount: address }
 
-Validation : isAddress(address) || /^0x[a-fA-F0-9]{64}$/.test(address)
+Validation: isAddress(address) || /^0x[a-fA-F0-9]{64}$/.test(address)
 ```
 
 ### `/api/pairs/route.ts`
-Liste de tous les assets Nado avec market_type. Utilisé par pairsStore au démarrage.
+List of all Nado assets with market_type. Used by pairsStore on startup.
 
 ```
 GET /api/pairs
   → GET https://gateway.prod.nado.xyz/v2/assets
-  → V2Asset[] validé par V2AssetsResponseSchema
+  → V2Asset[] validated by V2AssetsResponseSchema
 
-Validation Zod : V2AssetsResponseSchema
-Cache ISR : revalidate: 3600 (1h)
-Fallback statique : 5 spots (USDT0, KBTC, WETH, USDC, NLP) + 3 perps (BTC, ETH, SOL)
+Zod validation: V2AssetsResponseSchema
+ISR cache: revalidate: 3600 (1h)
+Static fallback: 5 spots (USDT0, KBTC, WETH, USDC, NLP) + 3 perps (BTC, ETH, SOL)
 ```
 
 ### `/api/matches/route.ts`
-Proxy Archive pour `matches` avec validation Zod du body et de la réponse.
+Archive proxy for `matches` with Zod validation of body and response.
 
 ```
 POST /api/matches
@@ -120,7 +120,7 @@ POST /api/matches
 ```
 
 ### `/api/funding/route.ts`
-Proxy Archive pour `interest_and_funding` avec validation Zod du body et de la réponse.
+Archive proxy for `interest_and_funding` with Zod validation of body and response.
 
 ```
 POST /api/funding
@@ -132,88 +132,88 @@ POST /api/funding
 
 ---
 
-## 4. pairsStore — Assets dynamiques
+## 4. pairsStore — Dynamic assets
 
-`store/pairsStore.ts` — Zustand store avec `persist` middleware (localStorage `nado-assets`).
+`store/pairsStore.ts` — Zustand store with `persist` middleware (localStorage `nado-assets`).
 
 ```typescript
 type PairsState = {
-  assets: V2Asset[]           // persisté — ~60 assets (perp + spot)
-  byId: Map<number, string>   // non persisté — product_id → symbol
-  perp: V2Asset[]             // non persisté — market_type === 'perp'
-  spot: V2Asset[]             // non persisté — market_type === 'spot' | null
-  lastFetched: number | null  // persisté — timestamp ms (TTL 1h)
+  assets: V2Asset[]           // persisted — ~60 assets (perp + spot)
+  byId: Map<number, string>   // not persisted — product_id → symbol
+  perp: V2Asset[]             // not persisted — market_type === 'perp'
+  spot: V2Asset[]             // not persisted — market_type === 'spot' | null
+  lastFetched: number | null  // persisted — timestamp ms (TTL 1h)
   initialized: boolean
   init: () => Promise<void>
 }
 ```
 
-**Comportements :**
-| Scénario | Résultat |
+**Behaviors:**
+| Scenario | Result |
 |---|---|
-| Premier chargement, localStorage vide | fetch /api/pairs, stocke localStorage |
-| Rechargement, localStorage frais (<1h) | rebuild Map depuis localStorage, skip fetch |
-| Rechargement, localStorage périmé (>1h) | rebuild depuis localStorage, puis re-fetch |
-| Erreur réseau | localStorage comme fallback réel |
+| First load, empty localStorage | fetch /api/pairs, store in localStorage |
+| Reload, fresh localStorage (<1h) | rebuild Map from localStorage, skip fetch |
+| Reload, stale localStorage (>1h) | rebuild from localStorage, then re-fetch |
+| Network error | localStorage as real fallback |
 
-`productName(id)` dans `useWalletData.ts` accède via `usePairsStore.getState().byId` (hors React, synchrone).
+`productName(id)` in `useWalletData.ts` accesses via `usePairsStore.getState().byId` (outside React, synchronous).
 
 ---
 
-## 5. Composants React — état actuel
+## 5. React components — current state
 
 ```
-app/wallet/page.tsx                  ← Page recherche (Client) — isAddress + router.push
-app/wallet/[address]/page.tsx        ← Page wallet (Client) — use(params) + useWalletData
+app/wallet/page.tsx                  ← Search page (Client) — isAddress + router.push
+app/wallet/[address]/page.tsx        ← Wallet page (Client) — use(params) + useWalletData
 
 components/wallet/
-  WalletHeader.tsx     Props: { stats: WalletStats }      ← adresse, health, equity, marge
+  WalletHeader.tsx     Props: { stats: WalletStats }      ← address, health, equity, margin
   WalletStats.tsx      Props: { stats: WalletStats }      ← win rate, PnL, volume, avg size
-  WalletPositions.tsx  Props: { positions: Position[] }   ← positions ouvertes + PnL unrealized
-  WalletTradeHistory.tsx Props: { trades: TradeMatch[] }  ← historique 50 derniers trades
+  WalletPositions.tsx  Props: { positions: Position[] }   ← open positions + unrealized PnL
+  WalletTradeHistory.tsx Props: { trades: TradeMatch[] }  ← last 50 trades history
   WalletEquityCurve.tsx  Props: { trades: TradeMatch[] }  ← TradingView equity curve
 
 hooks/
-  useWalletData.ts     ← multi-subaccount fetch + polling 30s → WalletData
-  usePairs.ts          ← déclenche pairsStore.init() au mount (via PairsInitializer)
-  useAccount.ts        ← wrapper wagmi useAccount (wallet connecté)
+  useWalletData.ts     ← multi-subaccount fetch + 30s polling → WalletData
+  usePairs.ts          ← triggers pairsStore.init() on mount (via PairsInitializer)
+  useAccount.ts        ← wagmi useAccount wrapper (connected wallet)
 
 store/
-  pairsStore.ts        ← Zustand + persist — assets V2, byId Map, perp[], spot[]
-  accountStore.ts      ← Zustand — état wallet connecté
+  pairsStore.ts        ← Zustand + persist — V2 assets, byId Map, perp[], spot[]
+  accountStore.ts      ← Zustand — connected wallet state
 
 lib/schemas/nado.ts    ← NadoSubaccountDataSchema + ArchiveMatchesResponseSchema + V2AssetSchema (Zod)
-types/nado.ts          ← WalletStats, Position, TradeMatch, fromX18
-app/providers.tsx      ← PairsInitializer (headless) → usePairs() au démarrage app
+types/nado.ts          ← WalletStats, Position, TradeMatch, fromX18BigInt
+app/providers.tsx      ← PairsInitializer (headless) → usePairs() on app startup
 ```
 
 ---
 
-## 6. Mapping API → UI
+## 6. API → UI mapping
 
 ### WalletPositions
-| Colonne | Source |
+| Column | Source |
 |---|---|
-| Paire | `perp_balances[i].product_id` → `productName()` via pairsStore |
-| Côté | `perp_balances[i].balance.amount` : positif=LONG, négatif=SHORT |
-| Taille | `abs(fromX18(amount))` |
-| Entry Price | `oracle_price_x18` (mark price au moment du fetch — pas d'entry stockée) |
-| Mark Price | `fromX18(oracle_price_x18)` |
-| Unrealized PnL | `fromX18(v_quote_balance) + amount × markPrice` |
-| Liq Price | estimé : `markPrice × (1 ± 1/leverage + maintMarginRate)` |
+| Pair | `perp_balances[i].product_id` → `productName()` via pairsStore |
+| Side | `perp_balances[i].balance.amount`: positive=LONG, negative=SHORT |
+| Size | `abs(fromX18BigInt(amount))` |
+| Entry Price | `oracle_price_x18` (mark price at fetch time — no stored entry) |
+| Mark Price | `fromX18BigInt(oracle_price_x18)` |
+| Unrealized PnL | `fromX18BigInt(v_quote_balance) + amount × markPrice` |
+| Liq Price | estimated: `markPrice × (1 ± 1/leverage + maintMarginRate)` |
 
 ### WalletTradeHistory (archive matches)
-| Colonne | Source |
+| Column | Source |
 |---|---|
-| Time | `submission_idx` → estimation `Date.now() - diff × 2s` (Ink L2 ≈ 2s/bloc) |
-| Prix | `fromX18(order.priceX18)` |
-| Quantité | `abs(fromX18(base_filled))` |
-| PnL réalisé | `fromX18(realized_pnl)` |
-| Fees | `fromX18(fee)` |
+| Time | `submission_idx` → estimate `Date.now() - diff × 2s` (Ink L2 ≈ 2s/block) |
+| Price | `fromX18BigInt(order.priceX18)` |
+| Qty | `abs(fromX18BigInt(base_filled))` |
+| Realized PnL | `fromX18BigInt(realized_pnl)` |
+| Fees | `fromX18BigInt(fee)` |
 
-### WalletStats (calculé dans useWalletData)
+### WalletStats (computed in useWalletData)
 ```typescript
-// Seules les fermetures de position ont un PnL réalisé (closed_amount !== "0")
+// Only position closings have a realized PnL (closed_amount !== "0")
 const closingTrades = trades.filter(t => t.closed_amount !== "0")
 
 winRate = closingTrades.length > 0
@@ -221,16 +221,16 @@ winRate = closingTrades.length > 0
   : 0
 
 totalPnl = sum(fromX18BigInt(t.realized_pnl) for t in closingTrades)
-totalFees = sum(fromX18BigInt(t.fee))   // fee = taker/maker + sequencer (total) — sequencer_fee = breakdown, ne pas sommer
+totalFees = sum(fromX18BigInt(t.fee))   // fee = taker/maker + sequencer (total) — sequencer_fee = breakdown, do NOT sum
 totalVolume = sum(abs(fromX18BigInt(t.quote_filled ?? "0")))
 avgTradeSize = totalVolume / trades.length
 ```
 
 ---
 
-## 7. Pagination des matches
+## 7. Matches pagination
 
-L'archive retourne max 500 matches par requête. Implémentation actuelle : limit=200, pas de pagination (MVP). Pour paginer :
+The archive returns max 500 matches per request. Current implementation: limit=200, no pagination (MVP). To paginate:
 
 ```typescript
 async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
@@ -253,56 +253,56 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
 
 ## 8. Refresh Strategy
 
-| Donnée | Méthode | Intervalle |
+| Data | Method | Interval |
 |---|---|---|
 | Positions / Health | Polling `/api/wallet/[subaccount]` | 30s |
-| Trade history | Fetch initial uniquement | — |
-| Equity curve | Recalculée quand `trades` change | Sur mount |
+| Trade history | Initial fetch only | — |
+| Equity curve | Recomputed when `trades` changes | On mount |
 | Assets (pairsStore) | Fetch + localStorage persist | TTL 1h |
 
-> Positions temps réel nécessiterait `position_change` stream authentifié (clé privée du wallet) — impossible pour un wallet tiers. Le polling 30s est la seule option pour observer un wallet quelconque.
+> Real-time positions would require the `position_change` stream (requires private key of the wallet) — impossible for a third-party wallet. 30s polling is the only option to observe any wallet.
 
-Pourquoi 30s ?
-- C'est un compromis charge/précision: vue "quasi live" sans spam API.
-- Le `subaccount_info` coûte du weight, donc 30s reste confortable même avec plusieurs subaccounts.
-- On ne peut pas s'abonner en WS auth sur un wallet tiers côté browser sans sa signature.
+Why 30s?
+- A compromise between load and precision: "near-live" view without API spam.
+- `subaccount_info` costs weight, so 30s stays comfortable even with multiple subaccounts.
+- Cannot subscribe to auth WS on a third-party wallet from the browser without their signature.
 
 ---
 
-## 9. Rate Limits Wallet Explorer
+## 9. Rate Limits — Wallet Explorer
 
-| Appel | Weight | Fréquence |
+| Call | Weight | Frequency |
 |---|---|---|
-| `subaccounts` (Archive) | 2 | 1× au load |
+| `subaccounts` (Archive) | 2 | 1× on load |
 | `subaccount_info` (Gateway) | 2 × nb_subaccounts | 30s |
-| `matches` (Archive, limit=200, 1 sub) | 2 + 200/10 = 22 | 1× au load |
-| Assets `/v2/assets` | — | 1× par heure max (TTL localStorage) |
+| `matches` (Archive, limit=200, 1 sub) | 2 + 200/10 = 22 | 1× on load |
+| Assets `/v2/assets` | — | 1× per hour max (localStorage TTL) |
 
-Total par refresh positions (2 subaccounts) : ~4 weight → safe avec 2400/min max.
+Total per position refresh (2 subaccounts): ~4 weight → safe with 2400/min max.
 
 ---
 
-## 10. Points Nado
+## 10. Nado Points
 
-Non disponible via API publique. Ignorer pour MVP → afficher "—" ou masquer.
+Not available via public API. Ignore for MVP → display "—" or hide.
 
 ---
 
 ## 11. Known Bugs
 
-| Fichier | Bug | Fix |
+| File | Bug | Fix |
 |---|---|---|
-| `hooks/useNadoPairs.ts` | Attend `{ pair }` mais API retourne `{ ticker_id, base, quote }` | Update schema |
-| `app/api/orderbook/route.ts` | Param `?pair=BTCUSDT0` mais API attend `?ticker_id=BTC-PERP_USDT0&depth=N` | Fix param |
-| `app/api/predicted-liquidations/route.ts` | Parse `data.account_snapshots` mais réponse = `data.snapshots` | Fix key |
+| `hooks/useNadoPairs.ts` | Expects `{ pair }` but API returns `{ ticker_id, base, quote }` | Update schema |
+| `app/api/orderbook/route.ts` | Param `?pair=BTCUSDT0` but API expects `?ticker_id=BTC-PERP_USDT0&depth=N` | Fix param |
+| `app/api/predicted-liquidations/route.ts` | Parses `data.account_snapshots` but response = `data.snapshots` | Fix key |
 
 ---
 
-*ARCHI.md v3.1 — NadoLens Wallet Explorer — mis à jour 2026-04-02*
+*ARCHI.md v3.2 — NadoLens Wallet Explorer — updated 2026-04-03*
 
 ---
 
-## README Architecture Block (copiable)
+## README Architecture Block (copyable)
 
 ```md
 ## Wallet Volume Pipeline (NadoLens)
@@ -322,31 +322,31 @@ Non disponible via API publique. Ignorer pour MVP → afficher "—" ou masquer.
 10) Final stats (`WalletStats`) are rendered in `WalletSummary` and `WalletStats`.
 ```
 
-## 11. Conventions API routes Next.js (Zod)
+## 12. Next.js API route conventions (Zod)
 
-Toutes les routes proxy Nado sous `app/api/**/` suivent le même pattern:
+All Nado proxy routes under `app/api/**/` follow the same pattern:
 
-1. **Body entrant** (POST) : `SomeRequestSchema.safeParse(await request.json())` → `400` si invalide.
-2. **Appel** : `fetch(NADO_GATEWAY_REST | NADO_ARCHIVE_REST, { headers: { Accept-Encoding: gzip, br, deflate } })`.
-3. **Réponse** : `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` si shape invalide.
-4. **Réponse client** : JSON déjà validé (types = `z.infer<>`).
+1. **Incoming body** (POST): `SomeRequestSchema.safeParse(await request.json())` → `400` if invalid.
+2. **Call**: `fetch(NADO_GATEWAY_REST | NADO_ARCHIVE_REST, { headers: { Accept-Encoding: gzip, br, deflate } })`.
+3. **Response**: `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` if shape invalid.
+4. **Client response**: Already validated JSON (types = `z.infer<>`).
 
-Helper partagé : `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`.
-
----
-
-## 12. Timestamps nanosecondes & stats “all-time”
-
-Les champs `timestamp` des trades sont des **nanosecondes** en string décimal (~1e18). **`parseInt` / `Number` dépassent `MAX_SAFE_INTEGER`** → dates fausses ou “futur”.
-
-- Conversion sûre : `lib/wallet/nanoTime.ts` → `nanoStringToMs` / `nanoStringToUnixSec` (BigInt).
-- **Premier / dernier trade** : dérivés des trades min/max `submission_idx`, pas des bords de tableau (après tri `sortTradesNewestFirst`).
-
-Tant que `trades_complete === false` (pagination matches en cours), les **volumes / fees / PnL agrégés / first-last trade** ne sont **pas** affichés (UI `—`) pour éviter les montants partiels qui changeaient à chaque page.
+Shared helper: `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`.
 
 ---
 
-## Checklist Validation (10 lignes)
+## 13. Nanosecond timestamps & all-time stats
+
+Trade `timestamp` fields are **nanoseconds** as decimal strings (~1e18). **`parseInt` / `Number` exceed `MAX_SAFE_INTEGER`** → wrong dates or "future".
+
+- Safe conversion: `lib/wallet/nanoTime.ts` → `nanoStringToMs` / `nanoStringToUnixSec` (BigInt).
+- **First / last trade**: derived from min/max `submission_idx` trades, not array edges (after `sortTradesNewestFirst`).
+
+While `trades_complete === false` (matches pagination in progress), **volumes / fees / aggregated PnL / first-last trade** are **not** displayed (UI `—`) to avoid partial amounts changing with each page.
+
+---
+
+## Checklist Validation (10 lines)
 
 - Subaccounts count matches archive response for the wallet.
 - Chunking is active when subaccounts > 5.
