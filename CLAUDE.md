@@ -64,7 +64,7 @@ Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonn
 - Zéro `any` — toujours typer explicitement
 - Zéro `as unknown as X` — si besoin, le type est mal conçu
 - Types Nado → `lib/schemas/nado.ts` (`z.infer<>`) — jamais re-déclarer ailleurs
-- `fromX18(val: string): number` dans `types/nado.ts` pour toutes les conversions
+- `fromX18BigInt(val: string): number` dans `types/nado.ts` pour toutes les conversions (BigInt, pas parseFloat)
 
 ---
 
@@ -115,6 +115,7 @@ Consulter le fichier approprié selon la tâche en cours :
 | Tâche | Fichier |
 |---|---|
 | Fetch de l'historique (matches, orders, subaccounts, pagination, calcul PnL/fees/volume) | `.claude/docs/NADO_ARCHIVE_API.md` |
+| Prix d'entrée moyen (account_snapshots, net_entry_unrealized) | `.claude/docs/NADO_ARCHIVE_API.md` |
 | Queries temps réel (subaccount info, positions ouvertes, produits, prix) | `.claude/docs/NADO_GATEWAY_API.md` |
 | Concepts (margin types, health, PnL settlement, fees, format bytes32, x18) | `.claude/docs/NADO_CONCEPTS.md` |
 | Gestion des 429, backoff, erreurs, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
@@ -214,10 +215,11 @@ function addressToSubaccount(
 
 ### Rate limits Wallet Explorer
 
-- `subaccount_info` : IP weight 2 → polling 30s OK (2 × 2/min = 4 weight)
-- `matches` archive : IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52
-- `subaccounts` archive : IP weight 2
-- Total par refresh : ~56 weight → safe avec 2400/min max
+- `subaccounts` archive : IP weight 2 (1× au load)
+- `account_snapshots` archive : IP weight 2 (1× au load, pour les prix d'entrée)
+- `matches` archive : IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× au load)
+- `subaccount_info` : IP weight 2 × nb_subaccounts → polling 30s OK
+- Total au load initial : ~56 weight → safe avec 2400/min max
 
 ---
 
