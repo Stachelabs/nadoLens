@@ -54,9 +54,8 @@ About.md
 # Claude local agent output (plans, MCP config, etc.)
 .claude/
 
-# RAG pipeline — generated artifacts (regenerate with pnpm docs:build:nado)
-nado-rag/rag.sqlite
-nado-rag/crawl-state.json
+# RAG pipeline — all generated artifacts (regenerate with pnpm docs:build:nado)
+nado-rag/
 .playwright-mcp/
 .mcp.json
 
