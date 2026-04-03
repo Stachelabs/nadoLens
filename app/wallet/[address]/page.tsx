@@ -52,6 +52,16 @@ function WalletContent({ address }: { address: string }) {
     <div className="space-y-6">
       <WalletHeader stats={stats} />
       <WalletSpotBalances balances={stats.spot_balances} />
+      <WalletPositions
+        positions={stats.positions}
+        onRefreshUnrealized={refreshUnrealizedPnl}
+        unrealizedRefreshing={unrealizedRefreshing}
+      />
+      <WalletStats
+        stats={stats}
+        tradesComplete={tradesComplete}
+        fundingComplete={fundingComplete}
+      />
       <WalletSummary
         stats={stats}
         tradesComplete={tradesComplete}
@@ -61,20 +71,10 @@ function WalletContent({ address }: { address: string }) {
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
       />
-      <WalletStats
-        stats={stats}
-        tradesComplete={tradesComplete}
-        fundingComplete={fundingComplete}
-      />
       <WalletEquityCurve
         trades={trades}
         fundingPayments={fundingPayments}
         tradesComplete={tradesComplete}
-      />
-      <WalletPositions
-        positions={stats.positions}
-        onRefreshUnrealized={refreshUnrealizedPnl}
-        unrealizedRefreshing={unrealizedRefreshing}
       />
       <WalletTradeHistory trades={trades} />
     </div>
