@@ -174,7 +174,7 @@ export function WalletPositions({
                       {fmtQty.format(Math.abs(pos.amount))}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {fmtUsd.format(pos.entry_price)}
+                      {pos.entry_price != null ? fmtUsd.format(pos.entry_price) : '—'}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground">
                       {fmtUsd.format(pos.mark_price)}

@@ -65,7 +65,6 @@ export function buildEntryPriceMap(
 
 /**
  * Override position entry prices using snapshot-derived values.
- * Falls back to the existing entry_price when no snapshot data exists.
  */
 export function applySnapshotEntryPrices(
   positions: Position[],

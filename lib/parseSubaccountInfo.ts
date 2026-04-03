@@ -1,7 +1,6 @@
 import { NadoSubaccountDataSchema } from '@/lib/schemas/nado'
 import { usePairsStore } from '@/store/pairsStore'
 import type { Position, SpotBalance } from '@/types/nado'
-import { perpAvgEntryUsdFromBalance } from '@/lib/wallet/perpAvgEntry'
 import { fromX18BigInt } from '@/types/nado'
 
 export type ParsedSubaccountInfo = {
@@ -68,12 +67,6 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       const vQuote = fromX18BigInt(b.balance.v_quote_balance)
       // Mark = oracle from Gateway `perp_products` (same field Nado uses for risk / margin).
       const markPrice = market ? fromX18BigInt(market.oracle_price_x18) : 0
-      // Avg entry: integer x18 path — float `-v_quote/amount` loses precision → ~mark (wrong).
-      const entryPrice = perpAvgEntryUsdFromBalance(
-        b.balance.amount,
-        b.balance.v_quote_balance,
-        markPrice,
-      )
       const isLong = amount >= 0
       const maintWeight = market
         ? isLong
@@ -97,7 +90,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
         subaccount: subaccountHex,
         amount_x18: b.balance.amount,
         amount,
-        entry_price: entryPrice,
+        entry_price: null,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: Math.max(0, liquidationPrice),

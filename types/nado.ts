@@ -56,7 +56,7 @@ export type Position = {
   /** Raw x18 base size from Gateway — used to reconcile VWAP replay vs `subaccount_info`. */
   amount_x18: string
   amount: number
-  entry_price: number
+  entry_price: number | null
   mark_price: number
   unrealized_pnl: number
   liquidation_price: number
