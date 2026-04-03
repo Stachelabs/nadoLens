@@ -51,8 +51,12 @@ About.md
 
 # tools
 .obsidian/
-# Claude / local agent output + docs RAG artifacts (never push — code is lib/docs-rag + scripts/docs-rag)
+# Claude local agent output (plans, MCP config, etc.)
 .claude/
+
+# RAG pipeline — generated artifacts (regenerate with pnpm docs:build:nado)
+nado-rag/rag.sqlite
+nado-rag/crawl-state.json
 .playwright-mcp/
 .mcp.json
 
