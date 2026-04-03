@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // ─── Primitive ────────────────────────────────────────────────────────────────
 
-/** Raw x18 string — conversion to number done by fromX18() */
+/** Raw x18 string — use fromX18BigInt() to convert to number */
 const x18 = z.string()
 
 // ─── Pairs ────────────────────────────────────────────────────────────────────
@@ -188,6 +188,7 @@ export const ArchiveMatchSchema = z.object({
   fee: x18,
   sequencer_fee: x18.optional().default('0'),
   is_taker: z.boolean().optional(),
+  isolated: z.boolean().optional(),
   submission_idx: z.string(),
   closed_amount: x18,
   realized_pnl: x18,
@@ -382,30 +383,38 @@ export const ArchiveProductsResponseSchema = z.object({
 
 // ─── Archive: Account Snapshots ──────────────────────────────────────────────
 
-const PerpEntrySchema = z.object({
-  product_id: z.number().optional(),
-  balance: z.object({ amount: x18 }).optional(),
+/**
+ * Single event in the account_snapshots response.
+ * Only fields needed to compute avg entry price are captured here.
+ * formula: |net_entry_unrealized / post_balance.perp.balance.amount|
+ */
+export const AccountSnapshotEventSchema = z.object({
+  product_id: z.number(),
+  isolated: z.boolean(),
+  post_balance: z.object({
+    perp: z.object({
+      product_id: z.number().optional(),
+      balance: z.object({ amount: x18 }),
+    }).optional(),
+  }).optional(),
+  net_entry_unrealized: x18,
 })
-
-const SnapshotBaseSchema = z.union([
-  z.object({ perp: z.union([z.array(PerpEntrySchema), PerpEntrySchema]).optional() }),
-  z.array(PerpEntrySchema),
-])
-
-export const RawSnapshotSchema = z.object({
-  subaccount: z.string().optional(),
-  post_balance: z
-    .object({ base: SnapshotBaseSchema.optional() })
-    .optional(),
-})
-export type RawSnapshot = z.infer<typeof RawSnapshotSchema>
+export type AccountSnapshotEvent = z.infer<typeof AccountSnapshotEventSchema>
 
 /** Real response: { snapshots: { [subaccount]: { [timestamp]: events[] } } } */
 export const AccountSnapshotsResponseSchema = z.object({
   snapshots: z.record(
-    z.string(),
-    z.record(z.string(), z.array(RawSnapshotSchema))
+    z.string(),  // subaccount hex
+    z.record(
+      z.string(), // timestamp
+      z.array(AccountSnapshotEventSchema.partial().required({ product_id: true, isolated: true, net_entry_unrealized: true })),
+    ),
   ),
+})
+
+export const AccountSnapshotsRequestSchema = z.object({
+  subaccounts: z.array(z.string()).min(1),
+  isolated: z.boolean().optional(),
 })
 
 // ─── Gateway v1 — Response Envelope ──────────────────────────────────────────
@@ -658,4 +667,177 @@ export const WsAckSchema = z.object({
   result: z.null(),
   id: z.number(),
   error: z.string().optional(),
+})
+
+// ─── Archive: Isolated Subaccounts ────────────────────────────────────────────
+
+export const ArchiveIsolatedSubaccountEntrySchema = z.object({
+  subaccount: z.string(),
+  isolated_subaccount: z.string(),
+  product_id: z.number(),
+  created_at: z.string().optional(),
+})
+export type ArchiveIsolatedSubaccountEntry = z.infer<typeof ArchiveIsolatedSubaccountEntrySchema>
+
+export const ArchiveIsolatedSubaccountsResponseSchema = z.object({
+  isolated_subaccounts: z.array(ArchiveIsolatedSubaccountEntrySchema).optional().default([]),
+})
+export type ArchiveIsolatedSubaccountsResponse = z.infer<typeof ArchiveIsolatedSubaccountsResponseSchema>
+
+// ─── Archive: Perp Prices ─────────────────────────────────────────────────────
+
+export const PerpPriceEntrySchema = z.object({
+  product_id: z.number(),
+  index_price_x18: x18,
+  mark_price_x18: x18,
+  update_time: z.union([z.string(), z.number()]),
+})
+export type PerpPriceEntry = z.infer<typeof PerpPriceEntrySchema>
+
+/** Single product: POST { price: { product_id } } */
+export const PerpPriceResponseSchema = z.object({
+  price: PerpPriceEntrySchema,
+})
+
+/** Multiple products: POST { perp_prices: { product_ids } } — response is product_id→entry map */
+export const PerpPricesResponseSchema = z.object({
+  perp_prices: z.record(z.string(), PerpPriceEntrySchema).optional().default({}),
+})
+
+// ─── Archive: Oracle Price ────────────────────────────────────────────────────
+
+export const OraclePriceEntrySchema = z.object({
+  product_id: z.number(),
+  price_x18: x18,
+})
+export type OraclePriceEntry = z.infer<typeof OraclePriceEntrySchema>
+
+/** Multiple oracle prices — response is product_id→entry map */
+export const OraclePricesResponseSchema = z.object({
+  prices: z.record(z.string(), OraclePriceEntrySchema).optional().default({}),
+})
+
+// ─── Archive: Liquidation Feed ────────────────────────────────────────────────
+
+export const LiquidationFeedEntrySchema = z.object({
+  subaccount: z.string(),
+  update_time: z.union([z.string(), z.number()]),
+})
+export type LiquidationFeedEntry = z.infer<typeof LiquidationFeedEntrySchema>
+
+export const LiquidationFeedResponseSchema = z.object({
+  liquidation_feed: z.array(LiquidationFeedEntrySchema).optional().default([]),
+})
+
+// ─── Archive: Events (envelope — typed data varies by event_type) ─────────────
+
+export const ArchiveEventsResponseSchema = z.object({
+  events: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  txs: z.array(z.object({
+    submission_idx: z.string(),
+    timestamp: z.string().optional(),
+  })).optional().default([]),
+})
+
+// ─── Archive: Ink Airdrop ─────────────────────────────────────────────────────
+
+export const InkAirdropResponseSchema = z.object({
+  amount: x18,
+})
+export type InkAirdropResponse = z.infer<typeof InkAirdropResponseSchema>
+
+// ─── Archive: Direct Deposit Address ──────────────────────────────────────────
+
+export const DirectDepositAddressResponseSchema = z.object({
+  direct_deposit_address: z.string(),
+})
+
+// ─── Archive: Sequencer Backlog ───────────────────────────────────────────────
+
+export const SequencerBacklogResponseSchema = z.object({
+  total_txs: z.number().optional(),
+  total_pending_txs: z.number().optional(),
+})
+
+// ─── Gateway v1 — symbols ─────────────────────────────────────────────────────
+
+export const SymbolEntrySchema = z.object({
+  product_id: z.number(),
+  type: z.string().nullable().optional(),
+  symbol: z.string().optional(),
+  trading_status: z.enum(['live', 'post_only', 'not_tradable']).optional(),
+  isolated_only: z.boolean().optional(),
+})
+export type SymbolEntry = z.infer<typeof SymbolEntrySchema>
+
+/** symbols query — data is a map of ticker_id → SymbolEntry */
+export const SymbolsDataSchema = z.object({
+  symbols: z.record(z.string(), SymbolEntrySchema).optional().default({}),
+})
+
+// ─── Gateway V2 REST — /v2/symbols (with market_hours) ───────────────────────
+
+export const MarketHoursSchema = z.object({
+  is_open: z.boolean(),
+  next_close: z.number().nullable(),
+  next_open: z.number().nullable(),
+})
+export type MarketHours = z.infer<typeof MarketHoursSchema>
+
+export const V2SymbolSchema = z.object({
+  product_id: z.number(),
+  symbol: z.string(),
+  type: z.string().nullable().optional(),
+  trading_status: z.enum(['live', 'post_only', 'not_tradable']).optional(),
+  isolated_only: z.boolean().optional(),
+  market_hours: MarketHoursSchema.optional(),
+})
+export type V2Symbol = z.infer<typeof V2SymbolSchema>
+
+export const V2SymbolsResponseSchema = z.array(V2SymbolSchema)
+
+// ─── Gateway v1 — fee_rates ───────────────────────────────────────────────────
+
+/** Arrays indexed by fee tier bracket (Entry → Elite). All values x18. */
+export const FeeRatesDataSchema = z.object({
+  taker_fee_rates_x18: z.array(x18),
+  maker_fee_rates_x18: z.array(x18),
+})
+export type FeeRatesData = z.infer<typeof FeeRatesDataSchema>
+
+// ─── Gateway v1 — nonces ──────────────────────────────────────────────────────
+
+/** tx_nonce: next on-chain sequence number (for withdraw, link_signer, etc.) */
+export const NoncesDataSchema = z.object({
+  tx_nonce: z.union([z.string(), z.number()]),
+})
+export type NoncesData = z.infer<typeof NoncesDataSchema>
+
+// ─── Gateway v1 — linked_signer ───────────────────────────────────────────────
+
+/** linked_signer: bytes32 of the authorized signer, or zero bytes if none */
+export const LinkedSignerDataSchema = z.object({
+  linked_signer: z.string(),
+})
+export type LinkedSignerData = z.infer<typeof LinkedSignerDataSchema>
+
+// ─── Gateway v1 — max_order_size ──────────────────────────────────────────────
+
+export const MaxOrderSizeDataSchema = z.object({
+  max_order_size: x18,
+})
+export type MaxOrderSizeData = z.infer<typeof MaxOrderSizeDataSchema>
+
+// ─── Gateway v1 — Execute response envelope ───────────────────────────────────
+
+/**
+ * Envelope for execute calls (place_order, cancel_orders, withdraw_collateral, …)
+ * signature is the tx signature returned by the sequencer.
+ */
+export const ExecuteResponseSchema = z.object({
+  status: z.enum(['success', 'failure']),
+  signature: z.string().optional(),
+  request_type: z.string().optional(),
+  error: z.string().optional(),
+  error_code: z.number().optional(),
 })

@@ -1,11 +1,6 @@
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
-export const fromX18 = (val: string): number => parseFloat(val) / 1e18
-
-/**
- * Conversion x18 string → number via BigInt.
- * Avoids parseFloat precision errors on large amounts.
- */
+/** x18 string → number via BigInt. Avoids parseFloat precision loss on large amounts. */
 export const fromX18BigInt = (val: string): number => {
   if (!val || val === '0') return 0
   try {
@@ -56,7 +51,7 @@ export type Position = {
   /** Raw x18 base size from Gateway — used to reconcile VWAP replay vs `subaccount_info`. */
   amount_x18: string
   amount: number
-  entry_price: number
+  entry_price: number | null
   mark_price: number
   unrealized_pnl: number
   liquidation_price: number
@@ -73,6 +68,8 @@ export type TradeMatch = {
   subaccount?: string
   /** True when this fill is taker-side for the tracked sender. */
   is_taker?: boolean
+  /** True when this fill opened/closed an isolated margin position (from Archive `matches.isolated`). */
+  isolated?: boolean
   timestamp: string
   submission_idx: string
   product_id: number

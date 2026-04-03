@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { fromX18 } from '@/types/nado'
+import { fromX18BigInt } from '@/types/nado'
 import type { TradeMatch } from '@/types/nado'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -114,10 +114,10 @@ export function WalletTradeHistory({ trades }: Props) {
             </TableHeader>
             <TableBody>
               {pageTrades.map((t, i) => {
-                const pnl = fromX18(t.realized_pnl)
-                const price = fromX18(t.price)
-                const qty = Math.abs(fromX18(t.amount))
-                const fee = fromX18(t.fee)
+                const pnl = fromX18BigInt(t.realized_pnl)
+                const price = fromX18BigInt(t.price)
+                const qty = Math.abs(fromX18BigInt(t.amount))
+                const fee = fromX18BigInt(t.fee)
                 const hasPnl = Math.abs(pnl) > 0.001
                 const pnlColor = pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
                 const role =
