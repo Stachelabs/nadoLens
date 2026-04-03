@@ -110,16 +110,16 @@ Sonnet 4.6 by default. Switch to Opus 4.6 (`/model opus`) only when Sonnet goes 
 
 ## Nado API documentation
 
-Nado API documentation is available in the `.claude/docs/` folder.
+Nado API documentation is available in the `docs/api/` folder.
 Refer to the appropriate file based on the current task:
 
 | Task | File |
 |---|---|
-| History fetch (matches, orders, subaccounts, pagination, PnL/fees/volume calculation) | `.claude/docs/NADO_ARCHIVE_API.md` |
-| Average entry price (account_snapshots, net_entry_unrealized) | `.claude/docs/NADO_ARCHIVE_API.md` |
-| Real-time queries (subaccount info, open positions, products, prices) | `.claude/docs/NADO_GATEWAY_API.md` |
-| Concepts (margin types, health, PnL settlement, fees, bytes32 format, x18) | `.claude/docs/NADO_CONCEPTS.md` |
-| 429 handling, backoff, errors, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
+| History fetch (matches, orders, subaccounts, pagination, PnL/fees/volume calculation) | `docs/api/NADO_ARCHIVE_API.md` |
+| Average entry price (account_snapshots, net_entry_unrealized) | `docs/api/NADO_ARCHIVE_API.md` |
+| Real-time queries (subaccount info, open positions, products, prices) | `docs/api/NADO_GATEWAY_API.md` |
+| Concepts (margin types, health, PnL settlement, fees, bytes32 format, x18) | `docs/api/NADO_CONCEPTS.md` |
+| 429 handling, backoff, errors, rate limits, changelog | `docs/api/NADO_RATE_LIMITS.md` |
 
 ### Query the RAG in natural language
 
