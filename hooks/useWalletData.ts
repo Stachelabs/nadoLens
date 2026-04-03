@@ -24,7 +24,11 @@ import type { Position, SpotBalance, TradeMatch, WalletStats } from "@/types/nad
 import { fromX18BigInt } from "@/types/nado";
 import { useEffect, useRef, useState } from "react";
 
-const POSITIONS_POLL_MS = 30_000;
+// Poll interval for live positions + marks.
+// subaccount_info = weight 2, account_snapshots = weight ~2 → 4 weight/poll/subaccount.
+// At 5s: 48 weight/min/user → safe for ~50 concurrent users within 2400/min IP limit.
+// Lower to 1_000 for personal/single-user deployments (10% of budget).
+const POSITIONS_POLL_MS = 5_000;
 const MATCHES_LIMIT = 500;
 const MAX_PAGES = 50;
 /** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
@@ -909,6 +913,8 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // Poll live position marks / unrealized only — same Gateway route as load, but we do not
       // overwrite equity, overview metrics, or PnL-from-history until refresh.
+      // If positions are open, also refresh account_snapshots so avg entry stays accurate
+      // when a new fill arrives between the initial load and the next manual refresh.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
         const pd = await fetchAllPositions(
@@ -916,6 +922,15 @@ export function useWalletData(rawAddress: string): WalletData {
           isolatedParentNameRef.current,
           isolatedParentSubaccountRef.current,
         );
+        if (cancelled) return;
+        if (pd.positions.length > 0) {
+          const crossSubs = subaccountsRef.current
+            .filter((s) => !s.isolated)
+            .map((s) => s.subaccount);
+          const freshMap = await fetchSnapshotEntryPrices(crossSubs);
+          if (!cancelled) entryPriceMapRef.current = freshMap;
+        }
+        if (cancelled) return;
         setData((prev) => ({
           ...prev,
           stats: prev.stats
