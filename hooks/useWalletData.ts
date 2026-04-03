@@ -109,8 +109,8 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
       m.pre_balance?.base?.perp?.product_id ??
       m.post_balance?.base?.perp?.product_id ??
       0;
-    const baseFilled = parseFloat(m.base_filled ?? "0");
-    const side: "long" | "short" = baseFilled >= 0 ? "long" : "short";
+    const side: "long" | "short" =
+      BigInt(m.base_filled ?? "0") >= BigInt(0) ? "long" : "short";
     // Real timestamp from txs[] — Unix seconds per Nado docs; fall back to 0 if missing
     const timeSec = txMap.get(m.submission_idx) ?? 0;
 
@@ -952,7 +952,7 @@ export function useWalletData(rawAddress: string): WalletData {
             .filter((s) => !s.isolated)
             .map((s) => s.subaccount);
           const refreshedMap = await fetchSnapshotEntryPrices(refreshedCrossSubs);
-          if (!cancelled && refreshedMap.size > 0) {
+          if (!cancelled) {
             entryPriceMapRef.current = refreshedMap;
           }
           if (cancelled) return;
@@ -996,7 +996,8 @@ export function useWalletData(rawAddress: string): WalletData {
       }
     };
 
-    void loadWallet("initial").catch(() => {
+    void loadWallet("initial").catch((e: unknown) => {
+      console.error("[useWalletData] loadWallet failed:", e);
       if (!cancelled)
         setData((p) => ({
           ...p,
