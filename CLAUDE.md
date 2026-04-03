@@ -1,25 +1,25 @@
 # CLAUDE.md — NadoLens
 
-> Règles de travail uniquement. Spec complète → PRD.md | Contexte business → About.md
+> Working rules only. Full spec → PRD.md | Business context → About.md
 
 ---
 
-## Références
+## References
 
-| Doc                 | Contenu                                              |
+| Doc                 | Content                                              |
 | ------------------- | ---------------------------------------------------- |
-| PRD.md              | Spec complète, phases, roadmap                       |
-| ARCHI.md            | Architecture Wallet Explorer, data flow, composants  |
-| About.md            | Contexte business, hébergement, pitch Frank          |
-| lib/schemas/nado.ts | **Source de vérité des types** — Zod schemas         |
+| PRD.md              | Full spec, phases, roadmap                           |
+| ARCHI.md            | Wallet Explorer architecture, data flow, components  |
+| About.md            | Business context, hosting, Frank pitch               |
+| lib/schemas/nado.ts | **Source of truth for types** — Zod schemas          |
 
 ---
 
-## Context7 — doc live des librairies
+## Context7 — live library docs
 
-**Toujours utiliser Context7 — jamais se fier à la mémoire pour les librairies.**
+**Always use Context7 — never rely on memory for libraries.**
 
-IDs prioritaires :
+Priority IDs:
 
 ```
 /vercel/next.js          /wevm/wagmi       /wevm/viem
@@ -27,17 +27,17 @@ IDs prioritaires :
 /colinhacks/zod/v4.0.1   /rainbow-me/rainbowkit   /recharts/recharts
 ```
 
-> ⚠️ Recharts = graphiques dashboard (stats, barres, lignes) — PAS pour les charts de prix/trading.
-> TradingView Lightweight Charts = uniquement pour les charts de prix/candlesticks.
+> ⚠️ Recharts = dashboard charts (stats, bars, lines) — NOT for price/trading charts.
+> TradingView Lightweight Charts = price charts/candlesticks only.
 
 ---
 
 ## Package managers
 
-| Périmètre              | Manager  | Raison                                 |
-| ---------------------- | -------- | -------------------------------------- |
-| App Next.js            | **pnpm** | Standard, compat shadcn/prisma/wagmi   |
-| WS Proxy (`ws-proxy/`) | **Bun**  | Runtime WS natif, process long-running |
+| Scope                  | Manager  | Reason                                       |
+| ---------------------- | -------- | -------------------------------------------- |
+| Next.js app            | **pnpm** | Standard, compat with shadcn/prisma/wagmi    |
+| WS Proxy (`ws-proxy/`) | **Bun**  | Native WS runtime, long-running process      |
 
 ---
 
@@ -47,80 +47,81 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagm
 
 ---
 
-## Méthode de travail — APEX
+## Working method — APEX
 
 ```bash
-/apex -i implement <description>       # interactif — valider le plan avant de coder
+/apex -i implement <description>       # interactive — validate plan before coding
 /apex -a -s implement <description>    # auto + save
-/apex -a -s -e implement <description> # economy — moins de tokens
+/apex -a -s -e implement <description> # economy — fewer tokens
 ```
 
-Sonnet 4.6 par défaut. Basculer sur Opus 4.6 (`/model opus`) uniquement si Sonnet tourne en rond sur un problème d'architecture complexe.
+Sonnet 4.6 by default. Switch to Opus 4.6 (`/model opus`) only when Sonnet goes in circles on a complex architecture problem.
 
 ---
 
-## Règles TypeScript
+## TypeScript rules
 
-- Zéro `any` — toujours typer explicitement
-- Zéro `as unknown as X` — si besoin, le type est mal conçu
-- Types Nado → `lib/schemas/nado.ts` (`z.infer<>`) — jamais re-déclarer ailleurs
-- `fromX18BigInt(val: string): number` dans `types/nado.ts` pour toutes les conversions (BigInt, pas parseFloat)
+- Zero `any` — always type explicitly
+- Zero `as unknown as X` — if needed, the type is poorly designed
+- Nado types → `lib/schemas/nado.ts` (`z.infer<>`) — never re-declare elsewhere
+- `fromX18BigInt(val: string): number` in `types/nado.ts` for all conversions (BigInt, not parseFloat)
 
 ---
 
-## Règles architecture
+## Architecture rules
 
 **Client (browser)**
 
-- Rendu React + Zustand stores
-- Signing EIP-712 via wagmi/viem — jamais côté serveur
-- SSE via `EventSource` vers WS Proxy Railway (utiliser `NEXT_PUBLIC_WS_PROXY_URL`)
+- React rendering + Zustand stores
+- EIP-712 signing via wagmi/viem — never server-side
+- SSE via `EventSource` to WS Proxy Railway (use `NEXT_PUBLIC_WS_PROXY_URL`)
 
-**Serveur Next.js (Vercel)**
+**Next.js server (Vercel)**
 
-- `/api/pairs` — liste des paires Nado
-- `/api/wallet/[address]` — proxy Nado Gateway (évite CORS)
-- `/api/matches` — proxy Archive `matches` (chunk <= 5 subaccounts + pagination idx côté client)
-- `/api/funding` — proxy Archive `interest_and_funding` (pagination max_idx côté client)
-- Valider tous les bodies et réponses externes avec Zod `safeParse()`
+- `/api/pairs` — list of Nado pairs
+- `/api/wallet/[address]` — Nado Gateway proxy (avoids CORS)
+- `/api/matches` — Archive `matches` proxy (chunk <= 5 subaccounts + client-side idx pagination)
+- `/api/funding` — Archive `interest_and_funding` proxy (client-side max_idx pagination)
+- `/api/snapshots` — Archive `account_snapshots` proxy (entry prices)
+- Validate all bodies and external responses with Zod `safeParse()`
 
 **WS Proxy (Railway — Bun)**
 
-- Région **eu-west4** (Pays-Bas) OBLIGATOIRE — IPs US East bloquées par Nado
-- Utiliser le package `ws` (pas le WebSocket natif Bun) — Nado exige `Sec-WebSocket-Extensions: permessage-deflate`
-- Ping toutes les 30s : `{ method: "ping" }`
-- Champ `id` obligatoire dans chaque message subscribe
+- Region **eu-west4** (Netherlands) REQUIRED — US East IPs blocked by Nado
+- Use the `ws` package (not native Bun WebSocket) — Nado requires `Sec-WebSocket-Extensions: permessage-deflate`
+- Ping every 30s: `{ method: "ping" }`
+- `id` field required in every subscribe message
 
-**Build Vercel**
+**Vercel build**
 
-- Script build : `"build": "prisma generate && next build"`
-- Next.js 16 utilise **Turbopack par défaut** — `turbopack: {}` dans `next.config.ts`
-- Wallet SDKs (MetaMask, WalletConnect) : `config.externals.push('pino-pretty', 'lokijs', 'encoding')` dans webpack (fallback `--webpack`)
-- `ws-proxy/` exclu du tsconfig principal
+- Build script: `"build": "prisma generate && next build"`
+- Next.js 16 uses **Turbopack by default** — `turbopack: {}` in `next.config.ts`
+- Wallet SDKs (MetaMask, WalletConnect): `config.externals.push('pino-pretty', 'lokijs', 'encoding')` in webpack (fallback `--webpack`)
+- `ws-proxy/` excluded from main tsconfig
 
-**Jamais**
+**Never**
 
-- ❌ Clé privée dans le code Next.js ou dans le browser
-- ❌ Signing côté serveur
-- ❌ `console.log` de payloads avec adresses ou signatures
-- ❌ Committer `.env`, `.env.local`, `About.md`
+- ❌ Private key in Next.js code or in the browser
+- ❌ Server-side signing
+- ❌ `console.log` payloads with addresses or signatures
+- ❌ Commit `.env`, `.env.local`, `About.md`
 
 ---
 
-## Documentation API Nado
+## Nado API documentation
 
-La documentation de l'API Nado est disponible dans le dossier `.claude/docs/`.
-Consulter le fichier approprié selon la tâche en cours :
+Nado API documentation is available in the `.claude/docs/` folder.
+Refer to the appropriate file based on the current task:
 
-| Tâche | Fichier |
+| Task | File |
 |---|---|
-| Fetch de l'historique (matches, orders, subaccounts, pagination, calcul PnL/fees/volume) | `.claude/docs/NADO_ARCHIVE_API.md` |
-| Prix d'entrée moyen (account_snapshots, net_entry_unrealized) | `.claude/docs/NADO_ARCHIVE_API.md` |
-| Queries temps réel (subaccount info, positions ouvertes, produits, prix) | `.claude/docs/NADO_GATEWAY_API.md` |
-| Concepts (margin types, health, PnL settlement, fees, format bytes32, x18) | `.claude/docs/NADO_CONCEPTS.md` |
-| Gestion des 429, backoff, erreurs, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
+| History fetch (matches, orders, subaccounts, pagination, PnL/fees/volume calculation) | `.claude/docs/NADO_ARCHIVE_API.md` |
+| Average entry price (account_snapshots, net_entry_unrealized) | `.claude/docs/NADO_ARCHIVE_API.md` |
+| Real-time queries (subaccount info, open positions, products, prices) | `.claude/docs/NADO_GATEWAY_API.md` |
+| Concepts (margin types, health, PnL settlement, fees, bytes32 format, x18) | `.claude/docs/NADO_CONCEPTS.md` |
+| 429 handling, backoff, errors, rate limits, changelog | `.claude/docs/NADO_RATE_LIMITS.md` |
 
-### Interroger le RAG en langage naturel
+### Query the RAG in natural language
 
 ```bash
 pnpm docs:query:nado "<question>"
@@ -129,78 +130,78 @@ pnpm docs:query:nado "<question>"
 # Ex: pnpm docs:query:nado "rate limits" --filter /developer-resources/api
 ```
 
-Rebuilder l'index : `pnpm docs:build:nado` (crawl + embed + verify)
+Rebuild the index: `pnpm docs:build:nado` (crawl + embed + verify)
 
-### Règles critiques (à toujours respecter)
+### Critical rules (always follow)
 
-- Conversion x18 : toujours via `BigInt`, jamais `parseFloat` sur les grands nombres
-- `realized_pnl` : ne compter que si `closed_amount !== 0`
-- `totalFees = fee` (`fee` inclut déjà taker/maker + sequencer — `sequencer_fee` = breakdown uniquement, ne pas sommer)
-- Fetch subaccounts : récupérer TOUS les subaccounts (default + isolated) avant le fetch matches
-- `isolated: null` dans le body matches pour capturer cross ET isolated
-- Pagination matches : `idx = page[page.length - 1].submission_idx`, stop si `page.length < 500`
+- x18 conversion: always via `BigInt`, never `parseFloat` on large numbers
+- `realized_pnl`: only count if `closed_amount !== 0`
+- `totalFees = fee` (`fee` already includes taker/maker + sequencer — `sequencer_fee` = breakdown only, do NOT sum)
+- Fetch subaccounts: retrieve ALL subaccounts (default + isolated) before fetching matches
+- `isolated: null` in matches body to capture both cross AND isolated
+- Matches pagination: `idx = page[page.length - 1].submission_idx`, stop if `page.length < 500`
 
-### Marge isolée — parent vs poche (deux bytes32)
+### Isolated margin — parent vs pocket (two bytes32)
 
-- **Parent** (ex. `default_1`) : celui qui **signe** les ordres. L’**Archive `matches`** attache les fills à `order.sender` = **parent** (la poche n’a pas d’historique matché à ce bytes32).
-- **Poche** (auto-créée, autre bytes32) : **ledger** réel — `subaccount_info` sur la **poche** expose `perp_balances` du produit isolé ; sur le **parent**, le même `product_id` peut être à **amount 0** (position déplacée sur la poche).
-- **`isolated_positions` query sur le parent** : liste les entrées avec `data[].subaccount` = bytes32 **poche** + `product_id` / balances. **Sur la poche** : réponse souvent **vide** (ce n’est pas l’ancre de listing).
-- **App** : calcul **avg entry / VWAP depuis `matches`** → agréger par **parent** (et filtre produit / `isolated`). **Taille / quote** depuis Gateway → `subaccount_info` **poche** ou chaînage via `isolated_positions(parent)` → poche pour le `product_id`. Ne pas mélanger les deux bytes32 sans ce mapping.
-
----
-
-## Règles composants
-
-- Un composant = un fichier = une responsabilité
-- `PascalCase.tsx` composants — `camelCase.ts` hooks et libs
-- Hooks → `hooks/` préfixés `use` | Stores → `store/` suffixés `Store`
-- **shadcn/ui obligatoire** pour tout élément UI de base
-- Exceptions HTML natif autorisé : `<canvas>`, divs de layout, wrappers sémantiques sans état
-
-**shadcn/ui — contrainte critique**
-
-- `Button` utilise `@base-ui/react/button` → **pas de prop `asChild`**
-- Pour un lien stylé bouton : `<Link className={cn(buttonVariants({ variant, size }))}>`
-- Jamais `<Button asChild><Link>` — ça ne compile pas
+- **Parent** (e.g. `default_1`): the one that **signs** orders. The **Archive `matches`** attaches fills to `order.sender` = **parent** (the pocket has no matched history at this bytes32).
+- **Pocket** (auto-created, different bytes32): **real ledger** — `subaccount_info` on the **pocket** exposes `perp_balances` of the isolated product; on the **parent**, the same `product_id` may be at **amount 0** (position moved to the pocket).
+- **`isolated_positions` query on parent**: lists entries with `data[].subaccount` = **pocket** bytes32 + `product_id` / balances. **On the pocket**: response often **empty** (not the listing anchor).
+- **App**: **avg entry / VWAP from `matches`** → aggregate by **parent** (and filter by product / `isolated`). **Size / quote** from Gateway → `subaccount_info` **pocket** or chaining via `isolated_positions(parent)` → pocket for the `product_id`. Do not mix the two bytes32 without this mapping.
 
 ---
 
-## Thème NadoLens
+## Component rules
 
-| Token                         | Usage            |
-| ----------------------------- | ---------------- |
-| `text-foreground`             | Texte principal  |
-| `text-muted-foreground`       | Texte secondaire |
-| `bg-background`               | Fond page        |
-| `bg-card`                     | Fond carte       |
-| `border-border`               | Bordures         |
-| `text-primary` / `bg-primary` | Emerald #22c55e  |
-| `text-destructive`            | Rouge #ef4444    |
+- One component = one file = one responsibility
+- `PascalCase.tsx` components — `camelCase.ts` hooks and libs
+- Hooks → `hooks/` prefixed with `use` | Stores → `store/` suffixed with `Store`
+- **shadcn/ui required** for all basic UI elements
+- Exceptions — native HTML allowed: `<canvas>`, layout divs, stateless semantic wrappers
 
-Semantic custom : `var(--bull)` vert · `var(--bear)` rouge · `var(--warn)` orange
+**shadcn/ui — critical constraint**
 
-**next-themes** : `ThemeProvider` en dehors de `Providers` dans `layout.tsx`. `suppressHydrationWarning` sur `<html>`.
-
-**RainbowKit** : accent purple `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard dans Providers pour éviter hydration mismatch.
+- `Button` uses `@base-ui/react/button` → **no `asChild` prop**
+- For a link styled as button: `<Link className={cn(buttonVariants({ variant, size }))}>`
+- Never `<Button asChild><Link>` — does not compile
 
 ---
 
-## Nado API — rappels critiques
+## NadoLens theme
 
-- Chain ID Ink L2 mainnet : **57073** (wagmi/viem) — ne pas confondre avec d'autres IDs
-- Endpoint contract : `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
-- Valeurs en **x18** → `fromX18BigInt()` pour les agrégations financières (volume, fees, pnl)
-- ⚠️ **Exception V2** : `/v2/tickers` et `/v2/trades` retournent des **décimaux normaux**, PAS x18
-- Subaccount bytes32 : `0x{address}64656661756c740000000000` (default)
-- `product_id: null` sur stream `liquidation` = toutes les paires
-- `book_depth` = diffs — size `"0"` = niveau supprimé du carnet
-- Mainnet WS Gateway : `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
-- Mainnet WS Subscribe : `wss://gateway.prod.nado.xyz/v1/subscribe` (streams temps réel)
-- Gateway v1 REST : `https://gateway.prod.nado.xyz/v1` | v2 : `https://gateway.prod.nado.xyz/v2`
-- Archive v1 : `https://archive.prod.nado.xyz/v1` | v2 : `https://archive.prod.nado.xyz/v2` (POST JSON — pas REST)
-- ⚠️ `gateway.nado.xyz` et `archive.nado.xyz` sont morts (404)
+| Token                         | Usage             |
+| ----------------------------- | ----------------- |
+| `text-foreground`             | Primary text      |
+| `text-muted-foreground`       | Secondary text    |
+| `bg-background`               | Page background   |
+| `bg-card`                     | Card background   |
+| `border-border`               | Borders           |
+| `text-primary` / `bg-primary` | Emerald #22c55e   |
+| `text-destructive`            | Red #ef4444       |
 
-### addressToSubaccount — helper critique
+Semantic custom: `var(--bull)` green · `var(--bear)` red · `var(--warn)` orange
+
+**next-themes**: `ThemeProvider` outside `Providers` in `layout.tsx`. `suppressHydrationWarning` on `<html>`.
+
+**RainbowKit**: accent purple `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard in Providers to avoid hydration mismatch.
+
+---
+
+## Nado API — critical reminders
+
+- Chain ID Ink L2 mainnet: **57073** (wagmi/viem) — do not confuse with other IDs
+- Contract endpoint: `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
+- Values in **x18** → `fromX18BigInt()` for financial aggregations (volume, fees, pnl)
+- ⚠️ **V2 Exception**: `/v2/tickers` and `/v2/trades` return **normal decimals**, NOT x18
+- Subaccount bytes32: `0x{address}64656661756c740000000000` (default)
+- `product_id: null` on `liquidation` stream = all pairs
+- `book_depth` = diffs — size `"0"` = level removed from the order book
+- Mainnet WS Gateway: `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
+- Mainnet WS Subscribe: `wss://gateway.prod.nado.xyz/v1/subscribe` (real-time streams)
+- Gateway v1 REST: `https://gateway.prod.nado.xyz/v1` | v2: `https://gateway.prod.nado.xyz/v2`
+- Archive v1: `https://archive.prod.nado.xyz/v1` | v2: `https://archive.prod.nado.xyz/v2` (POST JSON — not REST)
+- ⚠️ `gateway.nado.xyz` and `archive.nado.xyz` are dead (404)
+
+### addressToSubaccount — critical helper
 
 ```typescript
 function addressToSubaccount(
@@ -213,34 +214,34 @@ function addressToSubaccount(
 }
 ```
 
-### Rate limits Wallet Explorer
+### Rate limits — Wallet Explorer
 
-- `subaccounts` archive : IP weight 2 (1× au load)
-- `account_snapshots` archive : IP weight 2 (1× au load, pour les prix d'entrée)
-- `matches` archive : IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× au load)
-- `subaccount_info` : IP weight 2 × nb_subaccounts → polling 30s OK
-- Total au load initial : ~56 weight → safe avec 2400/min max
+- `subaccounts` archive: IP weight 2 (1× on load)
+- `account_snapshots` archive: IP weight 2 (1× on load, for entry prices)
+- `matches` archive: IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× on load)
+- `subaccount_info`: IP weight 2 × nb_subaccounts → 30s polling OK
+- Total on initial load: ~56 weight → safe with 2400/min max
 
 ---
 
 ## Git
 
-Format : `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
+Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
-Toujours une branche `feat/` ou `fix/` — jamais committer sur `main`. Chaque branche → Vercel Preview → tester → merge PR.
+Always a `feat/` or `fix/` branch — never commit to `main`. Each branch → Vercel Preview → test → merge PR.
 
 ---
 
-## Priorités MVP — ordre strict
+## MVP priorities — strict order
 
 1. ✅ WS Proxy Bun + `/health`
 2. ✅ `useLiquidationStream` SSE → Zustand
-3. ✅ Heatmap couche 1 + couche 2 → couche 3 (book_depth zones, optionnel)
-4. ✅ Cockpit de Survie complet
-5. ✅ **Wallet Explorer** (`/wallet/[address]`) — fresh install, composants restaurés
-6. **→ Deploy & Polish** (README, GIF, push GitHub public, mail Frank)
+3. ✅ Heatmap layer 1 + layer 2 → layer 3 (book_depth zones, optional)
+4. ✅ Survival Cockpit complete
+5. ✅ **Wallet Explorer** (`/wallet/[address]`) — fresh install, components restored
+6. **→ Deploy & Polish** (README, GIF, push GitHub public, email Frank)
 7. Orderbook depth (post-polish)
 
 ---
 
-_CLAUDE.md v2.3 — NadoLens_
+_CLAUDE.md v2.4 — NadoLens_
