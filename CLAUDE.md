@@ -121,14 +121,21 @@ Refer to the appropriate file based on the current task:
 | Concepts (margin types, health, PnL settlement, fees, bytes32 format, x18) | `docs/api/NADO_CONCEPTS.md` |
 | 429 handling, backoff, errors, rate limits, changelog | `docs/api/NADO_RATE_LIMITS.md` |
 
-### Query the RAG in natural language
+### RAG — mandatory before any Nado API work
+
+**Before writing any code that touches a Nado endpoint, always query the RAG first:**
 
 ```bash
 pnpm docs:query:nado "<question>"
 # Ex: pnpm docs:query:nado "fee calculation matches archive"
 # Ex: pnpm docs:query:nado "pagination idx" --top-k 3
 # Ex: pnpm docs:query:nado "rate limits" --filter /developer-resources/api
+# Ex: pnpm docs:query:nado "subaccount_info weight rate limit" --filter /developer-resources/api/gateway
+# Ex: pnpm docs:query:nado "account_snapshots weight" --filter /developer-resources/api/archive-indexer
 ```
+
+This applies to: new endpoints, rate limit questions, request/response shapes, pagination, weight calculations.
+The RAG indexes the live `docs.nado.xyz` — always more accurate than memory.
 
 Rebuild the index: `pnpm docs:build:nado` (crawl + embed + verify)
 
