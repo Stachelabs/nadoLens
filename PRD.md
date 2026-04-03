@@ -59,10 +59,10 @@ Private key never leaves the wallet. Orders sent directly to Nado Gateway.
 
 ## 4. Nado API
 
-> **Full reference → `.claude/docs/`** (see `CLAUDE.md` § Nado API documentation for the routing table)
+> **Full reference → `docs/api/`** (see `CLAUDE.md` § Nado API documentation for the routing table)
 > Do not duplicate here.
 
-> **Isolated margin** (two bytes32: parent vs "pocket", fills `matches` on parent side): rules → `CLAUDE.md` · data flow → `ARCHI.md` · Archive detail → `.claude/docs/NADO_ARCHIVE_API.md`.
+> **Isolated margin** (two bytes32: parent vs "pocket", fills `matches` on parent side): rules → `CLAUDE.md` · data flow → `ARCHI.md` · Archive detail → `docs/api/NADO_ARCHIVE_API.md`.
 
 ---
 
