@@ -90,12 +90,15 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
         ? Math.max(0, 1 - longWeightMaint)
         : Math.max(0, shortWeightMaint - 1)
 
-      // Nado official liquidation price formulas (source: docs.nado.xyz/definitions-formulas-faqs):
+      // Nado liquidation price formulas (verified empirically against official dashboard —
+      // docs.nado.xyz/definitions-formulas-faqs has the SHORT formula wrong):
       //   LONG:  liq_price = oracle - maintHealth / (amount × long_weight_maint)
       //          if ≤ 0 → position is very safe, no liquidation price
-      //   SHORT: liq_price = oracle + maintHealth × short_weight_maint / |amount|
+      //   SHORT: liq_price = oracle + maintHealth / (|amount| × short_weight_maint)
+      //          ⚠️ Docs write "(mH × sw) / |amount|" but actual Nado uses "mH / (|amount| × sw)"
       //          if ≥ 10 × oracle → position is very safe, no liquidation price
       //
+      // Both formulas unify as: oracle - mH / (amount × weight), where amount<0 for shorts.
       // maintHealthUsd is the account-level maintenance health (healths[1].health).
       // For isolated pockets it covers exactly one position; for cross it covers all.
       let liquidationPrice: number
@@ -106,7 +109,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       } else {
         const absAmount = Math.abs(amount)
         const liqP = absAmount > 1e-15
-          ? markPrice + (maintHealthUsd * shortWeightMaint) / absAmount
+          ? markPrice + maintHealthUsd / (absAmount * shortWeightMaint)
           : 0
         // ≥ 10× oracle means the position is very safe — no meaningful liq price.
         liquidationPrice = liqP > 0 && liqP < 10 * markPrice ? liqP : 0
