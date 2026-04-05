@@ -18,11 +18,21 @@ import { nanoStringToMs } from '@/lib/wallet/nanoTime'
 
 const PAGE_SIZE = 50
 
-const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-const fmtQty = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 4,
-  maximumFractionDigits: 4,
-})
+const fmtUsd    = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
+const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
+const fmtQty    = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+
+function fmtPrice(value: number): string {
+  const abs = Math.abs(value)
+  if (abs > 0 && abs < 1) return fmtPrice6.format(value)
+  if (abs < 1000) return fmtPrice3.format(value)
+  return fmtUsd.format(value)
+}
+
+function fmtFee(value: number): string {
+  return Math.abs(value) < 1 ? fmtPrice3.format(value) : fmtUsd.format(value)
+}
 
 function fmtTime(ts: string): string {
   const ms = nanoStringToMs(ts)
@@ -126,7 +136,14 @@ export function WalletTradeHistory({ trades }: Props) {
                 return (
                   <TableRow key={pageStart + i} className="border-border/50 hover:bg-muted/20">
                     <TableCell className="py-2 pr-4 text-muted-foreground whitespace-nowrap">{fmtTime(t.timestamp)}</TableCell>
-                    <TableCell className="py-2 pr-4 font-mono text-foreground/70">{t.pair}</TableCell>
+                    <TableCell className="py-2 pr-4">
+                      <div className="flex flex-col">
+                        <span className="font-mono text-foreground/70">{t.pair}</span>
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {t.isolated ? 'Isolated' : 'Cross'}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell className="py-2 text-center">
                       <Badge
                         variant="outline"
@@ -155,12 +172,12 @@ export function WalletTradeHistory({ trades }: Props) {
                         {role}
                       </Badge>
                     </TableCell>
-                    <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtUsd.format(price)}</TableCell>
+                    <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtPrice(price)}</TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtQty.format(qty)}</TableCell>
                     <TableCell className={cn('py-2 pr-4 text-right tabular-nums', hasPnl ? pnlColor : 'text-muted-foreground/70')}>
                       {hasPnl ? `${pnl >= 0 ? '+' : ''}${fmtUsd.format(pnl)}` : '—'}
                     </TableCell>
-                    <TableCell className="py-2 text-right tabular-nums text-muted-foreground">{fmtUsd.format(fee)}</TableCell>
+                    <TableCell className="py-2 text-right tabular-nums text-muted-foreground">{fmtFee(fee)}</TableCell>
                   </TableRow>
                 )
               })}

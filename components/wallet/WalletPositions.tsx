@@ -15,8 +15,17 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-const fmtQty = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const fmtUsd   = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
+const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
+const fmtQty    = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+
+function fmtPrice(value: number): string {
+  const abs = Math.abs(value)
+  if (abs > 0 && abs < 1) return fmtPrice6.format(value)
+  if (abs < 1000) return fmtPrice3.format(value)
+  return fmtUsd.format(value)
+}
 
 type Props = {
   positions: Position[]
@@ -174,10 +183,10 @@ export function WalletPositions({
                       {fmtQty.format(Math.abs(pos.amount))}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {pos.entry_price != null ? fmtUsd.format(pos.entry_price) : '—'}
+                      {pos.entry_price != null ? fmtPrice(pos.entry_price) : '—'}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground">
-                      {fmtUsd.format(pos.mark_price)}
+                      {fmtPrice(pos.mark_price)}
                     </TableCell>
                     <TableCell className={cn('py-2 pr-4 text-right tabular-nums', pnlColor)}>
                       {pos.unrealized_pnl >= 0 ? '+' : ''}{fmtUsd.format(pos.unrealized_pnl)}
