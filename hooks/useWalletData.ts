@@ -12,6 +12,7 @@ import type { FundingPaymentEntry } from "@/lib/wallet/buildEquityCurve";
 import {
   applySnapshotEntryPrices,
   buildEntryPriceMap,
+  recomputeUnrealizedTotals,
   type EntryPriceMap,
 } from "@/lib/wallet/snapshotEntryPrice";
 import { AccountSnapshotsResponseSchema } from "@/lib/schemas/nado";
@@ -263,6 +264,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const tradesRef = useRef<TradeMatch[]>([]);
   /** Snapshot-derived entry prices — primary source. */
   const entryPriceMapRef = useRef<EntryPriceMap>(new Map());
+  /** amount_x18 per position key from previous poll — used to detect fills. */
+  const prevAmountsRef = useRef<Map<string, string>>(new Map());
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
@@ -275,6 +278,7 @@ export function useWalletData(rawAddress: string): WalletData {
     let cancelled = false;
     fundingPaidUsdRef.current = 0;
     fundingPaymentsRef.current = [];
+    prevAmountsRef.current = new Map();
 
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
@@ -799,15 +803,17 @@ export function useWalletData(rawAddress: string): WalletData {
       );
 
       // Render dashboard immediately after first page
+      const initPositions = applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current);
+      const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
       setData({
         stats: {
           address: rawAddress,
           health_score: positionData.healthScore,
-          total_equity_usd: positionData.equityUsd,
+          total_equity_usd: initTotals.equityUsd,
           available_margin: positionData.availableMargin,
           maintenance_margin: positionData.maintenanceMargin,
-          unrealized_pnl_usd: positionData.unrealizedTotal,
-          positions: applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current),
+          unrealized_pnl_usd: initTotals.unrealizedTotal,
+          positions: initPositions,
           spot_balances: positionData.spotBalances,
           trades: allTrades,
           trades_complete: firstPages.every((page) => page.done),
@@ -911,10 +917,10 @@ export function useWalletData(rawAddress: string): WalletData {
         }
       }
 
-      // Poll live position marks / unrealized only — same Gateway route as load, but we do not
-      // overwrite equity, overview metrics, or PnL-from-history until refresh.
-      // If positions are open, also refresh account_snapshots so avg entry stays accurate
-      // when a new fill arrives between the initial load and the next manual refresh.
+      // Poll live position marks / unrealized only — subaccount_info only (Gateway).
+      // avg_entry (account_snapshots) is cached and only re-fetched when a fill is detected:
+      // if any position's amount_x18 changed since the last tick, a fill happened and the
+      // avg_entry must be refreshed. Otherwise we skip the Archive call entirely.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
         const pd = await fetchAllPositions(
@@ -923,7 +929,20 @@ export function useWalletData(rawAddress: string): WalletData {
           isolatedParentSubaccountRef.current,
         );
         if (cancelled) return;
-        if (pd.positions.length > 0) {
+
+        // Detect fills: compare amount_x18 with previous poll.
+        // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
+        const prev = prevAmountsRef.current;
+        const fillDetected = prev.size > 0 && pd.positions.some((pos) => {
+          const key = `${pos.subaccount}:${pos.product_id}`;
+          const prevAmt = prev.get(key);
+          return prevAmt === undefined || prevAmt !== pos.amount_x18;
+        });
+        prevAmountsRef.current = new Map(
+          pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
+        );
+
+        if (fillDetected) {
           const crossSubs = subaccountsRef.current
             .filter((s) => !s.isolated)
             .map((s) => s.subaccount);
@@ -931,18 +950,20 @@ export function useWalletData(rawAddress: string): WalletData {
           if (!cancelled) entryPriceMapRef.current = freshMap;
         }
         if (cancelled) return;
+        const pollPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+        const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
         setData((prev) => ({
           ...prev,
           stats: prev.stats
             ? {
                 ...prev.stats,
-                positions: applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+                positions: pollPositions,
                 health_score: pd.healthScore,
-                total_equity_usd: pd.equityUsd,
+                total_equity_usd: pollTotals.equityUsd,
                 available_margin: pd.availableMargin,
                 maintenance_margin: pd.maintenanceMargin,
                 spot_balances: pd.spotBalances,
-                unrealized_pnl_usd: pd.unrealizedTotal,
+                unrealized_pnl_usd: pollTotals.unrealizedTotal,
               }
             : null,
         }));
@@ -971,19 +992,21 @@ export function useWalletData(rawAddress: string): WalletData {
             entryPriceMapRef.current = refreshedMap;
           }
           if (cancelled) return;
+          const refreshPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+          const refreshTotals = recomputeUnrealizedTotals(refreshPositions, pd.equityUsd, pd.unrealizedTotal);
           setData((prev) => ({
             ...prev,
             unrealizedRefreshing: false,
             stats: prev.stats
               ? {
                   ...prev.stats,
-                  positions: applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+                  positions: refreshPositions,
                   health_score: pd.healthScore,
-                  total_equity_usd: pd.equityUsd,
+                  total_equity_usd: refreshTotals.equityUsd,
                   available_margin: pd.availableMargin,
                   maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
-                  unrealized_pnl_usd: pd.unrealizedTotal,
+                  unrealized_pnl_usd: refreshTotals.unrealizedTotal,
                 }
               : null,
           }));

@@ -35,7 +35,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
 
   const subaccountHex = data.subaccount ?? ''
 
-  // Spot balances computed first — totalCollateral needed for liquidation price formula.
+  // Spot balances
   const spotBalances: SpotBalance[] = data.spot_balances
     .map((sb) => {
       const amount = fromX18BigInt(sb.balance?.amount ?? '0')
@@ -52,6 +52,13 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     })
   const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
 
+  // Maintenance health (account-level) from healths[1].
+  // healths[0] = initial, healths[1] = maintenance, healths[2] = unweighted.
+  // health = assets - liabilities (already provided by the API as the `health` field).
+  // Used directly in the Nado official per-position liquidation price formula.
+  const maintHealthEntry = data.healths[1]
+  const maintHealthUsd = maintHealthEntry ? fromX18BigInt(maintHealthEntry.health) : 0
+
   const positions: Position[] = data.perp_balances
     .filter((b) => {
       try {
@@ -65,23 +72,51 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       // fromX18BigInt — avoids parseFloat precision loss on large x18 integers.
       const amount = fromX18BigInt(b.balance.amount)
       const vQuote = fromX18BigInt(b.balance.v_quote_balance)
-      // Mark = oracle from Gateway `perp_products` (same field Nado uses for risk / margin).
+      // Oracle price from Gateway perp_products (used by Nado for health and liquidation).
       const markPrice = market ? fromX18BigInt(market.oracle_price_x18) : 0
       const isLong = amount >= 0
-      const maintWeight = market
-        ? isLong
-          ? fromX18BigInt(market.risk.long_weight_maintenance_x18)
-          : fromX18BigInt(market.risk.short_weight_maintenance_x18)
-        : 0.9875
-      const maintMarginRate = 1 - Math.min(maintWeight, 1)
-      // Cross-margin liq price: price at which portfolio health = 0 (all else constant).
-      // health = totalCollateral + amount * liqPrice * maintWeight + vQuote = 0
-      // liqPrice = -(totalCollateral + vQuote) / (amount * maintWeight)
-      // Approximation: multi-position portfolios share collateral — actual liq price may be higher.
-      const liqDenom = amount * maintWeight
-      const liquidationPrice = Math.abs(liqDenom) > 1e-12
-        ? -(totalCollateral + vQuote) / liqDenom
-        : 0
+
+      const longWeightMaint = market
+        ? fromX18BigInt(market.risk.long_weight_maintenance_x18)
+        : 0.95
+      const shortWeightMaint = market
+        ? fromX18BigInt(market.risk.short_weight_maintenance_x18)
+        : 1.05
+
+      // Maintenance margin rate:
+      //   LONG:  (1 - long_weight_maint)   — fraction of notional required as margin
+      //   SHORT: (short_weight_maint - 1)  — symmetric, typically ~5% for both
+      const maintMarginRate = isLong
+        ? Math.max(0, 1 - longWeightMaint)
+        : Math.max(0, shortWeightMaint - 1)
+
+      // Nado liquidation price formulas (verified empirically against official dashboard —
+      // docs.nado.xyz/definitions-formulas-faqs has the SHORT formula wrong):
+      //   LONG:  liq_price = oracle - maintHealth / (amount × long_weight_maint)
+      //          if ≤ 0 → position is very safe, no liquidation price
+      //   SHORT: liq_price = oracle + maintHealth / (|amount| × short_weight_maint)
+      //          ⚠️ Docs write "(mH × sw) / |amount|" but actual Nado uses "mH / (|amount| × sw)"
+      //          if ≥ 10 × oracle → position is very safe, no liquidation price
+      //
+      // Both formulas unify as: oracle - mH / (amount × weight), where amount<0 for shorts.
+      // maintHealthUsd is the account-level maintenance health (healths[1].health).
+      // For isolated pockets it covers exactly one position; for cross it covers all.
+      let liquidationPrice: number
+      if (isLong) {
+        const denom = amount * longWeightMaint
+        const liqP = denom > 1e-15 ? markPrice - maintHealthUsd / denom : 0
+        liquidationPrice = liqP > 0 ? liqP : 0
+      } else {
+        const absAmount = Math.abs(amount)
+        const liqP = absAmount > 1e-15
+          ? markPrice + maintHealthUsd / (absAmount * shortWeightMaint)
+          : 0
+        // ≥ 10× oracle means the position is very safe — no meaningful liq price.
+        liquidationPrice = liqP > 0 && liqP < 10 * markPrice ? liqP : 0
+      }
+
+      // Unrealized PnL from subaccount_info:
+      //   unsettled_quote = amount × oracle_price + v_quote_balance (Nado docs)
       const unrealizedPnl = vQuote + amount * markPrice
 
       return {
@@ -93,9 +128,9 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
         entry_price: null,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
-        liquidation_price: Math.max(0, liquidationPrice),
+        liquidation_price: liquidationPrice,
         margin_used: Math.max(0, Math.abs(amount) * markPrice * maintMarginRate),
-        maint_weight: maintWeight,
+        maint_weight: isLong ? longWeightMaint : shortWeightMaint,
         isolated,
       }
     })
@@ -108,11 +143,11 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0)
 
   let healthScore = Math.max(0, Math.min(1, 1 - maintMarginUsage))
-  const maintHealth = data.healths[1]
-  if (maintHealth) {
-    const healthAssets = fromX18BigInt(maintHealth.assets)
-    const liabilities = fromX18BigInt(maintHealth.liabilities)
-    if (healthAssets > 0) healthScore = Math.max(0, Math.min(1, (healthAssets - liabilities) / healthAssets))
+  if (maintHealthEntry) {
+    const healthAssets = fromX18BigInt(maintHealthEntry.assets)
+    if (healthAssets > 0) {
+      healthScore = Math.max(0, Math.min(1, maintHealthUsd / healthAssets))
+    }
   }
 
   return {
