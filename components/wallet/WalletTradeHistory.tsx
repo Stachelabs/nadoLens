@@ -21,7 +21,12 @@ const PAGE_SIZE = 50
 const fmtUsd    = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
-const fmtQty    = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+const fmtQty4   = new Intl.NumberFormat('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+const fmtQty5   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 5 })
+
+function fmtQty(value: number): string {
+  return Math.abs(value) < 1 ? fmtQty5.format(value) : fmtQty4.format(value)
+}
 
 function fmtPrice(value: number): string {
   const abs = Math.abs(value)
@@ -173,7 +178,7 @@ export function WalletTradeHistory({ trades }: Props) {
                       </Badge>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtPrice(price)}</TableCell>
-                    <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtQty.format(qty)}</TableCell>
+                    <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">{fmtQty(qty)}</TableCell>
                     <TableCell className={cn('py-2 pr-4 text-right tabular-nums', hasPnl ? pnlColor : 'text-muted-foreground/70')}>
                       {hasPnl ? `${pnl >= 0 ? '+' : ''}${fmtUsd.format(pnl)}` : '—'}
                     </TableCell>

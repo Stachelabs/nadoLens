@@ -18,7 +18,12 @@ import { cn } from '@/lib/utils'
 const fmtUsd   = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
-const fmtQty    = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const fmtQty4   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const fmtQty5   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 5 })
+
+function fmtQty(value: number): string {
+  return Math.abs(value) < 1 ? fmtQty5.format(value) : fmtQty4.format(value)
+}
 
 function fmtPrice(value: number): string {
   const abs = Math.abs(value)
@@ -180,7 +185,7 @@ export function WalletPositions({
                       </Badge>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {fmtQty.format(Math.abs(pos.amount))}
+                      {fmtQty(Math.abs(pos.amount))}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
                       {pos.entry_price != null ? fmtPrice(pos.entry_price) : '—'}
