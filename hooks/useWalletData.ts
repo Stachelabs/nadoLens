@@ -12,6 +12,7 @@ import type { FundingPaymentEntry } from "@/lib/wallet/buildEquityCurve";
 import {
   applySnapshotEntryPrices,
   buildEntryPriceMap,
+  recomputeUnrealizedTotals,
   type EntryPriceMap,
 } from "@/lib/wallet/snapshotEntryPrice";
 import { AccountSnapshotsResponseSchema } from "@/lib/schemas/nado";
@@ -799,15 +800,17 @@ export function useWalletData(rawAddress: string): WalletData {
       );
 
       // Render dashboard immediately after first page
+      const initPositions = applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current);
+      const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
       setData({
         stats: {
           address: rawAddress,
           health_score: positionData.healthScore,
-          total_equity_usd: positionData.equityUsd,
+          total_equity_usd: initTotals.equityUsd,
           available_margin: positionData.availableMargin,
           maintenance_margin: positionData.maintenanceMargin,
-          unrealized_pnl_usd: positionData.unrealizedTotal,
-          positions: applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current),
+          unrealized_pnl_usd: initTotals.unrealizedTotal,
+          positions: initPositions,
           spot_balances: positionData.spotBalances,
           trades: allTrades,
           trades_complete: firstPages.every((page) => page.done),
@@ -931,18 +934,20 @@ export function useWalletData(rawAddress: string): WalletData {
           if (!cancelled) entryPriceMapRef.current = freshMap;
         }
         if (cancelled) return;
+        const pollPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+        const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
         setData((prev) => ({
           ...prev,
           stats: prev.stats
             ? {
                 ...prev.stats,
-                positions: applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+                positions: pollPositions,
                 health_score: pd.healthScore,
-                total_equity_usd: pd.equityUsd,
+                total_equity_usd: pollTotals.equityUsd,
                 available_margin: pd.availableMargin,
                 maintenance_margin: pd.maintenanceMargin,
                 spot_balances: pd.spotBalances,
-                unrealized_pnl_usd: pd.unrealizedTotal,
+                unrealized_pnl_usd: pollTotals.unrealizedTotal,
               }
             : null,
         }));
@@ -971,19 +976,21 @@ export function useWalletData(rawAddress: string): WalletData {
             entryPriceMapRef.current = refreshedMap;
           }
           if (cancelled) return;
+          const refreshPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+          const refreshTotals = recomputeUnrealizedTotals(refreshPositions, pd.equityUsd, pd.unrealizedTotal);
           setData((prev) => ({
             ...prev,
             unrealizedRefreshing: false,
             stats: prev.stats
               ? {
                   ...prev.stats,
-                  positions: applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+                  positions: refreshPositions,
                   health_score: pd.healthScore,
-                  total_equity_usd: pd.equityUsd,
+                  total_equity_usd: refreshTotals.equityUsd,
                   available_margin: pd.availableMargin,
                   maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
-                  unrealized_pnl_usd: pd.unrealizedTotal,
+                  unrealized_pnl_usd: refreshTotals.unrealizedTotal,
                 }
               : null,
           }));

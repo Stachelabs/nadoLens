@@ -64,7 +64,14 @@ export function buildEntryPriceMap(
 }
 
 /**
- * Override position entry prices using snapshot-derived values.
+ * Override position entry prices using snapshot-derived values, and correct
+ * unrealized PnL accordingly.
+ *
+ * WHY: Nado periodically settles v_quote_balance into the spot USDT0 balance.
+ * After settlement, v_quote_balance no longer equals -(entry × amount), so
+ * the formula "v_quote + amount × oracle" only shows PnL since last settlement.
+ * The true unrealized PnL from entry = (mark_price - avg_entry) × amount,
+ * where avg_entry = |net_entry_unrealized / amount| from account_snapshots.
  */
 export function applySnapshotEntryPrices(
   positions: Position[],
@@ -79,8 +86,23 @@ export function applySnapshotEntryPrices(
     const key = `${querySub}:${p.product_id}:${p.isolated}`;
     const snapshotPrice = map.get(key);
     if (snapshotPrice != null && snapshotPrice > 0) {
-      return { ...p, entry_price: snapshotPrice };
+      const correctedPnl = (p.mark_price - snapshotPrice) * p.amount;
+      return { ...p, entry_price: snapshotPrice, unrealized_pnl: correctedPnl };
     }
     return p;
   });
+}
+
+/**
+ * Recompute unrealizedTotal and equityUsd after snapshot entry prices have
+ * been applied (which corrects unrealized_pnl on each position).
+ */
+export function recomputeUnrealizedTotals(
+  positions: Position[],
+  oldEquity: number,
+  oldUnrealizedTotal: number,
+): { unrealizedTotal: number; equityUsd: number } {
+  const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
+  const totalCollateral = oldEquity - oldUnrealizedTotal;
+  return { unrealizedTotal, equityUsd: totalCollateral + unrealizedTotal };
 }
