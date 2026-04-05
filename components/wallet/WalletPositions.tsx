@@ -192,7 +192,7 @@ export function WalletPositions({
                       {pos.unrealized_pnl >= 0 ? '+' : ''}{fmtUsd.format(pos.unrealized_pnl)}
                     </TableCell>
                     <TableCell className={cn('py-2 text-right tabular-nums', nearLiq ? 'text-red-400 font-bold' : 'text-muted-foreground')}>
-                      {pos.liquidation_price > 0 ? fmtUsd.format(pos.liquidation_price) : '—'}
+                      {pos.liquidation_price > 0 ? fmtPrice(pos.liquidation_price) : '—'}
                     </TableCell>
                   </TableRow>
                 )
