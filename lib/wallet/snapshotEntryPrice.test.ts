@@ -29,6 +29,7 @@ function makePos(overrides: Partial<Position> & { product_id: number; subaccount
     amount_x18: '300000000000000',
     amount: 0.0003,
     entry_price: null,
+    funding_cumulative: null,
     mark_price: 68000,
     unrealized_pnl: 0,
     liquidation_price: 0,

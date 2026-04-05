@@ -385,8 +385,9 @@ export const ArchiveProductsResponseSchema = z.object({
 
 /**
  * Single event in the account_snapshots response.
- * Only fields needed to compute avg entry price are captured here.
+ * Captures fields for avg entry price and cumulative funding.
  * formula: |net_entry_unrealized / post_balance.perp.balance.amount|
+ * funding: net_funding_cumulative (x18 USD, signed: positive = received)
  */
 export const AccountSnapshotEventSchema = z.object({
   product_id: z.number(),
@@ -398,6 +399,7 @@ export const AccountSnapshotEventSchema = z.object({
     }).optional(),
   }).optional(),
   net_entry_unrealized: x18,
+  net_funding_cumulative: x18.optional(),
 })
 export type AccountSnapshotEvent = z.infer<typeof AccountSnapshotEventSchema>
 

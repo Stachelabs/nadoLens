@@ -15,9 +15,10 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-const fmtUsd   = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+const fmtUsd    = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
+const fmtFee3   = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtQty4   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 const fmtQty5   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 5 })
 
@@ -30,6 +31,12 @@ function fmtPrice(value: number): string {
   if (abs > 0 && abs < 1) return fmtPrice6.format(value)
   if (abs < 1000) return fmtPrice3.format(value)
   return fmtUsd.format(value)
+}
+
+function fmtFunding(value: number): string {
+  const abs = Math.abs(value)
+  const sign = value >= 0 ? '+' : '-'
+  return sign + (abs < 1 ? fmtFee3.format(abs) : fmtUsd.format(abs))
 }
 
 type Props = {
@@ -127,6 +134,7 @@ export function WalletPositions({
                   'Avg entry',
                   'Mark',
                   'Unrealized PnL',
+                  'Funding',
                   'Liq Price',
                 ].map((h) => (
                   <TableHead
@@ -149,6 +157,7 @@ export function WalletPositions({
               {orderedPositions.map((pos) => {
                 const isLong = pos.amount >= 0
                 const pnlColor = pos.unrealized_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                const fundingColor = (pos.funding_cumulative ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
                 const nearLiq =
                   pos.liquidation_price > 0 &&
                   Math.abs(pos.mark_price - pos.liquidation_price) / pos.mark_price < 0.1
@@ -195,6 +204,9 @@ export function WalletPositions({
                     </TableCell>
                     <TableCell className={cn('py-2 pr-4 text-right tabular-nums', pnlColor)}>
                       {pos.unrealized_pnl >= 0 ? '+' : ''}{fmtUsd.format(pos.unrealized_pnl)}
+                    </TableCell>
+                    <TableCell className={cn('py-2 pr-4 text-right tabular-nums', pos.funding_cumulative != null ? fundingColor : 'text-muted-foreground/40')}>
+                      {pos.funding_cumulative != null ? fmtFunding(pos.funding_cumulative) : '—'}
                     </TableCell>
                     <TableCell className={cn('py-2 text-right tabular-nums', nearLiq ? 'text-red-400 font-bold' : 'text-muted-foreground')}>
                       {pos.liquidation_price > 0 ? fmtPrice(pos.liquidation_price) : '—'}
