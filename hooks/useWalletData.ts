@@ -914,10 +914,9 @@ export function useWalletData(rawAddress: string): WalletData {
         }
       }
 
-      // Poll live position marks / unrealized only — same Gateway route as load, but we do not
-      // overwrite equity, overview metrics, or PnL-from-history until refresh.
-      // If positions are open, also refresh account_snapshots so avg entry stays accurate
-      // when a new fill arrives between the initial load and the next manual refresh.
+      // Poll live position marks / unrealized only — subaccount_info only (Gateway).
+      // avg_entry from account_snapshots is cached at load time; it changes only on new fills,
+      // so there is no need to re-fetch it on every 5s tick. Manual refresh re-fetches it.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
         const pd = await fetchAllPositions(
@@ -925,14 +924,6 @@ export function useWalletData(rawAddress: string): WalletData {
           isolatedParentNameRef.current,
           isolatedParentSubaccountRef.current,
         );
-        if (cancelled) return;
-        if (pd.positions.length > 0) {
-          const crossSubs = subaccountsRef.current
-            .filter((s) => !s.isolated)
-            .map((s) => s.subaccount);
-          const freshMap = await fetchSnapshotEntryPrices(crossSubs);
-          if (!cancelled) entryPriceMapRef.current = freshMap;
-        }
         if (cancelled) return;
         const pollPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
         const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
