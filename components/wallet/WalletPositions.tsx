@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils'
 const fmtUsd    = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
 const fmtPrice3 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtPrice6 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 6, maximumFractionDigits: 6 })
-const fmtFee3   = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const fmtQty4   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
 const fmtQty5   = new Intl.NumberFormat('en-US', { maximumFractionDigits: 5 })
 
@@ -34,9 +33,8 @@ function fmtPrice(value: number): string {
 }
 
 function fmtFunding(value: number): string {
-  const abs = Math.abs(value)
   const sign = value >= 0 ? '+' : '-'
-  return sign + (abs < 1 ? fmtFee3.format(abs) : fmtUsd.format(abs))
+  return sign + fmtUsd.format(Math.abs(value))
 }
 
 type Props = {
