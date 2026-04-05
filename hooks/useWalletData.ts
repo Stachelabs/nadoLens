@@ -264,6 +264,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const tradesRef = useRef<TradeMatch[]>([]);
   /** Snapshot-derived entry prices — primary source. */
   const entryPriceMapRef = useRef<EntryPriceMap>(new Map());
+  /** amount_x18 per position key from previous poll — used to detect fills. */
+  const prevAmountsRef = useRef<Map<string, string>>(new Map());
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
@@ -276,6 +278,7 @@ export function useWalletData(rawAddress: string): WalletData {
     let cancelled = false;
     fundingPaidUsdRef.current = 0;
     fundingPaymentsRef.current = [];
+    prevAmountsRef.current = new Map();
 
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
@@ -915,8 +918,9 @@ export function useWalletData(rawAddress: string): WalletData {
       }
 
       // Poll live position marks / unrealized only — subaccount_info only (Gateway).
-      // avg_entry from account_snapshots is cached at load time; it changes only on new fills,
-      // so there is no need to re-fetch it on every 5s tick. Manual refresh re-fetches it.
+      // avg_entry (account_snapshots) is cached and only re-fetched when a fill is detected:
+      // if any position's amount_x18 changed since the last tick, a fill happened and the
+      // avg_entry must be refreshed. Otherwise we skip the Archive call entirely.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
         const pd = await fetchAllPositions(
@@ -924,6 +928,27 @@ export function useWalletData(rawAddress: string): WalletData {
           isolatedParentNameRef.current,
           isolatedParentSubaccountRef.current,
         );
+        if (cancelled) return;
+
+        // Detect fills: compare amount_x18 with previous poll.
+        // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
+        const prev = prevAmountsRef.current;
+        const fillDetected = prev.size > 0 && pd.positions.some((pos) => {
+          const key = `${pos.subaccount}:${pos.product_id}`;
+          const prevAmt = prev.get(key);
+          return prevAmt === undefined || prevAmt !== pos.amount_x18;
+        });
+        prevAmountsRef.current = new Map(
+          pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
+        );
+
+        if (fillDetected) {
+          const crossSubs = subaccountsRef.current
+            .filter((s) => !s.isolated)
+            .map((s) => s.subaccount);
+          const freshMap = await fetchSnapshotEntryPrices(crossSubs);
+          if (!cancelled) entryPriceMapRef.current = freshMap;
+        }
         if (cancelled) return;
         const pollPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
         const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
