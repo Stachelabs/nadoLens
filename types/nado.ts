@@ -52,6 +52,8 @@ export type Position = {
   amount_x18: string
   amount: number
   entry_price: number | null
+  /** Cumulative funding paid/received since position inception (x18 → USD). Positive = received. */
+  funding_cumulative: number | null
   mark_price: number
   unrealized_pnl: number
   liquidation_price: number

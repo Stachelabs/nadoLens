@@ -3,13 +3,11 @@ import type { Position } from "@/types/nado";
 
 /**
  * key = `${subaccount_lower}:${product_id}:${isolated}`
- * value = avg entry price in USD
  *
- * Formula (Nado Definitions & Formulas docs):
- *   Avg Entry Price = |net_entry_unrealized / amount|
- * where both fields come from the same account_snapshot event.
+ * entryPrice  = |net_entry_unrealized / amount| in USD
+ * fundingCumulative = net_funding_cumulative in USD (signed: positive = received)
  */
-export type EntryPriceMap = Map<string, number>;
+export type EntryPriceMap = Map<string, { entryPrice: number; fundingCumulative: number | null }>;
 
 function parseX18(s: string): number {
   try {
@@ -54,8 +52,12 @@ export function buildEntryPriceMap(
         const entryPrice = Math.abs(netEntry / amount);
         if (!isFinite(entryPrice) || entryPrice <= 0) continue;
 
+        const fundingCumulative = event.net_funding_cumulative != null
+          ? parseX18(event.net_funding_cumulative)
+          : null;
+
         const key = `${sub}:${event.product_id}:${event.isolated}`;
-        map.set(key, entryPrice);
+        map.set(key, { entryPrice, fundingCumulative });
       }
     }
   }
@@ -84,10 +86,15 @@ export function applySnapshotEntryPrices(
       ? (p.parent_subaccount ?? p.subaccount).toLowerCase()
       : p.subaccount.toLowerCase();
     const key = `${querySub}:${p.product_id}:${p.isolated}`;
-    const snapshotPrice = map.get(key);
-    if (snapshotPrice != null && snapshotPrice > 0) {
-      const correctedPnl = (p.mark_price - snapshotPrice) * p.amount;
-      return { ...p, entry_price: snapshotPrice, unrealized_pnl: correctedPnl };
+    const snapshot = map.get(key);
+    if (snapshot != null && snapshot.entryPrice > 0) {
+      const correctedPnl = (p.mark_price - snapshot.entryPrice) * p.amount;
+      return {
+        ...p,
+        entry_price: snapshot.entryPrice,
+        unrealized_pnl: correctedPnl,
+        funding_cumulative: snapshot.fundingCumulative,
+      };
     }
     return p;
   });
