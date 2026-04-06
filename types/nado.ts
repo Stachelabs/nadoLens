@@ -54,6 +54,10 @@ export type Position = {
   entry_price: number | null
   /** Cumulative funding paid/received since position inception (x18 → USD). Positive = received. */
   funding_cumulative: number | null
+  /** Cumulative fees paid for the current open session (reset when position goes flat). */
+  fees_cumulative: number | null
+  /** Gross realized PnL from partial closes in the current open session. */
+  realized_pnl_cumulative: number | null
   mark_price: number
   unrealized_pnl: number
   liquidation_price: number

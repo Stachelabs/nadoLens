@@ -15,6 +15,11 @@ import {
   recomputeUnrealizedTotals,
   type EntryPriceMap,
 } from "@/lib/wallet/snapshotEntryPrice";
+import {
+  applyPositionStats,
+  buildPositionStatsMap,
+  type PositionStatsMap,
+} from "@/lib/wallet/positionStats";
 import { AccountSnapshotsResponseSchema } from "@/lib/schemas/nado";
 import {
   computeTradeMetrics,
@@ -264,6 +269,12 @@ export function useWalletData(rawAddress: string): WalletData {
   const tradesRef = useRef<TradeMatch[]>([]);
   /** Snapshot-derived entry prices — primary source. */
   const entryPriceMapRef = useRef<EntryPriceMap>(new Map());
+  /** Position stats (fees + realized PnL) derived from all fetched trades. */
+  const positionStatsMapRef = useRef<PositionStatsMap>(new Map());
+  /** Highest submission_idx seen across all fetched trades — incremental fetch cursor. */
+  const latestKnownIdxRef = useRef<string | null>(null);
+  /** All trade identities seen — deduplication safety net across incremental fetches. */
+  const seenTradeIdsRef = useRef<Set<string>>(new Set());
   /** amount_x18 per position key from previous poll — used to detect fills. */
   const prevAmountsRef = useRef<Map<string, string>>(new Map());
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
@@ -702,6 +713,47 @@ export function useWalletData(rawAddress: string): WalletData {
       }
     };
 
+    /**
+     * Fetch only trades newer than a known submission_idx (incremental).
+     * Newest-first pages per chunk; stops when boundary is hit.
+     * Double deduplication: BigInt cursor (layer 1) + seenTradeIdsRef (layer 2).
+     */
+    const MAX_INCREMENTAL_PAGES = 5;
+    const fetchIncrementalTrades = async (
+      chunks: string[][],
+      knownIdx: string,
+    ): Promise<TradeMatch[]> => {
+      const newTrades: TradeMatch[] = [];
+      const knownBigInt = BigInt(knownIdx);
+      for (let ci = 0; ci < chunks.length; ci++) {
+        const chunkSubs = chunks[ci]!;
+        let pageIdx: string | undefined = undefined;
+        for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
+          const page = await fetchOnePage(chunkSubs, pageIdx);
+          if (cancelled || page.rateLimited) break;
+          let boundaryHit = false;
+          for (const trade of page.trades) {
+            try {
+              if (BigInt(trade.submission_idx) <= knownBigInt) {
+                boundaryHit = true;
+                break;
+              }
+            } catch { /* non-numeric idx — include the trade */ }
+            const id = tradeIdentity(trade);
+            if (!seenTradeIdsRef.current.has(id)) {
+              seenTradeIdsRef.current.add(id);
+              newTrades.push(trade);
+            }
+          }
+          if (boundaryHit || page.done) break;
+          if (page.nextIdx) pageIdx = page.nextIdx;
+          else break;
+        }
+        if (ci < chunks.length - 1) await sleep(MATCHES_BURST_MS);
+      }
+      return newTrades;
+    };
+
     const loadWallet = async (mode: "initial" | "refresh") => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -789,8 +841,10 @@ export function useWalletData(rawAddress: string): WalletData {
       if (cancelled) return;
 
       let allTrades = sortTradesNewestFirst(firstPages.flatMap((page) => page.trades));
-      const seenTradeIds = new Set(allTrades.map(tradeIdentity));
+      seenTradeIdsRef.current = new Set(allTrades.map(tradeIdentity));
       tradesRef.current = allTrades;
+      latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? null;
+      positionStatsMapRef.current = buildPositionStatsMap(allTrades);
       const fundingData = await fetchFundingPaid(
         subAddrs,
         positionData.positions.map((position) => position.product_id),
@@ -803,7 +857,10 @@ export function useWalletData(rawAddress: string): WalletData {
       );
 
       // Render dashboard immediately after first page
-      const initPositions = applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current);
+      const initPositions = applyPositionStats(
+        applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current),
+        positionStatsMapRef.current,
+      );
       const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
       setData({
         stats: {
@@ -871,8 +928,8 @@ export function useWalletData(rawAddress: string): WalletData {
             state.nextIdx = result.nextIdx;
             const uniqueTrades = result.trades.filter((trade) => {
               const id = tradeIdentity(trade);
-              if (seenTradeIds.has(id)) return false;
-              seenTradeIds.add(id);
+              if (seenTradeIdsRef.current.has(id)) return false;
+              seenTradeIdsRef.current.add(id);
               return true;
             });
             allTrades = sortTradesNewestFirst([...allTrades, ...uniqueTrades]);
@@ -880,6 +937,8 @@ export function useWalletData(rawAddress: string): WalletData {
           }
 
           tradesRef.current = allTrades;
+          latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+          positionStatsMapRef.current = buildPositionStatsMap(allTrades);
           const updatedStats = buildPnlStats(
             allTrades,
             fundingData.totalFundingUsd,
@@ -896,7 +955,10 @@ export function useWalletData(rawAddress: string): WalletData {
                   trades: allTrades,
                   trades_complete: allDone || page === MAX_PAGES - 1,
                   ...updatedStats,
-                  positions: applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+                  positions: applyPositionStats(
+                    applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+                    positionStatsMapRef.current,
+                  ),
                 }
               : null,
           }));
@@ -946,11 +1008,32 @@ export function useWalletData(rawAddress: string): WalletData {
           const crossSubs = subaccountsRef.current
             .filter((s) => !s.isolated)
             .map((s) => s.subaccount);
-          const freshMap = await fetchSnapshotEntryPrices(crossSubs);
-          if (!cancelled) entryPriceMapRef.current = freshMap;
+          const [freshMap, newTrades] = await Promise.all([
+            fetchSnapshotEntryPrices(crossSubs),
+            latestKnownIdxRef.current
+              ? fetchIncrementalTrades(chunk(subaccountsRef.current.map((s) => s.subaccount), 5), latestKnownIdxRef.current)
+              : Promise.resolve([] as TradeMatch[]),
+          ]);
+          if (!cancelled) {
+            entryPriceMapRef.current = freshMap;
+            if (newTrades.length > 0) {
+              const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+              tradesRef.current = updatedTrades;
+              latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades);
+              const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
+              setData((prev) => prev.stats
+                ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
+                : prev,
+              );
+            }
+          }
         }
         if (cancelled) return;
-        const pollPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+        const pollPositions = applyPositionStats(
+          applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+          positionStatsMapRef.current,
+        );
         const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
         setData((prev) => ({
           ...prev,
@@ -992,7 +1075,10 @@ export function useWalletData(rawAddress: string): WalletData {
             entryPriceMapRef.current = refreshedMap;
           }
           if (cancelled) return;
-          const refreshPositions = applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current);
+          const refreshPositions = applyPositionStats(
+            applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+            positionStatsMapRef.current,
+          );
           const refreshTotals = recomputeUnrealizedTotals(refreshPositions, pd.equityUsd, pd.unrealizedTotal);
           setData((prev) => ({
             ...prev,
@@ -1023,8 +1109,33 @@ export function useWalletData(rawAddress: string): WalletData {
 
     refreshImplRef.current = async () => {
       if (cancelled) return;
+      setData((prev) => ({ ...prev, refreshing: true, error: null }));
       try {
-        await loadWallet("refresh");
+        const knownIdx = latestKnownIdxRef.current;
+        const subAddrs = subaccountsRef.current.map((s) => s.subaccount);
+        const chunks = chunk(subAddrs, 5);
+
+        // Fetch only new trades since last known idx (incremental).
+        // Fall back to full reload if no cursor (shouldn't happen after initial load).
+        const newTrades = knownIdx
+          ? await fetchIncrementalTrades(chunks, knownIdx)
+          : [];
+
+        if (cancelled) return;
+
+        if (newTrades.length > 0) {
+          const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+          tradesRef.current = updatedTrades;
+          latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+          positionStatsMapRef.current = buildPositionStatsMap(updatedTrades);
+          const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
+          setData((prev) => prev.stats
+            ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
+            : prev,
+          );
+        }
+
+        setData((prev) => ({ ...prev, refreshing: false }));
       } catch {
         setData((prev) => ({
           ...prev,
@@ -1052,6 +1163,9 @@ export function useWalletData(rawAddress: string): WalletData {
       cancelled = true;
       tradesRef.current = [];
       entryPriceMapRef.current = new Map();
+      positionStatsMapRef.current = new Map();
+      latestKnownIdxRef.current = null;
+      seenTradeIdsRef.current = new Set();
       isolatedParentNameRef.current = new Map();
       isolatedParentSubaccountRef.current = new Map();
       fundingPaymentsRef.current = [];

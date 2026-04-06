@@ -30,6 +30,8 @@ function makePos(overrides: Partial<Position> & { product_id: number; subaccount
     amount: 0.0003,
     entry_price: null,
     funding_cumulative: null,
+    fees_cumulative: null,
+    realized_pnl_cumulative: null,
     mark_price: 68000,
     unrealized_pnl: 0,
     liquidation_price: 0,
@@ -49,9 +51,9 @@ describe('buildEntryPriceMap', () => {
         '1775172853': [makeEvent(2, false, '300000000000000', '20571483333333333333')],
       },
     })
-    const price = map.get(`${CROSS_PARENT.toLowerCase()}:2:false`)
-    expect(price).toBeDefined()
-    expect(price!).toBeCloseTo(68571.61, 1)
+    const entry = map.get(`${CROSS_PARENT.toLowerCase()}:2:false`)
+    expect(entry).toBeDefined()
+    expect(entry!.entryPrice).toBeCloseTo(68571.61, 1)
   })
 
   it('computes ETH cross short entry price (negative amount, negative net_entry)', () => {
@@ -61,9 +63,9 @@ describe('buildEntryPriceMap', () => {
         '1775172853': [makeEvent(4, false, '-10000000000000000', '-21137333333333333333')],
       },
     })
-    const price = map.get(`${CROSS_PARENT.toLowerCase()}:4:false`)
-    expect(price).toBeDefined()
-    expect(price!).toBeCloseTo(2113.73, 1)
+    const entry = map.get(`${CROSS_PARENT.toLowerCase()}:4:false`)
+    expect(entry).toBeDefined()
+    expect(entry!.entryPrice).toBeCloseTo(2113.73, 1)
   })
 
   it('computes BTC isolated entry price', () => {
@@ -73,9 +75,9 @@ describe('buildEntryPriceMap', () => {
         '1775172853': [makeEvent(2, true, '100000000000000', '6697200000000000000')],
       },
     })
-    const price = map.get(`${CROSS_PARENT.toLowerCase()}:2:true`)
-    expect(price).toBeDefined()
-    expect(price!).toBeCloseTo(66972, 0)
+    const entry = map.get(`${CROSS_PARENT.toLowerCase()}:2:true`)
+    expect(entry).toBeDefined()
+    expect(entry!.entryPrice).toBeCloseTo(66972, 0)
   })
 
   it('computes WTI isolated short entry price', () => {
@@ -85,9 +87,9 @@ describe('buildEntryPriceMap', () => {
         '1775172853': [makeEvent(90, true, '-100000000000000000', '-10161494444444444444')],
       },
     })
-    const price = map.get(`${CROSS_PARENT.toLowerCase()}:90:true`)
-    expect(price).toBeDefined()
-    expect(price!).toBeCloseTo(101.615, 2)
+    const entry = map.get(`${CROSS_PARENT.toLowerCase()}:90:true`)
+    expect(entry).toBeDefined()
+    expect(entry!.entryPrice).toBeCloseTo(101.615, 2)
   })
 
   it('returns empty map for empty snapshots', () => {
