@@ -133,6 +133,8 @@ export function WalletPositions({
                   'Mark',
                   'Unrealized PnL',
                   'Funding',
+                  'Fees',
+                  'Realized',
                   'Liq Price',
                 ].map((h) => (
                   <TableHead
@@ -156,6 +158,10 @@ export function WalletPositions({
                 const isLong = pos.amount >= 0
                 const pnlColor = pos.unrealized_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
                 const fundingColor = (pos.funding_cumulative ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                const realizedNet = pos.realized_pnl_cumulative != null
+                  ? pos.realized_pnl_cumulative - (pos.fees_cumulative ?? 0) + (pos.funding_cumulative ?? 0)
+                  : null
+                const realizedColor = realizedNet != null && realizedNet >= 0 ? 'text-emerald-400' : 'text-red-400'
                 const nearLiq =
                   pos.liquidation_price > 0 &&
                   Math.abs(pos.mark_price - pos.liquidation_price) / pos.mark_price < 0.1
@@ -205,6 +211,12 @@ export function WalletPositions({
                     </TableCell>
                     <TableCell className={cn('py-2 pr-4 text-right tabular-nums', pos.funding_cumulative != null ? fundingColor : 'text-muted-foreground/40')}>
                       {pos.funding_cumulative != null ? fmtFunding(pos.funding_cumulative) : '—'}
+                    </TableCell>
+                    <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/60">
+                      {pos.fees_cumulative != null ? fmtUsd.format(pos.fees_cumulative) : '—'}
+                    </TableCell>
+                    <TableCell className={cn('py-2 pr-4 text-right tabular-nums', realizedNet != null ? realizedColor : 'text-muted-foreground/40')}>
+                      {realizedNet != null ? `${realizedNet >= 0 ? '+' : ''}${fmtUsd.format(realizedNet)}` : '—'}
                     </TableCell>
                     <TableCell className={cn('py-2 text-right tabular-nums', nearLiq ? 'text-red-400 font-bold' : 'text-muted-foreground')}>
                       {pos.liquidation_price > 0 ? fmtPrice(pos.liquidation_price) : '—'}

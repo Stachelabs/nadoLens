@@ -127,6 +127,8 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
         amount,
         entry_price: null,
         funding_cumulative: null,
+        fees_cumulative: null,
+        realized_pnl_cumulative: null,
         mark_price: markPrice,
         unrealized_pnl: unrealizedPnl,
         liquidation_price: liquidationPrice,
