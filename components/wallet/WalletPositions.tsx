@@ -139,7 +139,7 @@ export function WalletPositions({
                 {[
                   'Pair',
                   ...(hasMultipleSubaccounts ? ['Sub account'] : []),
-                  'Side',
+                  'Health',
                   'Size',
                   'Avg entry',
                   'Mark',
@@ -153,7 +153,7 @@ export function WalletPositions({
                     key={h}
                     className={cn(
                       'font-normal text-muted-foreground/70 pb-2',
-                      h === 'Side' || h === 'Pair' || h === 'Sub account'
+                      h === 'Health' || h === 'Pair' || h === 'Sub account'
                         ? 'text-center pr-2'
                         : 'text-right pr-4'
                     )}
@@ -201,23 +201,19 @@ export function WalletPositions({
                             {pos.isolated ? 'Isolated' : 'Cross'}
                           </span>
                         </div>
-                        {/* 3 — Health badge */}
-                        <div className="flex shrink-0 items-center justify-center w-10">
-                          {healthPct != null && (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'text-[9px] px-1.5 py-0 h-4 font-mono tabular-nums',
-                                healthPct > 66
-                                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400'
-                                  : healthPct > 33
-                                    ? 'border-orange-400/30 bg-orange-400/10 text-orange-400'
-                                    : 'border-red-400/30 bg-red-400/10 text-red-400'
-                              )}
-                            >
-                              {healthPct}%
-                            </Badge>
-                          )}
+                        {/* 3 — Long/Short badge */}
+                        <div className="flex shrink-0 items-center justify-center w-12">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'text-[10px] font-bold',
+                              isLong
+                                ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-400'
+                                : 'border-red-400/20 bg-red-400/10 text-red-400'
+                            )}
+                          >
+                            {isLong ? 'LONG' : 'SHORT'}
+                          </Badge>
                         </div>
                       </div>
                     </TableCell>
@@ -227,17 +223,21 @@ export function WalletPositions({
                       </TableCell>
                     ) : null}
                     <TableCell className="py-2 pr-2 text-center">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          'text-[10px] font-bold',
-                          isLong
-                            ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-400'
-                            : 'border-red-400/20 bg-red-400/10 text-red-400'
-                        )}
-                      >
-                        {isLong ? 'LONG' : 'SHORT'}
-                      </Badge>
+                      {healthPct != null && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[9px] px-1.5 py-0 h-4 font-mono tabular-nums',
+                            healthPct > 66
+                              ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400'
+                              : healthPct > 33
+                                ? 'border-orange-400/30 bg-orange-400/10 text-orange-400'
+                                : 'border-red-400/30 bg-red-400/10 text-red-400'
+                          )}
+                        >
+                          {healthPct}%
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
                       {fmtQty(Math.abs(pos.amount))}
