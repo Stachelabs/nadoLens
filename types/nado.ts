@@ -114,7 +114,7 @@ export type SubaccountHealthEntry = {
 export type WalletStats = {
   address: string
 
-  // Positions (live, polled 30s)
+  // Positions (live, polled 6s)
   health_score: number
   subaccount_healths: SubaccountHealthEntry[]
   total_equity_usd: number

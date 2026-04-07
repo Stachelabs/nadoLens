@@ -223,10 +223,11 @@ function addressToSubaccount(
 
 ### Rate limits — Wallet Explorer
 
-- `subaccounts` archive: IP weight 2 (1× on load)
-- `account_snapshots` archive: IP weight 2 (1× on load, for entry prices)
-- `matches` archive: IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× on load)
-- `subaccount_info`: IP weight 2 × nb_subaccounts → 30s polling OK
+- `subaccounts` archive: IP weight 2 (1× on load + on ↺ refresh)
+- `account_snapshots` archive: IP weight 2 (on fill detection only — not every poll)
+- `matches` archive: IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× on load + incremental on fill)
+- `subaccount_info`: IP weight 2 × nb_subaccounts → 6s polling OK
+- `isolated_positions`: IP weight 2 × nb_cross_subaccounts → every ≈36s (pocket discovery)
 - Total on initial load: ~56 weight → safe with 2400/min max
 
 ---
@@ -251,4 +252,4 @@ Always a `feat/` or `fix/` branch — never commit to `main`. Each branch → Ve
 
 ---
 
-_CLAUDE.md v2.4 — NadoLens_
+_CLAUDE.md v2.5 — NadoLens_
