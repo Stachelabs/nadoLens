@@ -26,7 +26,7 @@ import {
   mergePnl,
 } from "@/lib/wallet/performance";
 import { usePairsStore, productName } from "@/store/pairsStore";
-import type { Position, SpotBalance, TradeMatch, WalletStats } from "@/types/nado";
+import type { Position, SpotBalance, SubaccountHealthEntry, TradeMatch, WalletStats } from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { useEffect, useRef, useState } from "react";
 
@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from "react";
 // subaccount_info = weight 2, account_snapshots = weight ~2 → 4 weight/poll/subaccount.
 // At 5s: 48 weight/min/user → safe for ~50 concurrent users within 2400/min IP limit.
 // Lower to 1_000 for personal/single-user deployments (10% of budget).
-const POSITIONS_POLL_MS = 5_000;
+const POSITIONS_POLL_MS = 6_000;
 const MATCHES_LIMIT = 500;
 const MAX_PAGES = 50;
 /** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
@@ -277,6 +277,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const seenTradeIdsRef = useRef<Set<string>>(new Set());
   /** amount_x18 per position key from previous poll — used to detect fills. */
   const prevAmountsRef = useRef<Map<string, string>>(new Map());
+  /** Poll tick counter — used to schedule periodic pocket discovery (every 6 ticks = 30s). */
+  const pollCountRef = useRef(0);
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
@@ -419,6 +421,7 @@ export function useWalletData(rawAddress: string): WalletData {
       maintenanceMargin: number;
       healthScore: number;
       unrealizedTotal: number;
+      subaccountHealths: SubaccountHealthEntry[];
     }> => {
       const results = await Promise.all(
         subs.map(({ subaccount, isolated }) =>
@@ -464,6 +467,30 @@ export function useWalletData(rawAddress: string): WalletData {
       const healthScore =
         results[primaryIdx >= 0 ? primaryIdx : 0]?.healthScore ?? 1;
       const unrealizedTotal = results.reduce((s, r) => s + r.unrealizedTotal, 0);
+
+      const normalizeSubName = (name: string): string => {
+        if (name === 'default') return 'main'
+        const m = /^default_(\d+)$/.exec(name)
+        if (m) return m[1] ?? 'main'
+        return name
+      }
+      const subaccountHealths: SubaccountHealthEntry[] = subs
+        .flatMap((sub, i): SubaccountHealthEntry[] => {
+          const r = results[i]
+          if (!r) return []
+          if (r.equityUsd === 0 && r.positions.length === 0) return []
+          const entry: SubaccountHealthEntry = {
+            subaccount: sub.subaccount,
+            subaccount_name: normalizeSubName(sub.subaccount_name ?? 'default'),
+            health_score: r.healthScore,
+            isolated: sub.isolated,
+          }
+          if (sub.isolated && r.positions[0]?.pair) {
+            entry.pair = r.positions[0].pair
+          }
+          return [entry]
+        })
+
       return {
         positions: allPositions,
         spotBalances,
@@ -472,6 +499,7 @@ export function useWalletData(rawAddress: string): WalletData {
         maintenanceMargin,
         healthScore,
         unrealizedTotal,
+        subaccountHealths,
       };
     };
 
@@ -866,6 +894,7 @@ export function useWalletData(rawAddress: string): WalletData {
         stats: {
           address: rawAddress,
           health_score: positionData.healthScore,
+          subaccount_healths: positionData.subaccountHealths,
           total_equity_usd: initTotals.equityUsd,
           available_margin: positionData.availableMargin,
           maintenance_margin: positionData.maintenanceMargin,
@@ -985,12 +1014,60 @@ export function useWalletData(rawAddress: string): WalletData {
       // avg_entry must be refreshed. Otherwise we skip the Archive call entirely.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
-        const pd = await fetchAllPositions(
+        let pd = await fetchAllPositions(
           subaccountsRef.current,
           isolatedParentNameRef.current,
           isolatedParentSubaccountRef.current,
         );
         if (cancelled) return;
+
+        // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
+        // when a known pocket has no parent mapping.
+        // Calls isolated_positions on each cross subaccount — lightweight Gateway query.
+        // Rebuilds subaccountsRef with ONLY active pockets (prunes dead ones too).
+        pollCountRef.current += 1;
+        const hasUnmappedIsolated = pd.positions.some(
+          (p) => p.isolated && !isolatedParentNameRef.current.has(p.subaccount.toLowerCase()),
+        );
+        const shouldDiscover = hasUnmappedIsolated || pollCountRef.current % 6 === 0;
+
+        if (shouldDiscover) {
+          const freshMaps = await fetchIsolatedParentMaps(subaccountsRef.current);
+          if (cancelled) return;
+
+          // Rebuild isolated entries: only pockets currently active in isolated_positions.
+          const activePockets = freshMaps.parentNameByIsolatedSubaccount; // key = pocket lower
+          const crossSubs = subaccountsRef.current.filter((s) => !s.isolated);
+          const isolatedEntries: SubaccountEntry[] = [];
+          for (const pocket of activePockets.keys()) {
+            const existing = subaccountsRef.current.find(
+              (s) => s.subaccount.toLowerCase() === pocket,
+            );
+            isolatedEntries.push(existing ?? { subaccount: pocket, isolated: true });
+          }
+          const newList = [...crossSubs, ...isolatedEntries];
+
+          const listChanged =
+            newList.length !== subaccountsRef.current.length ||
+            newList.some(
+              (s, i) =>
+                s.subaccount.toLowerCase() !==
+                subaccountsRef.current[i]?.subaccount.toLowerCase(),
+            );
+
+          subaccountsRef.current = newList;
+          isolatedParentNameRef.current = freshMaps.parentNameByIsolatedSubaccount;
+          isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
+
+          if (listChanged || hasUnmappedIsolated) {
+            pd = await fetchAllPositions(
+              subaccountsRef.current,
+              isolatedParentNameRef.current,
+              isolatedParentSubaccountRef.current,
+            );
+            if (cancelled) return;
+          }
+        }
 
         // Detect fills: compare amount_x18 with previous poll.
         // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
@@ -1042,6 +1119,7 @@ export function useWalletData(rawAddress: string): WalletData {
                 ...prev.stats,
                 positions: pollPositions,
                 health_score: pd.healthScore,
+                subaccount_healths: pd.subaccountHealths,
                 total_equity_usd: pollTotals.equityUsd,
                 available_margin: pd.availableMargin,
                 maintenance_margin: pd.maintenanceMargin,
@@ -1060,21 +1138,53 @@ export function useWalletData(rawAddress: string): WalletData {
         if (cancelled) return;
         setData((prev) => ({ ...prev, unrealizedRefreshing: true }));
         try {
+          // Re-discover subaccounts from Archive — picks up brand-new isolated pockets
+          // created after the initial page load.
+          const freshSubs = await fetchSubaccounts();
+          if (cancelled) return;
+          subaccountsRef.current = freshSubs;
+
+          // Re-fetch isolated parent maps with the updated subaccount list.
+          const freshMaps = await fetchIsolatedParentMaps(freshSubs);
+          if (!cancelled) {
+            isolatedParentNameRef.current = freshMaps.parentNameByIsolatedSubaccount;
+            isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
+          }
+          if (cancelled) return;
+
           const pd = await fetchAllPositions(
             subaccountsRef.current,
             isolatedParentNameRef.current,
             isolatedParentSubaccountRef.current,
           );
           if (cancelled) return;
-          // Re-fetch snapshot entry prices in case a new fill happened since load
+
+          // Re-fetch snapshot entry prices for all (possibly new) cross subaccounts.
           const refreshedCrossSubs = subaccountsRef.current
             .filter((s) => !s.isolated)
             .map((s) => s.subaccount);
-          const refreshedMap = await fetchSnapshotEntryPrices(refreshedCrossSubs);
+          const [refreshedMap, newTrades] = await Promise.all([
+            fetchSnapshotEntryPrices(refreshedCrossSubs),
+            latestKnownIdxRef.current
+              ? fetchIncrementalTrades(chunk(subaccountsRef.current.map((s) => s.subaccount), 5), latestKnownIdxRef.current)
+              : Promise.resolve([] as TradeMatch[]),
+          ]);
           if (!cancelled) {
             entryPriceMapRef.current = refreshedMap;
+            if (newTrades.length > 0) {
+              const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+              tradesRef.current = updatedTrades;
+              latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades);
+              const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
+              setData((prev) => prev.stats
+                ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
+                : prev,
+              );
+            }
           }
           if (cancelled) return;
+
           const refreshPositions = applyPositionStats(
             applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
             positionStatsMapRef.current,
@@ -1088,6 +1198,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   ...prev.stats,
                   positions: refreshPositions,
                   health_score: pd.healthScore,
+                  subaccount_healths: pd.subaccountHealths,
                   total_equity_usd: refreshTotals.equityUsd,
                   available_margin: pd.availableMargin,
                   maintenance_margin: pd.maintenanceMargin,

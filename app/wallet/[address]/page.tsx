@@ -54,6 +54,7 @@ function WalletContent({ address }: { address: string }) {
       <WalletSpotBalances balances={stats.spot_balances} />
       <WalletPositions
         positions={stats.positions}
+        subaccountHealths={stats.subaccount_healths}
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
       />

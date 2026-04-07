@@ -103,11 +103,20 @@ export type SpotBalance = {
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
+export type SubaccountHealthEntry = {
+  subaccount: string
+  subaccount_name: string   // normalized: "main", "1", "2"…
+  health_score: number      // 0–1
+  isolated: boolean
+  pair?: string             // isolated only: position ticker e.g. "BTC-PERP"
+}
+
 export type WalletStats = {
   address: string
 
   // Positions (live, polled 30s)
   health_score: number
+  subaccount_healths: SubaccountHealthEntry[]
   total_equity_usd: number
   available_margin: number
   maintenance_margin: number

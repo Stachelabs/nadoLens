@@ -1,10 +1,11 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import type { Position } from '@/types/nado'
+import type { Position, SubaccountHealthEntry } from '@/types/nado'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Table,
   TableBody,
@@ -37,8 +38,14 @@ function fmtFunding(value: number): string {
   return sign + fmtUsd.format(Math.abs(value))
 }
 
+/** "ETH-PERP" → "E", "BTC-PERP" → "B" */
+function assetInitial(pair: string): string {
+  return (pair.split('-')[0]?.[0] ?? pair[0] ?? '?').toUpperCase()
+}
+
 type Props = {
   positions: Position[]
+  subaccountHealths?: SubaccountHealthEntry[]
   /** Re-fetch Gateway subaccount_info for live marks / unrealized only. */
   onRefreshUnrealized?: () => void | Promise<void>
   unrealizedRefreshing?: boolean
@@ -46,9 +53,14 @@ type Props = {
 
 export function WalletPositions({
   positions,
+  subaccountHealths = [],
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
+  const healthBySubaccount = new Map(
+    subaccountHealths.map((h) => [h.subaccount.toLowerCase(), h.health_score])
+  )
+
   const normalizeCrossLabel = (name?: string): string => {
     if (!name) return 'main'
     if (name === 'default') return 'main'
@@ -141,11 +153,9 @@ export function WalletPositions({
                     key={h}
                     className={cn(
                       'font-normal text-muted-foreground/70 pb-2',
-                      h === 'Side'
+                      h === 'Side' || h === 'Pair' || h === 'Sub account'
                         ? 'text-center pr-2'
-                        : h === 'Pair' || h === 'Sub account'
-                          ? 'text-left pr-4'
-                          : 'text-right pr-4'
+                        : 'text-right pr-4'
                     )}
                   >
                     {h}
@@ -166,21 +176,53 @@ export function WalletPositions({
                   pos.liquidation_price > 0 &&
                   Math.abs(pos.mark_price - pos.liquidation_price) / pos.mark_price < 0.1
 
+                const healthScore = healthBySubaccount.get(pos.subaccount.toLowerCase())
+                const healthPct = healthScore != null ? Math.round(healthScore * 100) : null
+
                 return (
                   <TableRow
                     key={`${pos.subaccount}-${pos.product_id}-${pos.isolated ? 'i' : 'c'}`}
                     className="border-border/50"
                   >
-                    <TableCell className="py-2 pr-4">
-                      <div className="flex flex-col">
-                        <span className="font-mono text-foreground">{pos.pair}</span>
-                        <span className="text-[10px] text-muted-foreground/70">
-                          {pos.isolated ? 'Isolated' : 'Cross'}
-                        </span>
+                    <TableCell className="py-2 pr-2">
+                      <div className="flex items-center justify-center gap-2">
+                        {/* 1 — Avatar */}
+                        <div className="flex shrink-0 items-center justify-center">
+                          <Avatar size="sm">
+                            <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
+                              {assetInitial(pos.pair)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                        {/* 2 — Symbol + type */}
+                        <div className="flex flex-col items-center justify-center min-w-[72px]">
+                          <span className="font-mono text-foreground">{pos.pair}</span>
+                          <span className="text-[10px] text-muted-foreground/70">
+                            {pos.isolated ? 'Isolated' : 'Cross'}
+                          </span>
+                        </div>
+                        {/* 3 — Health badge */}
+                        <div className="flex shrink-0 items-center justify-center w-10">
+                          {healthPct != null && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-[9px] px-1.5 py-0 h-4 font-mono tabular-nums',
+                                healthPct > 66
+                                  ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400'
+                                  : healthPct > 33
+                                    ? 'border-orange-400/30 bg-orange-400/10 text-orange-400'
+                                    : 'border-red-400/30 bg-red-400/10 text-red-400'
+                              )}
+                            >
+                              {healthPct}%
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     {hasMultipleSubaccounts ? (
-                      <TableCell className="py-2 pr-4 text-foreground/80">
+                      <TableCell className="py-2 pr-2 text-center text-foreground/80">
                         {displaySubaccount(pos)}
                       </TableCell>
                     ) : null}
