@@ -35,13 +35,15 @@
 Browser (React)
   └── /wallet/[addr]  → Wallet Explorer (any address)
         │
-        │ useWalletData hook (fetch + 30s polling)
+        │ useWalletData hook (fetch + 6s polling)
         ▼
 Next.js Backend (Vercel) — pnpm
   ├── /api/pairs              → proxy Nado pairs list
-  └── /api/wallet/[address]   → proxy Nado Gateway queries (avoids CORS)
+  ├── /api/wallet/[address]   → proxy Nado Gateway queries (avoids CORS)
+  ├── /api/subaccounts/[addr] → resolve all subaccounts (Archive)
   ├── /api/matches            → proxy archive matches (Zod validation)
-  └── /api/funding            → proxy archive interest_and_funding (Zod validation)
+  ├── /api/funding            → proxy archive interest_and_funding (Zod validation)
+  └── /api/snapshots          → proxy archive account_snapshots (avg entry prices)
 
 WS Proxy (Railway) — Bun
   ├── GET /health     →  monitoring
@@ -76,8 +78,9 @@ Analyzes any Nado address — connected wallet or any wallet.
 
 | Section | API Source | Data |
 |---|---|---|
-| Header | `subaccount_info` | Health score, total equity, available margin |
-| Open positions | `subaccount_info` | Pair, side, size, mark price, unrealized PnL, liq price |
+| Header | `subaccount_info` | Total equity, available margin |
+| Spot balances | `subaccount_info` | USDT0, KBTC, WETH, USDC, NLP balances |
+| Open positions | `subaccount_info` + `account_snapshots` | Pair, health badge, side, size, avg entry, mark, liq, unrealized PnL, realized, funding, fees |
 | Trade history | archive `matches` via `/api/matches` | Price, qty, realized PnL, fees, timestamp |
 | Equity curve | cumulated archive `matches` | TradingView Lightweight Charts — cumulative PnL over time |
 | Global stats | `matches` + `interest_and_funding` | Win rate, trading PnL (perp), funding paid, perp/spot/total volume |
@@ -87,19 +90,21 @@ Analyzes any Nado address — connected wallet or any wallet.
 app/wallet/page.tsx                    ← Search bar + my wallet redirect
 app/wallet/[address]/page.tsx          ← Client component — use(params) + useWalletData
 components/wallet/
-  WalletHeader.tsx                     ← address, health, equity, margin
+  WalletHeader.tsx                     ← address, equity, available margin
+  WalletSpotBalances.tsx               ← spot token balances
   WalletStats.tsx                      ← win rate, PnL, volume, avg size
-  WalletPositions.tsx                  ← open positions + unrealized PnL
-  WalletTradeHistory.tsx               ← last 50 trades
+  WalletPositions.tsx                  ← open positions + per-position health badge + unrealized PnL
+  WalletSummary.tsx                    ← global PnL summary (trading + funding + fees)
+  WalletTradeHistory.tsx               ← last N trades
   WalletEquityCurve.tsx                ← TradingView equity curve
-hooks/useWalletData.ts                 ← fetch + polling + stats computation
+hooks/useWalletData.ts                 ← fetch + 6s polling + fill detection + stats computation
 ```
 
 **Behavior:**
 - URL: `/wallet/0xc5a7...` — address as dynamic parameter
 - `isAddress(viem)` validation before navigation + `notFound()` if invalid
 - "My Wallet" link in Nav when wallet connected
-- Positions refresh every 30s via setInterval (to track health/equity without auth websocket)
+- Positions refresh every 6s via setInterval; isolated pocket discovery every ≈36s
 - Public data — no auth required
 
 ---
@@ -125,12 +130,13 @@ nadolens/
 │       ├── wallet/[address]/route.ts         ← Gateway proxy (subaccount_info, etc.)
 │       ├── subaccounts/[address]/route.ts    ← address → bytes32 resolution (Archive)
 │       ├── matches/route.ts                  ← Archive matches proxy (Zod validation)
-│       └── funding/route.ts                  ← Archive interest_and_funding proxy (Zod validation)
+│       ├── funding/route.ts                  ← Archive interest_and_funding proxy (Zod validation)
+│       └── snapshots/route.ts               ← Archive account_snapshots proxy (avg entry prices)
 ├── components/
 │   ├── Nav.tsx                       ← sticky nav, connect button, theme toggle
 │   ├── ThemeToggle.tsx               ← next-themes toggle
-│   ├── wallet/                       ← 5 wallet components
-│   └── ui/                           ← shadcn components (button, card, badge, input, table, separator)
+│   ├── wallet/                       ← 7 wallet components
+│   └── ui/                           ← shadcn components (button, card, badge, input, table, separator, avatar)
 ├── hooks/
 │   ├── useWalletData.ts
 │   └── useAccount.ts
@@ -223,4 +229,4 @@ Opens modal: size/leverage params → wagmi signs → sends to Nado Gateway.
 
 ---
 
-*PRD v2.1 — NadoLens*
+*PRD v2.2 — NadoLens*

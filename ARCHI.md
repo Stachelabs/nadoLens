@@ -24,9 +24,13 @@ Browser → /wallet/0xabc...
   │         fetch /api/wallet/{subaccount}?query=subaccount_info
   │         Next.js API Route → POST gateway.prod.nado.xyz/v1/query
   │         → health, balances, positions, oracle prices
-  │         Merge: all positions + sum equity + health of primary subaccount
+  │         Merge: all positions + sum equity + per-subaccount health scores
   │
-  └── 3. fetch archive.prod.nado.xyz/v1
+  ├── 3. fetch archive.prod.nado.xyz/v1 (account_snapshots — on fill detection)
+  │         POST { account_snapshots: { subaccounts: [cross_bytes32], limit: N } }
+  │         → avg entry prices (net_entry_unrealized) keyed by parent bytes32
+  │
+  └── 4. fetch archive.prod.nado.xyz/v1
             POST { matches: { subaccounts: [all_bytes32], limit: 500, isolated: null } }
             → trade history with realized_pnl, fees, sequencer_fee
 
@@ -34,8 +38,9 @@ Results → WalletStats parsed in useWalletData
          → wallet components (WalletHeader, WalletStats, WalletPositions, etc.)
 
 Refresh strategy:
-  - Positions: 30s polling via setInterval (all subaccounts via subaccountsRef)
-  - Trade history: initial fetch only
+  - Positions: 6s polling via setInterval (all subaccounts via subaccountsRef)
+  - Isolated pocket discovery: every 6 poll ticks (≈36s) via isolated_positions(parent)
+  - Trade history: initial fetch + incremental on fill detection
   - Assets (pairsStore): TTL 1h, localStorage as fallback between sessions
 ```
 
@@ -130,6 +135,20 @@ POST /api/funding
   → { funding_payments: [...], interest_payments: [...], next_idx }
 ```
 
+### `/api/snapshots/route.ts`
+Archive proxy for `account_snapshots` with Zod validation. Used to retrieve avg entry prices.
+
+```
+POST /api/snapshots
+  body: { subaccounts: string[], limit?: number }
+  → POST https://archive.prod.nado.xyz/v1
+     body: { account_snapshots: { subaccounts, limit } }
+  → { account_snapshots: [...] }
+
+Triggered: on fill detection (prevAmount changed) — not every poll.
+Key field: net_entry_unrealized (x18) → avg entry price per product per parent subaccount.
+```
+
 ---
 
 ## 4. pairsStore — Dynamic assets
@@ -167,14 +186,18 @@ app/wallet/page.tsx                  ← Search page (Client) — isAddress + ro
 app/wallet/[address]/page.tsx        ← Wallet page (Client) — use(params) + useWalletData
 
 components/wallet/
-  WalletHeader.tsx     Props: { stats: WalletStats }      ← address, health, equity, margin
-  WalletStats.tsx      Props: { stats: WalletStats }      ← win rate, PnL, volume, avg size
-  WalletPositions.tsx  Props: { positions: Position[] }   ← open positions + unrealized PnL
-  WalletTradeHistory.tsx Props: { trades: TradeMatch[] }  ← last 50 trades history
-  WalletEquityCurve.tsx  Props: { trades: TradeMatch[] }  ← TradingView equity curve
+  WalletHeader.tsx        Props: { stats: WalletStats }                        ← address, equity, available margin
+  WalletSpotBalances.tsx  Props: { balances: SpotBalance[] }                   ← USDT0/KBTC/WETH/USDC/NLP balances
+  WalletStats.tsx         Props: { stats: WalletStats }                        ← win rate, PnL, volume, avg size
+  WalletPositions.tsx     Props: { positions, subaccountHealths, onRefreshUnrealized, unrealizedRefreshing }
+                                                                                ← open positions + per-position health badge + unrealized PnL
+  WalletSummary.tsx       Props: { stats, tradesComplete, fundingComplete, onRefresh, refreshing, ... }
+                                                                                ← global PnL summary (trading + funding + fees)
+  WalletTradeHistory.tsx  Props: { trades: TradeMatch[] }                      ← last N trades history
+  WalletEquityCurve.tsx   Props: { trades, fundingPayments, tradesComplete }   ← TradingView equity curve
 
 hooks/
-  useWalletData.ts     ← multi-subaccount fetch + 30s polling → WalletData
+  useWalletData.ts     ← multi-subaccount fetch + 6s polling → WalletData
   usePairs.ts          ← triggers pairsStore.init() on mount (via PairsInitializer)
   useAccount.ts        ← wagmi useAccount wrapper (connected wallet)
 
@@ -195,12 +218,16 @@ app/providers.tsx      ← PairsInitializer (headless) → usePairs() on app sta
 | Column | Source |
 |---|---|
 | Pair | `perp_balances[i].product_id` → `productName()` via pairsStore |
+| Health | `subaccount_healths[].health_score` — per-position badge (emerald/orange/red) |
 | Side | `perp_balances[i].balance.amount`: positive=LONG, negative=SHORT |
 | Size | `abs(fromX18BigInt(amount))` |
-| Entry Price | `oracle_price_x18` (mark price at fetch time — no stored entry) |
+| Avg Entry | `account_snapshots[].net_entry_unrealized` (x18) — fetched on fill detection |
 | Mark Price | `fromX18BigInt(oracle_price_x18)` |
 | Unrealized PnL | `fromX18BigInt(v_quote_balance) + amount × markPrice` |
 | Liq Price | estimated: `markPrice × (1 ± 1/leverage + maintMarginRate)` |
+| Realized | cumulative realized PnL for the open session (from positionStats via matches) |
+| Funding | cumulative funding paid/received (from interest_and_funding) |
+| Fees | cumulative fees for the open session (from positionStats via matches) |
 
 ### WalletTradeHistory (archive matches)
 | Column | Source |
@@ -255,17 +282,19 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
 
 | Data | Method | Interval |
 |---|---|---|
-| Positions / Health | Polling `/api/wallet/[subaccount]` | 30s |
-| Trade history | Initial fetch only | — |
+| Positions / Health | Polling `/api/wallet/[subaccount]` | 6s |
+| Isolated pocket discovery | `isolated_positions(parent)` every 6 poll ticks | ≈36s |
+| Avg entry (account_snapshots) | On fill detection only (prev amount changed) | On fill |
+| Trade history | Initial fetch + incremental on fill detection | On fill |
 | Equity curve | Recomputed when `trades` changes | On mount |
 | Assets (pairsStore) | Fetch + localStorage persist | TTL 1h |
 
-> Real-time positions would require the `position_change` stream (requires private key of the wallet) — impossible for a third-party wallet. 30s polling is the only option to observe any wallet.
+> Real-time positions would require the `position_change` stream (requires private key of the wallet) — impossible for a third-party wallet. 6s polling is the only option to observe any wallet.
 
-Why 30s?
-- A compromise between load and precision: "near-live" view without API spam.
-- `subaccount_info` costs weight, so 30s stays comfortable even with multiple subaccounts.
-- Cannot subscribe to auth WS on a third-party wallet from the browser without their signature.
+Why 6s?
+- Balances near-live feedback with API rate-limit headroom: `subaccount_info` weight 2 × N subaccounts every 6s stays well within the 2 400/min IP budget even with multiple concurrent users.
+- Cannot subscribe to the authenticated WS on a third-party wallet without their signature.
+- Can be lowered to 1s for personal/single-user deployments (~10 % of budget).
 
 ---
 
@@ -273,12 +302,15 @@ Why 30s?
 
 | Call | Weight | Frequency |
 |---|---|---|
-| `subaccounts` (Archive) | 2 | 1× on load |
-| `subaccount_info` (Gateway) | 2 × nb_subaccounts | 30s |
-| `matches` (Archive, limit=200, 1 sub) | 2 + 200/10 = 22 | 1× on load |
+| `subaccounts` (Archive) | 2 | 1× on load + on ↺ refresh |
+| `subaccount_info` (Gateway) | 2 × nb_subaccounts | Every 6s |
+| `isolated_positions` (Gateway) | 2 × nb_cross_subaccounts | Every ≈36s (pocket discovery) |
+| `account_snapshots` (Archive) | 2 | On fill detection only |
+| `matches` (Archive, limit=500, paginated) | 2 + (500×nb_subs/10) per page | 1× on load + incremental on fill |
+| `interest_and_funding` (Archive) | 2 per page | 1× on load (paginated) |
 | Assets `/v2/assets` | — | 1× per hour max (localStorage TTL) |
 
-Total per position refresh (2 subaccounts): ~4 weight → safe with 2400/min max.
+Total per position poll (2 subaccounts, no discovery tick): ~4 weight → safe with 2400/min max.
 
 ---
 
@@ -298,7 +330,7 @@ Not available via public API. Ignore for MVP → display "—" or hide.
 
 ---
 
-*ARCHI.md v3.2 — NadoLens Wallet Explorer — updated 2026-04-03*
+*ARCHI.md v3.3 — NadoLens Wallet Explorer — updated 2026-04-08*
 
 ---
 
