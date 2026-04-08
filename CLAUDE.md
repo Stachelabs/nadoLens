@@ -1,43 +1,41 @@
 # CLAUDE.md — NadoLens
 
-> Working rules only. Full spec → PRD.md | Business context → About.md
+> Working rules only. Full spec → PRD.md | Business context → About.md | Local workflow → CLAUDE.local.md
 
 ---
 
 ## References
 
-| Doc                 | Content                                              |
-| ------------------- | ---------------------------------------------------- |
-| PRD.md              | Full spec, phases, roadmap                           |
-| ARCHI.md            | Wallet Explorer architecture, data flow, components  |
-| About.md            | Business context, hosting, Frank pitch               |
-| lib/schemas/nado.ts | **Source of truth for types** — Zod schemas          |
+| Doc | Content |
+|---|---|
+| PRD.md | Full spec, phases, roadmap |
+| ARCHI.md | Wallet Explorer architecture, data flow, components |
+| About.md | Business context, hosting, Frank pitch |
+| lib/schemas/nado.ts | **Source of truth for types** — Zod schemas |
 
 ---
 
 ## Context7 — live library docs
 
-**Always use Context7 — never rely on memory for libraries.**
+**ALWAYS use Context7 — NEVER rely on memory for libraries.**
 
 Priority IDs:
-
 ```
 /vercel/next.js          /wevm/wagmi       /wevm/viem
 /pmndrs/zustand          /prisma/prisma    /tradingview/lightweight-charts
 /colinhacks/zod/v4.0.1   /rainbow-me/rainbowkit   /recharts/recharts
 ```
 
-> ⚠️ Recharts = dashboard charts (stats, bars, lines) — NOT for price/trading charts.
-> TradingView Lightweight Charts = price charts/candlesticks only.
+> Recharts = dashboard charts (stats, bars, lines). TradingView = price/candlesticks only.
 
 ---
 
 ## Package managers
 
-| Scope                  | Manager  | Reason                                       |
-| ---------------------- | -------- | -------------------------------------------- |
-| Next.js app            | **pnpm** | Standard, compat with shadcn/prisma/wagmi    |
-| WS Proxy (`ws-proxy/`) | **Bun**  | Native WS runtime, long-running process      |
+| Scope | Manager |
+|---|---|
+| Next.js app | **pnpm** |
+| `ws-proxy/` | **Bun** |
 
 ---
 
@@ -47,188 +45,130 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagm
 
 ---
 
-## Working method — APEX
-
-```bash
-/apex -i implement <description>       # interactive — validate plan before coding
-/apex -a -s implement <description>    # auto + save
-/apex -a -s -e implement <description> # economy — fewer tokens
-```
-
-Sonnet 4.6 by default. Switch to Opus 4.6 (`/model opus`) only when Sonnet goes in circles on a complex architecture problem.
-
----
-
 ## TypeScript rules
 
-- Zero `any` — always type explicitly
-- Zero `as unknown as X` — if needed, the type is poorly designed
-- Nado types → `lib/schemas/nado.ts` (`z.infer<>`) — never re-declare elsewhere
-- `fromX18BigInt(val: string): number` in `types/nado.ts` for all conversions (BigInt, not parseFloat)
+- **NEVER** use `any` — always type explicitly
+- **NEVER** use `as unknown as X` — redesign the type
+- **ALWAYS** use `lib/schemas/nado.ts` (`z.infer<>`) — never re-declare Nado types elsewhere
+- **ALWAYS** use `fromX18BigInt(val: string): number` (`types/nado.ts`) for x18 conversions — BigInt, never parseFloat
 
 ---
 
 ## Architecture rules
 
 **Client (browser)**
-
-- React rendering + Zustand stores
-- EIP-712 signing via wagmi/viem — never server-side
-- SSE via `EventSource` to WS Proxy Railway (use `NEXT_PUBLIC_WS_PROXY_URL`)
+- React + Zustand stores | EIP-712 signing via wagmi/viem — **NEVER server-side**
+- SSE via `EventSource` to WS Proxy (`NEXT_PUBLIC_WS_PROXY_URL`)
 
 **Next.js server (Vercel)**
-
-- `/api/pairs` — list of Nado pairs
-- `/api/wallet/[address]` — Nado Gateway proxy (avoids CORS)
-- `/api/matches` — Archive `matches` proxy (chunk <= 5 subaccounts + client-side idx pagination)
-- `/api/funding` — Archive `interest_and_funding` proxy (client-side max_idx pagination)
-- `/api/snapshots` — Archive `account_snapshots` proxy (entry prices)
-- Validate all bodies and external responses with Zod `safeParse()`
+- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots`
+- **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 
 **WS Proxy (Railway — Bun)**
-
-- Region **eu-west4** (Netherlands) REQUIRED — US East IPs blocked by Nado
-- Use the `ws` package (not native Bun WebSocket) — Nado requires `Sec-WebSocket-Extensions: permessage-deflate`
-- Ping every 30s: `{ method: "ping" }`
-- `id` field required in every subscribe message
+- **CRITICAL**: Region **eu-west4** (Netherlands) REQUIRED — US East IPs blocked by Nado
+- Use `ws` package (not native Bun WebSocket) — Nado requires `permessage-deflate`
+- Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
 
 **Vercel build**
-
 - Build script: `"build": "prisma generate && next build"`
-- Next.js 16 uses **Turbopack by default** — `turbopack: {}` in `next.config.ts`
-- Wallet SDKs (MetaMask, WalletConnect): `config.externals.push('pino-pretty', 'lokijs', 'encoding')` in webpack (fallback `--webpack`)
-- `ws-proxy/` excluded from main tsconfig
+- Turbopack by default: `turbopack: {}` in `next.config.ts`
+- Wallet SDK externals: `config.externals.push('pino-pretty', 'lokijs', 'encoding')`
 
-**Never**
-
-- ❌ Private key in Next.js code or in the browser
+**NEVER**
+- ❌ Private key in browser or Next.js code
 - ❌ Server-side signing
 - ❌ `console.log` payloads with addresses or signatures
 - ❌ Commit `.env`, `.env.local`, `About.md`
 
 ---
 
-## Nado API documentation
+## Nado API
 
-Nado API documentation is available in the `docs/api/` folder.
-Refer to the appropriate file based on the current task:
+Docs in `docs/api/` — use the right file:
 
 | Task | File |
 |---|---|
-| History fetch (matches, orders, subaccounts, pagination, PnL/fees/volume calculation) | `docs/api/NADO_ARCHIVE_API.md` |
-| Average entry price (account_snapshots, net_entry_unrealized) | `docs/api/NADO_ARCHIVE_API.md` |
-| Real-time queries (subaccount info, open positions, products, prices) | `docs/api/NADO_GATEWAY_API.md` |
-| Concepts (margin types, health, PnL settlement, fees, bytes32 format, x18) | `docs/api/NADO_CONCEPTS.md` |
-| 429 handling, backoff, errors, rate limits, changelog | `docs/api/NADO_RATE_LIMITS.md` |
+| History, pagination, PnL, fees, volume | `docs/api/NADO_ARCHIVE_API.md` |
+| Entry price (account_snapshots) | `docs/api/NADO_ARCHIVE_API.md` |
+| Real-time: positions, prices | `docs/api/NADO_GATEWAY_API.md` |
+| Margin types, health, fees, x18, bytes32 | `docs/api/NADO_CONCEPTS.md` |
+| 429, backoff, rate limits, polling budget | `docs/api/NADO_RATE_LIMITS.md` |
 
 ### RAG — mandatory before any Nado API work
 
-**Before writing any code that touches a Nado endpoint, always query the RAG first:**
-
+**ALWAYS query the RAG before writing code that touches a Nado endpoint:**
 ```bash
 pnpm docs:query:nado "<question>"
 # Ex: pnpm docs:query:nado "fee calculation matches archive"
 # Ex: pnpm docs:query:nado "pagination idx" --top-k 3
-# Ex: pnpm docs:query:nado "rate limits" --filter /developer-resources/api
-# Ex: pnpm docs:query:nado "subaccount_info weight rate limit" --filter /developer-resources/api/gateway
-# Ex: pnpm docs:query:nado "account_snapshots weight" --filter /developer-resources/api/archive-indexer
 ```
+Rebuild index: `pnpm docs:build:nado`
 
-This applies to: new endpoints, rate limit questions, request/response shapes, pagination, weight calculations.
-The RAG indexes the live `docs.nado.xyz` — always more accurate than memory.
+### Critical rules
 
-Rebuild the index: `pnpm docs:build:nado` (crawl + embed + verify)
-
-### Critical rules (always follow)
-
-- x18 conversion: always via `BigInt`, never `parseFloat` on large numbers
-- `realized_pnl`: only count if `closed_amount !== 0`
-- `totalFees = fee` (`fee` already includes taker/maker + sequencer — `sequencer_fee` = breakdown only, do NOT sum)
-- Fetch subaccounts: retrieve ALL subaccounts (default + isolated) before fetching matches
-- `isolated: null` in matches body to capture both cross AND isolated
+- **CRITICAL**: `totalFees = fee` — `fee` already includes all fees. **NEVER** sum `sequencer_fee` on top
+- **CRITICAL**: `realized_pnl` — only count if `closed_amount !== 0`
+- **ALWAYS**: `isolated: null` in matches body — captures both cross AND isolated
+- **ALWAYS**: x18 via `BigInt`, never `parseFloat` on large numbers
+- Fetch ALL subaccounts (default + isolated) before fetching matches
 - Matches pagination: `idx = page[page.length - 1].submission_idx`, stop if `page.length < 500`
 
-### Isolated margin — parent vs pocket (two bytes32)
+### Isolated margin — parent vs pocket
 
-- **Parent** (e.g. `default_1`): the one that **signs** orders. The **Archive `matches`** attaches fills to `order.sender` = **parent** (the pocket has no matched history at this bytes32).
-- **Pocket** (auto-created, different bytes32): **real ledger** — `subaccount_info` on the **pocket** exposes `perp_balances` of the isolated product; on the **parent**, the same `product_id` may be at **amount 0** (position moved to the pocket).
-- **`isolated_positions` query on parent**: lists entries with `data[].subaccount` = **pocket** bytes32 + `product_id` / balances. **On the pocket**: response often **empty** (not the listing anchor).
-- **App**: **avg entry / VWAP from `matches`** → aggregate by **parent** (and filter by product / `isolated`). **Size / quote** from Gateway → `subaccount_info` **pocket** or chaining via `isolated_positions(parent)` → pocket for the `product_id`. Do not mix the two bytes32 without this mapping.
+- **Parent** (`default_1`): signs orders. Archive `matches` attach fills to `order.sender` = parent
+- **Pocket** (different bytes32): real ledger — `subaccount_info` on pocket exposes `perp_balances`
+- **IMPORTANT**: `isolated_positions(parent)` → lists entries with `data[].subaccount` = pocket bytes32. On pocket itself: often empty
+- App: VWAP/entry from `matches` → aggregate by parent. Size/quote from Gateway → pocket
+- **NEVER** mix parent and pocket bytes32 without the mapping
+
+### Critical constants
+
+```typescript
+chainId: 57073                                        // Ink L2 mainnet
+contract: "0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c"
+
+// addressToSubaccount
+const addr = address.toLowerCase().replace("0x", "")
+const nameHex = Buffer.from(name).toString("hex").padEnd(24, "0")
+return `0x${addr}${nameHex}`                          // default name = "default"
+
+// WS — ALWAYS use prod endpoints (gateway.nado.xyz = dead 404)
+Gateway:   wss://gateway.prod.nado.xyz/v1/ws
+Subscribe: wss://gateway.prod.nado.xyz/v1/subscribe
+REST:      https://gateway.prod.nado.xyz/v1 (v2)
+Archive:   https://archive.prod.nado.xyz/v1 (v2) — POST JSON
+```
+
+### API quirks
+
+- `/v2/tickers` and `/v2/trades` return **normal decimals** (NOT x18)
+- `book_depth` = diffs — size `"0"` = level removed from the order book
+- `product_id: null` on liquidation stream = all pairs
 
 ---
 
 ## Component rules
 
-- One component = one file = one responsibility
-- `PascalCase.tsx` components — `camelCase.ts` hooks and libs
-- Hooks → `hooks/` prefixed with `use` | Stores → `store/` suffixed with `Store`
-- **shadcn/ui required** for all basic UI elements
-- Exceptions — native HTML allowed: `<canvas>`, layout divs, stateless semantic wrappers
-
-**shadcn/ui — critical constraint**
-
-- `Button` uses `@base-ui/react/button` → **no `asChild` prop**
-- For a link styled as button: `<Link className={cn(buttonVariants({ variant, size }))}>`
-- Never `<Button asChild><Link>` — does not compile
+- One component = one file = one responsibility | `PascalCase.tsx` · `camelCase.ts` hooks/libs
+- **ALWAYS** use shadcn/ui for basic UI — exceptions: `<canvas>`, layout divs, stateless semantic wrappers
+- **CRITICAL**: `Button` uses `@base-ui/react/button` → **no `asChild` prop**
+  For link-as-button: `<Link className={cn(buttonVariants({ variant, size }))}>`
 
 ---
 
-## NadoLens theme
+## Theme
 
-| Token                         | Usage             |
-| ----------------------------- | ----------------- |
-| `text-foreground`             | Primary text      |
-| `text-muted-foreground`       | Secondary text    |
-| `bg-background`               | Page background   |
-| `bg-card`                     | Card background   |
-| `border-border`               | Borders           |
-| `text-primary` / `bg-primary` | Emerald #22c55e   |
-| `text-destructive`            | Red #ef4444       |
+| Token | Usage |
+|---|---|
+| `text-foreground` / `text-muted-foreground` | Primary / secondary text |
+| `bg-background` / `bg-card` | Page / card background |
+| `text-primary` / `bg-primary` | Emerald #22c55e |
+| `text-destructive` | Red #ef4444 |
 
-Semantic custom: `var(--bull)` green · `var(--bear)` red · `var(--warn)` orange
+Custom: `var(--bull)` green · `var(--bear)` red · `var(--warn)` orange
 
-**next-themes**: `ThemeProvider` outside `Providers` in `layout.tsx`. `suppressHydrationWarning` on `<html>`.
-
-**RainbowKit**: accent purple `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard in Providers to avoid hydration mismatch.
-
----
-
-## Nado API — critical reminders
-
-- Chain ID Ink L2 mainnet: **57073** (wagmi/viem) — do not confuse with other IDs
-- Contract endpoint: `0xf8963f7860af7de9b94893edb9a3b5c155e1fc0c`
-- Values in **x18** → `fromX18BigInt()` for financial aggregations (volume, fees, pnl)
-- ⚠️ **V2 Exception**: `/v2/tickers` and `/v2/trades` return **normal decimals**, NOT x18
-- Subaccount bytes32: `0x{address}64656661756c740000000000` (default)
-- `product_id: null` on `liquidation` stream = all pairs
-- `book_depth` = diffs — size `"0"` = level removed from the order book
-- Mainnet WS Gateway: `wss://gateway.prod.nado.xyz/v1/ws` (queries/executes)
-- Mainnet WS Subscribe: `wss://gateway.prod.nado.xyz/v1/subscribe` (real-time streams)
-- Gateway v1 REST: `https://gateway.prod.nado.xyz/v1` | v2: `https://gateway.prod.nado.xyz/v2`
-- Archive v1: `https://archive.prod.nado.xyz/v1` | v2: `https://archive.prod.nado.xyz/v2` (POST JSON — not REST)
-- ⚠️ `gateway.nado.xyz` and `archive.nado.xyz` are dead (404)
-
-### addressToSubaccount — critical helper
-
-```typescript
-function addressToSubaccount(
-  address: string,
-  name: string = "default",
-): string {
-  const addr = address.toLowerCase().replace("0x", "");
-  const nameHex = Buffer.from(name).toString("hex").padEnd(24, "0");
-  return `0x${addr}${nameHex}`;
-}
-```
-
-### Rate limits — Wallet Explorer
-
-- `subaccounts` archive: IP weight 2 (1× on load + on ↺ refresh)
-- `account_snapshots` archive: IP weight 2 (on fill detection only — not every poll)
-- `matches` archive: IP weight 2+(limit×subaccounts/10) → limit=500, 1 sub = weight 52 (1× on load + incremental on fill)
-- `subaccount_info`: IP weight 2 × nb_subaccounts → 6s polling OK
-- `isolated_positions`: IP weight 2 × nb_cross_subaccounts → every ≈36s (pocket discovery)
-- Total on initial load: ~56 weight → safe with 2400/min max
+next-themes: `ThemeProvider` outside `Providers` · `suppressHydrationWarning` on `<html>`
+RainbowKit: accent `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard in Providers
 
 ---
 
@@ -236,20 +176,20 @@ function addressToSubaccount(
 
 Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
-Always a `feat/` or `fix/` branch — never commit to `main`. Each branch → Vercel Preview → test → merge PR.
+**ALWAYS** branch `feat/` or `fix/` — **NEVER** commit to `main`. Branch → Vercel Preview → test → merge PR.
 
 ---
 
-## MVP priorities — strict order
+## MVP priorities
 
 1. ✅ WS Proxy Bun + `/health`
 2. ✅ `useLiquidationStream` SSE → Zustand
-3. ✅ Heatmap layer 1 + layer 2 → layer 3 (book_depth zones, optional)
-4. ✅ Survival Cockpit complete
-5. ✅ **Wallet Explorer** (`/wallet/[address]`) — fresh install, components restored
-6. **→ Deploy & Polish** (README, GIF, push GitHub public, email Frank)
+3. ✅ Heatmap layer 1 + layer 2
+4. ✅ Survival Cockpit
+5. ✅ Wallet Explorer
+6. **→ Deploy & Polish** (README, GIF, GitHub public, email Frank)
 7. Orderbook depth (post-polish)
 
 ---
 
-_CLAUDE.md v2.5 — NadoLens_
+_CLAUDE.md v3.0 — NadoLens_

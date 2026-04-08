@@ -185,6 +185,20 @@ curl "https://gateway.prod.nado.xyz/v1/query?type=subaccount_info&subaccount={by
 
 ---
 
+## NadoLens — Wallet Explorer polling budget
+
+| Call | Weight | Frequency |
+|---|---|---|
+| `subaccounts` archive | 2 | 1× on load + on ↺ refresh |
+| `account_snapshots` archive | 2 | On fill detection only — not every poll |
+| `matches` archive | `2+(500×subs/10)` → weight 52 for 1 sub | 1× on load + incremental on fill |
+| `subaccount_info` gateway | 2 × nb_subaccounts | 6s polling OK |
+| `isolated_positions` gateway | 2 × nb_cross_subaccounts | Every ≈36s (pocket discovery) |
+
+**Total on initial load: ~56 weight** → safe with 2400/min max.
+
+---
+
 ## API Changelog — Recent changes
 
 ### March 2026
