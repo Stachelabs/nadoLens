@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
 import { RefreshCw } from "lucide-react";
 
@@ -228,6 +229,10 @@ export function WalletPositions({
                         {/* 1 — Avatar */}
                         <div className="flex shrink-0 items-center justify-center">
                           <Avatar size="sm">
+                            <AvatarImage
+                              src={perpIconSrcFromPair(pos.pair)}
+                              alt=""
+                            />
                             <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
                               {assetInitial(pos.pair)}
                             </AvatarFallback>
