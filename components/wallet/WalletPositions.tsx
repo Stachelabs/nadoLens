@@ -167,7 +167,7 @@ export function WalletPositions({
               <TableRow className="border-border hover:bg-transparent">
                 {[
                   "Pair",
-                  ...(hasMultipleSubaccounts ? ["Sub account"] : []),
+                  ...(hasMultipleSubaccounts ? ["Account"] : []),
                   "Health",
                   "Size",
                   "Avg entry",
@@ -229,7 +229,7 @@ export function WalletPositions({
                     className="border-border/50"
                   >
                     <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-around">
                         {/* 1 — Avatar */}
                         <div className="flex shrink-0 items-center justify-center">
                           <Avatar size="sm">
@@ -256,7 +256,7 @@ export function WalletPositions({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[8px] px-0.75 py-0 h-3.5 font-bold",
+                              "text-[9px] px-1 py-0.5 h-3.5 font-bold",
                               isLong
                                 ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                                 : "border-red-400/20 bg-red-400/10 text-red-400",
