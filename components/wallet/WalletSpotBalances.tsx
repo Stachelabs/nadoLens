@@ -8,11 +8,11 @@ type Props = {
 }
 
 const SPOT_ASSETS = [
-  { product_id: 0,  symbol: 'USDT0', icon: '/icons/usdt0.svg' },
-  { product_id: 1,  symbol: 'KBTC',  icon: '/icons/kbtc.svg'  },
-  { product_id: 3,  symbol: 'WETH',  icon: '/icons/weth.svg'  },
-  { product_id: 5,  symbol: 'USDC',  icon: '/icons/usdc.svg'  },
-  { product_id: 11, symbol: 'NLP',   icon: '/icons/nlp.svg'   },
+  { product_id: 0,  symbol: 'USDT0', icon: '/icons/spot/usdt0.svg' },
+  { product_id: 1,  symbol: 'KBTC',  icon: '/icons/spot/kbtc.svg'  },
+  { product_id: 3,  symbol: 'WETH',  icon: '/icons/spot/weth.svg'  },
+  { product_id: 5,  symbol: 'USDC',  icon: '/icons/spot/usdc.svg'  },
+  { product_id: 11, symbol: 'NLP',   icon: '/icons/spot/nlp.svg'   },
 ]
 
 const fmtUsd = new Intl.NumberFormat('en-US', {

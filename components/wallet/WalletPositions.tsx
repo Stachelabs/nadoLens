@@ -108,6 +108,10 @@ export function WalletPositions({
     // Within each account: cross first, then isolated.
     if (a.isolated !== b.isolated) return a.isolated ? 1 : -1;
 
+    // Within each block (cross or isolated): sort by product_id.
+    const byProductId = a.product_id - b.product_id;
+    if (byProductId !== 0) return byProductId;
+
     // Stable secondary ordering for readability.
     return a.pair.localeCompare(b.pair);
   });
