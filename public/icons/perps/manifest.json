@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T22:44:13.050Z",
+  "generatedAt": "2026-04-09T10:16:54.874Z",
   "gateway": "https://gateway.prod.nado.xyz/v2",
   "entries": [
     {
@@ -32,43 +32,41 @@
       "marketKey": "AMZN",
       "product_id": 104,
       "symbol": "AMZN-PERP",
-      "status": "error",
+      "status": "skipped_not_on_app",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AMZN",
-      "message": "page.evaluate: ReferenceError: __name is not defined\n    at collectMediaSvgUrlsInPage (eval at evaluate (:302:30), <anonymous>:1:142)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      "message": "Market switcher shows \"Choose Market\" — this perp is not listed on app.nado.xyz (Gateway /v2/assets may still expose it)."
     },
     {
       "marketKey": "ARB",
       "product_id": 62,
       "symbol": "ARB-PERP",
       "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=AMZN",
-      "message": "URL shows ?market=AMZN but Gateway slug is ARB (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz."
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AAVE",
+      "message": "URL shows ?market=AAVE but Gateway slug is ARB (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "ASTER",
       "product_id": 48,
       "symbol": "ASTER-PERP",
-      "status": "ok",
+      "status": "skipped_not_on_app",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ASTER",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/aster.a4ef691c.svg?dpl=dpl_FnAaW2LTBCKtmh2z8swFxdbpfbuE",
-      "sha256": "e800ee982cbc31ced0abe46a3dbf7c732a6d46a4c64df4fe97e842b5d0b7b010",
-      "bytes": 1147
+      "message": "Market switcher shows \"Choose Market\" — this perp is not listed on app.nado.xyz (Gateway /v2/assets may still expose it)."
     },
     {
       "marketKey": "AVAX",
       "product_id": 64,
       "symbol": "AVAX-PERP",
       "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=ASTER",
-      "message": "URL shows ?market=ASTER but Gateway slug is AVAX (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz."
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AVAX",
+      "message": "Market switcher shows \"Choose Market\" — this perp is not listed on app.nado.xyz (Gateway /v2/assets may still expose it)."
     },
     {
       "marketKey": "AXS",
       "product_id": 66,
       "symbol": "AXS-PERP",
       "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=ASTER",
-      "message": "URL shows ?market=ASTER but Gateway slug is AXS (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz."
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AAVE",
+      "message": "URL shows ?market=AAVE but Gateway slug is AXS (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "BCH",

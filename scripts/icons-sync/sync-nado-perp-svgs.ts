@@ -12,7 +12,7 @@
  * Env:
  *   NADO_GATEWAY_V2      — default https://gateway.prod.nado.xyz/v2
  *   ICONS_OUTPUT_DIR     — default public/icons/perps
- *   PLAYWRIGHT_CDP_URL   — optional, e.g. http://127.0.0.1:9222 (see header comment for Rabby)
+ *   PLAYWRIGHT_CDP_URL   — default http://127.0.0.1:9222 (recommended)
  *   PLAYWRIGHT_HEADED    — set to "1" to show browser when not using CDP
  *   ICONS_DELAY_MS       — extra wait after navigation (default 800)
  *   ICONS_ONLY           — comma-separated market keys to fetch (e.g. BTC,ETH)
@@ -27,10 +27,8 @@
  *
  * Without CDP, icons often still load on /perpetuals (public page); use CDP if the app blocks assets until connected.
  *
- * Private Beta (app.nado.xyz): unauthenticated sessions see a referral wall — no market SVGs load.
- * Set NADO_APP_REFERRAL_CODE so the script opens https://app.nado.xyz?join=<code> (and falls back to
- * filling the "Referral Code" field if the gate persists). Never commit real codes; use .env.local only.
- * If you use PLAYWRIGHT_CDP_URL with Chrome where you already passed the gate + Rabby, you can omit the code.
+ * Private Alpha access (app.nado.xyz): run this against a browser profile that is already connected
+ * and has already passed the alpha gate.
  */
 
 import { createHash } from "crypto";
@@ -42,11 +40,12 @@ import { fileURLToPath } from "url";
 import { config } from "dotenv";
 import { chromium, type Browser, type Page } from "playwright";
 
-import { NADO_GATEWAY_V2 } from "../lib/nado";
-import { V2AssetsResponseSchema } from "../lib/schemas/nado";
+import { NADO_GATEWAY_V2 } from "../../lib/nado";
+import { V2AssetsResponseSchema } from "../../lib/schemas/nado";
+import { nadoPerpIconsDefaults } from "./sync-nado-perp-svgs.config";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(__dirname, "..");
+const REPO_ROOT = join(__dirname, "..", "..");
 
 config({ path: join(REPO_ROOT, ".env.local") });
 config();
@@ -73,13 +72,142 @@ type ManifestEntry = {
   message?: string;
 };
 
-function envStr(key: string, fallback: string): string {
+type ManifestSnapshot = {
+  generatedAt?: string;
+  gateway?: string;
+  entries: ManifestEntry[];
+};
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isManifestStatus(
+  value: unknown,
+): value is ManifestEntry["status"] {
+  return (
+    value === "ok" ||
+    value === "skipped_not_on_app" ||
+    value === "skipped_no_svg" ||
+    value === "error"
+  );
+}
+
+function parseManifestSnapshot(raw: string): ManifestSnapshot | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isObjectRecord(parsed)) return null;
+  const entriesRaw = parsed.entries;
+  if (!Array.isArray(entriesRaw)) return null;
+
+  const entries: ManifestEntry[] = [];
+  for (const item of entriesRaw) {
+    if (!isObjectRecord(item)) continue;
+    if (typeof item.marketKey !== "string") continue;
+    if (typeof item.product_id !== "number") continue;
+    if (typeof item.symbol !== "string") continue;
+    if (!isManifestStatus(item.status)) continue;
+    entries.push({
+      marketKey: item.marketKey,
+      product_id: item.product_id,
+      symbol: item.symbol,
+      status: item.status,
+      finalUrl: typeof item.finalUrl === "string" ? item.finalUrl : undefined,
+      pickedUrl: typeof item.pickedUrl === "string" ? item.pickedUrl : undefined,
+      sha256: typeof item.sha256 === "string" ? item.sha256 : undefined,
+      bytes: typeof item.bytes === "number" ? item.bytes : undefined,
+      message: typeof item.message === "string" ? item.message : undefined,
+    });
+  }
+
+  return {
+    generatedAt:
+      typeof parsed.generatedAt === "string" ? parsed.generatedAt : undefined,
+    gateway: typeof parsed.gateway === "string" ? parsed.gateway : undefined,
+    entries,
+  };
+}
+
+function loadPreviousManifest(manifestPath: string): ManifestSnapshot | null {
+  if (!existsSync(manifestPath)) return null;
+  try {
+    const raw = readFileSync(manifestPath, "utf8");
+    return parseManifestSnapshot(raw);
+  } catch {
+    return null;
+  }
+}
+
+function printRunDiff(
+  previous: ManifestSnapshot | null,
+  currentEntries: ManifestEntry[],
+): void {
+  if (!previous) {
+    console.log("[icons][diff] No previous manifest found (first run).");
+    return;
+  }
+
+  const prevByMarket = new Map(
+    previous.entries.map((e) => [e.marketKey.toUpperCase(), e]),
+  );
+  const currByMarket = new Map(
+    currentEntries.map((e) => [e.marketKey.toUpperCase(), e]),
+  );
+
+  let addedMarkets = 0;
+  let removedMarkets = 0;
+  let statusChanged = 0;
+  let svgHashChanged = 0;
+  let newlyOk = 0;
+  let noLongerOk = 0;
+
+  for (const key of currByMarket.keys()) {
+    if (!prevByMarket.has(key)) addedMarkets += 1;
+  }
+  for (const key of prevByMarket.keys()) {
+    if (!currByMarket.has(key)) removedMarkets += 1;
+  }
+
+  for (const [key, curr] of currByMarket) {
+    const prev = prevByMarket.get(key);
+    if (!prev) continue;
+
+    if (prev.status !== curr.status) statusChanged += 1;
+    if (prev.status !== "ok" && curr.status === "ok") newlyOk += 1;
+    if (prev.status === "ok" && curr.status !== "ok") noLongerOk += 1;
+    if (
+      prev.status === "ok" &&
+      curr.status === "ok" &&
+      prev.sha256 &&
+      curr.sha256 &&
+      prev.sha256 !== curr.sha256
+    ) {
+      svgHashChanged += 1;
+    }
+  }
+
+  const prevOk = previous.entries.filter((e) => e.status === "ok").length;
+  const currOk = currentEntries.filter((e) => e.status === "ok").length;
+  const deltaOk = currOk - prevOk;
+
+  console.log(
+    `[icons][diff] vs previous run: markets +${addedMarkets}/-${removedMarkets}, ` +
+      `status_changes=${statusChanged}, ok_delta=${deltaOk >= 0 ? "+" : ""}${deltaOk}, ` +
+      `newly_ok=${newlyOk}, no_longer_ok=${noLongerOk}, svg_hash_changed=${svgHashChanged}`,
+  );
+}
+
+function cfgStr(key: keyof typeof nadoPerpIconsDefaults, fallback: string): string {
   const v = process.env[key];
   return typeof v === "string" && v.length > 0 ? v : fallback;
 }
 
 function parseOnlyFilter(): Set<string> | null {
-  const raw = process.env.ICONS_ONLY?.trim();
+  const raw = cfgStr("ICONS_ONLY", nadoPerpIconsDefaults.ICONS_ONLY).trim();
   if (!raw) return null;
   return new Set(
     raw
@@ -161,13 +289,15 @@ async function collectMediaSvgUrls(page: Page): Promise<string[]> {
     function push(u: string | null) {
       if (u && u.includes("/_next/static/media/") && u.includes(".svg")) out.push(u);
     }
-    const imgList = document.querySelectorAll("img");
+    const imgList = document.querySelectorAll<HTMLImageElement>("img");
     for (let i = 0; i < imgList.length; i++) {
       const el = imgList[i];
       push(el.currentSrc || el.src);
       push(el.getAttribute("src"));
     }
-    const sources = document.querySelectorAll("source[srcset]");
+    const sources = document.querySelectorAll<HTMLSourceElement>(
+      "source[srcset]",
+    );
     for (let i = 0; i < sources.length; i++) {
       const el = sources[i];
       const first = el.srcset.split(",")[0]?.trim().split(/\s+/)[0];
@@ -323,7 +453,10 @@ async function attachSvgCollector(
 }
 
 async function connectBrowser(): Promise<{ browser: Browser; close: () => Promise<void> }> {
-  const cdp = process.env.PLAYWRIGHT_CDP_URL?.trim();
+  const cdp = cfgStr(
+    "PLAYWRIGHT_CDP_URL",
+    nadoPerpIconsDefaults.PLAYWRIGHT_CDP_URL,
+  ).trim();
   if (cdp) {
     const browser = await chromium.connectOverCDP(cdp);
     return {
@@ -333,7 +466,9 @@ async function connectBrowser(): Promise<{ browser: Browser; close: () => Promis
       },
     };
   }
-  const headed = process.env.PLAYWRIGHT_HEADED === "1";
+  const headed =
+    cfgStr("PLAYWRIGHT_HEADED", nadoPerpIconsDefaults.PLAYWRIGHT_HEADED) ===
+    "1";
   const browser = await chromium.launch({ headless: !headed });
   return {
     browser,
@@ -370,27 +505,14 @@ async function isChooseMarketSwitcher(page: Page): Promise<boolean> {
 }
 
 async function isPrivateBetaGateVisible(page: Page): Promise<boolean> {
-  const referral = page.getByPlaceholder(/referral/i).first();
-  if (await referral.isVisible().catch(() => false)) return true;
   const beta = page.getByText(/private\s*beta/i).first();
   return beta.isVisible().catch(() => false);
 }
 
 /**
- * Unlocks the Nado web app when the "Private Beta" wall is shown (no market icons until then).
- * @param referralCode — from env NADO_APP_REFERRAL_CODE; optional if CDP session is already allowed.
+ * Ensures this browser profile already has app access (connected + alpha gate cleared).
  */
-async function ensureNadoAppAccess(
-  page: Page,
-  referralCode: string | undefined,
-): Promise<void> {
-  if (process.env.ICONS_SKIP_REFERRAL === "1") {
-    console.warn(
-      "[icons] ICONS_SKIP_REFERRAL=1 — skipping gate check (use only with an already-authorized CDP profile).",
-    );
-    return;
-  }
-
+async function ensureNadoAppReady(page: Page): Promise<void> {
   await page.goto(`${NADO_APP}/perpetuals?market=BTC`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
@@ -399,74 +521,27 @@ async function ensureNadoAppAccess(
   await sleep(1_000);
 
   if (!(await isPrivateBetaGateVisible(page))) {
-    console.log("[icons] No Private Beta gate — continuing.");
-    return;
-  }
-
-  const code = referralCode?.trim();
-  if (!code) {
-    throw new Error(
-      "app.nado.xyz shows Private Beta. Set NADO_APP_REFERRAL_CODE in .env.local (e.g. from ?join=YOURCODE) " +
-        "or use PLAYWRIGHT_CDP_URL with Chrome/Rabby where the gate is already cleared.",
-    );
-  }
-
-  const joinUrl = `${NADO_APP}/?join=${encodeURIComponent(code)}`;
-  console.log("[icons] Opening referral join URL, then reloading /perpetuals to verify…");
-
-  const reloadPerpsProbe = async (): Promise<boolean> => {
-    await page.goto(`${NADO_APP}/perpetuals?market=BTC`, {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-    await sleep(1_500);
-    return isPrivateBetaGateVisible(page);
-  };
-
-  await page.goto(joinUrl, {
-    waitUntil: "domcontentloaded",
-    timeout: 60_000,
-  });
-  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-  await sleep(2_000);
-
-  if (!(await reloadPerpsProbe())) {
-    console.log("[icons] Gate cleared after ?join=.");
-    return;
-  }
-
-  const input = page.getByPlaceholder(/referral/i).first();
-  if (await input.isVisible().catch(() => false)) {
-    await input.fill(code);
-    const btn = page.getByRole("button", { name: /enter referral code/i });
-    if (await btn.isVisible().catch(() => false)) {
-      await btn.click();
-    } else {
-      await input.press("Enter");
-    }
-    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-    await sleep(2_000);
-  }
-
-  if (!(await reloadPerpsProbe())) {
-    console.log("[icons] Gate cleared after referral form.");
+    console.log("[icons] Browser profile already has app access — continuing.");
     return;
   }
 
   throw new Error(
-    "Still on Private Beta after referral. Nado often requires a connected wallet (Rabby) for the code to " +
-      "stick — use PLAYWRIGHT_CDP_URL=http://127.0.0.1:9222 with Chrome + Rabby already logged in, " +
-      "then set NADO_APP_REFERRAL_CODE and run again (or ICONS_SKIP_REFERRAL=1 if the gate is already cleared).",
+    "app.nado.xyz still shows the alpha gate in this browser profile. Open the same profile manually, connect Rabby, " +
+      "pass the gate, then rerun icons sync with PLAYWRIGHT_CDP_URL.",
   );
 }
 
 async function main(): Promise<void> {
-  const gatewayV2 = envStr("NADO_GATEWAY_V2", NADO_GATEWAY_V2);
-  const outDir = envStr("ICONS_OUTPUT_DIR", join(REPO_ROOT, "public", "icons", "perps"));
-  const delayMs = Number.parseInt(envStr("ICONS_DELAY_MS", "800"), 10);
+  const gatewayV2 = cfgStr("NADO_GATEWAY_V2", NADO_GATEWAY_V2);
+  const outDir = cfgStr(
+    "ICONS_OUTPUT_DIR",
+    join(REPO_ROOT, nadoPerpIconsDefaults.ICONS_OUTPUT_DIR),
+  );
+  const delayMs = Number.parseInt(
+    cfgStr("ICONS_DELAY_MS", nadoPerpIconsDefaults.ICONS_DELAY_MS),
+    10,
+  );
   const only = parseOnlyFilter();
-  const referralCode = process.env.NADO_APP_REFERRAL_CODE?.trim();
 
   mkdirSync(outDir, { recursive: true });
 
@@ -485,7 +560,7 @@ async function main(): Promise<void> {
 
   try {
     const page = await getOrCreatePage(browser);
-    await ensureNadoAppAccess(page, referralCode);
+    await ensureNadoAppReady(page);
 
     let btcRef: Buffer | null = null;
     const btcPath = join(outDir, "BTC.svg");
@@ -656,6 +731,7 @@ async function main(): Promise<void> {
   }
 
   const manifestPath = join(outDir, "manifest.json");
+  const previousManifest = loadPreviousManifest(manifestPath);
   writeFileSync(
     manifestPath,
     JSON.stringify(
@@ -674,6 +750,7 @@ async function main(): Promise<void> {
   console.log(
     `Done. ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
   );
+  printRunDiff(previousManifest, manifest);
 }
 
 main().catch((e) => {

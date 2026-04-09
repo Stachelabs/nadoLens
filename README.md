@@ -314,3 +314,119 @@ ws-proxy/                 # Bun WS Proxy (Railway) — Nado WebSocket relay
 See [`ARCHI.md`](ARCHI.md) for data flow, component breakdown, and technical decisions.
 
 See [`CLAUDE.md`](CLAUDE.md) for development rules, stack constraints, and critical Nado API notes.
+
+---
+
+## SVG sync for perp icons (`icons:sync-nado-perps`)
+
+This project includes a Playwright script that syncs the exact perp SVG icons used by `app.nado.xyz` into `public/icons/perps/`.
+
+### What it does (and why it saves time)
+
+- Reads perp markets from `GET /v2/assets` (Gateway v2), then opens each market route on the real Nado app (`/perpetuals?market=<BASE>`).
+- Captures the real Next.js hashed SVG assets (`/_next/static/media/*.svg`) from network + DOM fallback.
+- Writes one icon per market (`BTC.svg`, `ETH.svg`, etc.) and updates `public/icons/perps/manifest.json`.
+- Skips markets that exist in API but are not actually selectable in the app UI (`skipped_not_on_app`), avoiding wrong icons.
+- Gives deterministic, auditable output (SHA-256 + bytes in manifest) instead of manual copy/paste from DevTools.
+
+### Why Rabby + a pre-authorized session are required
+
+`app.nado.xyz` is private alpha. The script expects a browser profile where:
+- Rabby is installed,
+- a wallet is already connected,
+- the alpha gate is already passed.
+
+Playwright bundled Chromium cannot load Rabby, so the reliable path is CDP: launch Brave/Chrome yourself, then let Playwright attach to that running profile.
+
+### One-time setup (manual)
+
+1. Install Rabby extension in a dedicated browser profile.
+2. Open `app.nado.xyz` in that profile.
+3. Connect wallet and pass the alpha gate.
+4. Verify `/perpetuals` loads normally before running the script.
+
+<p><strong style="color:#ef4444; font-size:1.05em;">SECURITY: USE A BURNER WALLET FOR THIS AUTOMATION PROFILE.</strong></p>
+<p><strong style="color:#ef4444;">Never use your main wallet in an automation browser profile.</strong></p>
+
+### Launch browser for Playwright (CDP)
+
+#### Option A — Brave
+
+```bash
+"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/brave-playwright-profile"
+```
+
+#### Option B — Chrome (clean + discreet profile)
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/chrome-playwright-profile" \
+  --no-first-run \
+  --no-default-browser-check
+```
+
+`--user-data-dir` isolates this automation profile from your daily browser session (cleaner state, less noise, no cookie pollution).
+
+### Run the sync
+
+```bash
+pnpm icons:sync-nado-perps
+```
+
+### Config-first workflow (no env required)
+
+Defaults are committed in:
+- `scripts/icons-sync/sync-nado-perp-svgs.config.ts`
+
+Edit that file for normal usage (CDP URL, output dir, delay, filters).  
+Env overrides stay available for ad-hoc one-off runs.
+
+### Main knobs (config keys + optional env overrides)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PLAYWRIGHT_CDP_URL` | `http://127.0.0.1:9222` | Connect to your existing Brave/Chrome profile via CDP (recommended) |
+| `PLAYWRIGHT_HEADED` | `0` | If no CDP: set `1` to show Playwright browser window |
+| `ICONS_ONLY` | — | Comma filter (`BTC,ETH,SOL`) for partial sync |
+| `ICONS_DELAY_MS` | `800` | Extra wait after navigation (stability tuning) |
+| `ICONS_OUTPUT_DIR` | `public/icons/perps` | Output directory |
+| `ICONS_DEBUG` | `0` | Verbose debug logs when matching fails |
+
+### Outcomes / generated files
+
+- `public/icons/perps/<MARKET>.svg`: one icon per resolved perp market.
+- `public/icons/perps/manifest.json`: full run report with:
+  - `status`: `ok`, `skipped_not_on_app`, `skipped_no_svg`, `error`
+  - `product_id`, `symbol`, `marketKey`
+  - `finalUrl`, `pickedUrl`
+  - `sha256`, `bytes` for successful captures
+- Console summary: `<ok>/<total> ok` + skipped counts.
+- Run-to-run diff summary (auto, based on previous `manifest.json`):
+  - `markets +X/-Y`
+  - `status_changes`
+  - `ok_delta`
+  - `newly_ok` / `no_longer_ok`
+  - `svg_hash_changed`
+
+### Useful commands
+
+```bash
+# Full sync through your CDP browser session
+pnpm icons:sync-nado-perps
+
+# Only sync a small subset
+ICONS_ONLY=BTC,ETH,SOL pnpm icons:sync-nado-perps
+
+# Debug failed matching
+ICONS_DEBUG=1 pnpm icons:sync-nado-perps
+```
+
+### Notes / gotchas
+
+- If the script says the alpha gate is still visible, open the exact same CDP profile manually and complete access first.
+- If a market is in `/v2/assets` but not in app UI, it is expected to land in `skipped_not_on_app`.
+- Keep a dedicated automation profile (`--user-data-dir`) to avoid polluting your daily browser state.
+- If you run with `ICONS_ONLY`, the manifest is intentionally partial; the next full run diff will show large `+/-` deltas (expected).
