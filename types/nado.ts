@@ -89,6 +89,8 @@ export type TradeMatch = {
   sequencer_fee: string // x18 — breakdown séquenceur uniquement (déjà inclus dans fee)
   side: 'long' | 'short'
   is_perp: boolean
+  /** x18 position size BEFORE this trade. ≈ 0 means this trade opened the position from flat. */
+  pre_balance_amount?: string
 }
 
 // ─── Spot Balances ────────────────────────────────────────────────────────────

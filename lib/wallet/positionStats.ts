@@ -28,16 +28,22 @@ const DUST = 1e-12
  * Build a PositionStatsMap from all fetched trades.
  * key = `${product_id}:${subaccount_lower}:${isolated}`
  *
- * @param tradesComplete - true when the full trade history has been loaded.
- *   When false, stats are only trusted if we observed an actual flat → reopen
- *   transition (seenFlatEvent). Otherwise the values would include trades from
- *   before the current session and would be wildly wrong.
+ * Primary strategy — pre_balance_amount two-pass:
+ *   Pass 1 (newest→oldest): find the last trade where pre_balance_amount ≈ 0.
+ *     That trade opened the position from flat = confirmed session boundary.
+ *   Pass 2 (that trade → newest): accumulate fees and realized PnL for this session only.
+ *
+ * Fallback (when pre_balance_amount is absent on all trades):
+ *   Replay oldest→newest; trust boundary only when we see an actual flat→reopen cycle
+ *   (seenFlatEvent) or tradesComplete = true.
+ *
+ * @param tradesComplete - used only in fallback path: true when full history loaded.
  */
 export function buildPositionStatsMap(
   trades: TradeMatch[],
   tradesComplete = false,
 ): PositionStatsMap {
-  // Group perp trades by position key, oldest first for replay
+  // Group perp trades by position key
   const groups = new Map<string, TradeMatch[]>()
   for (const t of trades) {
     if (!t.is_perp) continue
@@ -53,26 +59,78 @@ export function buildPositionStatsMap(
   const map: PositionStatsMap = new Map()
 
   for (const [key, group] of groups) {
-    // Replay oldest → newest (trades arrive newest-first from the hook)
+    // Sort newest → oldest (submission_idx descending) for Pass 1
     group.sort((a, b) => {
       try {
         const ai = BigInt(a.submission_idx)
         const bi = BigInt(b.submission_idx)
-        if (ai < bi) return -1
-        if (ai > bi) return 1
+        if (ai > bi) return -1
+        if (ai < bi) return 1
       } catch { /* ignore */ }
-      return a.timestamp.localeCompare(b.timestamp)
+      return b.timestamp.localeCompare(a.timestamp)
     })
+
+    // ── Pass 1: find session opener via pre_balance_amount ──────────────────
+    // The trade where pre_balance_amount ≈ 0 is the first trade of the current session.
+    // Walking newest→oldest, the LAST such trade we encounter (= oldest in the set) is
+    // the most recent time the position was opened from flat.
+    const hasPreBalance = group.some((t) => t.pre_balance_amount !== undefined)
+
+    if (hasPreBalance) {
+      let sessionStartIdx = -1  // index in `group` (which is newest→oldest)
+      for (let i = 0; i < group.length; i++) {
+        const t = group[i]
+        if (t.pre_balance_amount === undefined) continue
+        const preAmt = fromX18BigInt(t.pre_balance_amount)
+        if (Math.abs(preAmt) < DUST) {
+          // This trade opened the position from flat — keep going to find even older ones
+          // that might still be within the same session opening sequence (partial fills).
+          // We want the OLDEST opener in the contiguous opening sequence.
+          sessionStartIdx = i
+        } else {
+          // pre_balance ≠ 0 and we already found a flat opener → stop, we've passed the boundary.
+          if (sessionStartIdx !== -1) break
+        }
+      }
+
+      if (sessionStartIdx !== -1) {
+        // Pass 2: accumulate oldest → newest within session (reverse slice [sessionStartIdx..0])
+        let feeAccum = 0
+        let realizedAccum = 0
+        for (let i = sessionStartIdx; i >= 0; i--) {
+          const t = group[i]
+          feeAccum += fromX18BigInt(t.fee)
+          try {
+            if (BigInt(t.closed_amount) !== BigInt(0)) {
+              realizedAccum += fromX18BigInt(t.realized_pnl)
+            }
+          } catch { /* ignore */ }
+        }
+        const sessionOpenTs = group[sessionStartIdx].timestamp
+
+        map.set(key, {
+          feesCumulative: feeAccum,
+          realizedGross: realizedAccum,
+          sessionOpenTimestamp: sessionOpenTs,
+          validSession: true,
+        })
+        continue
+      }
+      // No flat opener found in fetched pages → validSession = false (not emitted below)
+      continue
+    }
+
+    // ── Fallback: classic oldest→newest replay ───────────────────────────────
+    group.reverse()  // now oldest → newest
 
     let runningSize = 0
     let feeAccum = 0
     let realizedAccum = 0
     let wasFlat = true
     let sessionOpenTs: string | null = null
-    let seenFlatEvent = false  // did we observe the position actually going flat?
+    let seenFlatEvent = false
 
     for (const t of group) {
-      // First trade after a flat period opens a new session.
       if (wasFlat) {
         sessionOpenTs = t.timestamp
         wasFlat = false
@@ -85,9 +143,8 @@ export function buildPositionStatsMap(
         if (BigInt(t.closed_amount) !== BigInt(0)) {
           realizedAccum += fromX18BigInt(t.realized_pnl)
         }
-      } catch { /* ignore non-numeric */ }
+      } catch { /* ignore */ }
 
-      // Position flat → reset accumulators; next trade starts a confirmed new session.
       if (Math.abs(runningSize) < DUST) {
         feeAccum = 0
         realizedAccum = 0
@@ -97,9 +154,6 @@ export function buildPositionStatsMap(
       }
     }
 
-    // Session is trustworthy only when:
-    //   a) we actually saw the position close and reopen (seenFlatEvent), OR
-    //   b) the full history is loaded — the replay started from the true first trade.
     const validSession = seenFlatEvent || tradesComplete
 
     if (validSession && (feeAccum !== 0 || realizedAccum !== 0 || sessionOpenTs !== null)) {

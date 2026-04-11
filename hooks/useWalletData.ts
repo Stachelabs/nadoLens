@@ -171,6 +171,7 @@ function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>):
       sequencer_fee: m.sequencer_fee ?? "0",
       side,
       is_perp: isPerpTrade,
+      pre_balance_amount: m.pre_balance?.base?.perp?.balance?.amount ?? undefined,
     };
   });
 }

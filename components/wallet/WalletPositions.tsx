@@ -183,7 +183,7 @@ export function WalletPositions({
                   "Health",
                   "Size",
                   "Avg entry",
-                  "Oracle price",
+                  "Oracle Price",
                   "Liq Price",
                   "Unrealized PnL",
                   "Realized PnL",
