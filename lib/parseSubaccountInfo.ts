@@ -119,6 +119,21 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
       //   unsettled_quote = amount × oracle_price + v_quote_balance (Nado docs)
       const unrealizedPnl = vQuote + amount * markPrice
 
+      // Pending (unsettled) funding since position was last opened or funding was last settled.
+      // Formula: (current_market_index - position's_stored_index) × amount
+      // → 0 for a fresh position, accumulates each tick until next hourly payment resets it.
+      let fundingCumulative: number | null = null
+      const lastCumFundingStr = b.balance.last_cumulative_funding_x18
+      if (lastCumFundingStr != null && market?.state) {
+        const lastCumFunding = fromX18BigInt(lastCumFundingStr)
+        const currentCumFunding = fromX18BigInt(
+          isLong
+            ? market.state.cumulative_funding_long_x18
+            : market.state.cumulative_funding_short_x18,
+        )
+        fundingCumulative = (currentCumFunding - lastCumFunding) * amount
+      }
+
       return {
         product_id: b.product_id,
         pair: byId.get(b.product_id) ?? `#${b.product_id}`,
@@ -126,7 +141,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
         amount_x18: b.balance.amount,
         amount,
         entry_price: null,
-        funding_cumulative: null,
+        funding_cumulative: fundingCumulative,
         fees_cumulative: null,
         realized_pnl_cumulative: null,
         mark_price: markPrice,

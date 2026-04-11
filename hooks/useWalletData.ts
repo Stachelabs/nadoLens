@@ -17,6 +17,7 @@ import {
 } from "@/lib/wallet/snapshotEntryPrice";
 import {
   applyPositionStats,
+  applySessionFunding,
   buildPositionStatsMap,
   type PositionStatsMap,
 } from "@/lib/wallet/positionStats";
@@ -282,6 +283,8 @@ export function useWalletData(rawAddress: string): WalletData {
   /** Funding total from full pagination — expensive; only updated on full load / refresh. */
   const fundingPaidUsdRef = useRef(0);
   const fundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
+  /** Whether the full match history has been loaded — passed to buildPositionStatsMap. */
+  const tradesCompleteRef = useRef(false);
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
 
@@ -872,7 +875,8 @@ export function useWalletData(rawAddress: string): WalletData {
       seenTradeIdsRef.current = new Set(allTrades.map(tradeIdentity));
       tradesRef.current = allTrades;
       latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? null;
-      positionStatsMapRef.current = buildPositionStatsMap(allTrades);
+      tradesCompleteRef.current = false;
+      positionStatsMapRef.current = buildPositionStatsMap(allTrades, false);
       const fundingData = await fetchFundingPaid(
         subAddrs,
         positionData.positions.map((position) => position.product_id),
@@ -885,9 +889,13 @@ export function useWalletData(rawAddress: string): WalletData {
       );
 
       // Render dashboard immediately after first page
-      const initPositions = applyPositionStats(
-        applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current),
+      const initPositions = applySessionFunding(
+        applyPositionStats(
+          applySnapshotEntryPrices(positionData.positions, entryPriceMapRef.current),
+          positionStatsMapRef.current,
+        ),
         positionStatsMapRef.current,
+        fundingPaymentsRef.current,
       );
       const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
       setData({
@@ -967,12 +975,13 @@ export function useWalletData(rawAddress: string): WalletData {
 
           tradesRef.current = allTrades;
           latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
-          positionStatsMapRef.current = buildPositionStatsMap(allTrades);
+          const allDone = chunkStates.every((state) => state.done);
+          tradesCompleteRef.current = allDone || page === MAX_PAGES - 1;
+          positionStatsMapRef.current = buildPositionStatsMap(allTrades, tradesCompleteRef.current);
           const updatedStats = buildPnlStats(
             allTrades,
             fundingData.totalFundingUsd,
           );
-          const allDone = chunkStates.every((state) => state.done);
 
           setData((prev) => ({
             ...prev,
@@ -984,9 +993,13 @@ export function useWalletData(rawAddress: string): WalletData {
                   trades: allTrades,
                   trades_complete: allDone || page === MAX_PAGES - 1,
                   ...updatedStats,
-                  positions: applyPositionStats(
-                    applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+                  positions: applySessionFunding(
+                    applyPositionStats(
+                      applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+                      positionStatsMapRef.current,
+                    ),
                     positionStatsMapRef.current,
+                    fundingPaymentsRef.current,
                   ),
                 }
               : null,
@@ -1072,11 +1085,18 @@ export function useWalletData(rawAddress: string): WalletData {
         // Detect fills: compare amount_x18 with previous poll.
         // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
         const prev = prevAmountsRef.current;
-        const fillDetected = prev.size > 0 && pd.positions.some((pos) => {
-          const key = `${pos.subaccount}:${pos.product_id}`;
-          const prevAmt = prev.get(key);
-          return prevAmt === undefined || prevAmt !== pos.amount_x18;
-        });
+        const newPositionKeys = new Set(
+          pd.positions.map((pos) => `${pos.subaccount}:${pos.product_id}`),
+        );
+        const fillDetected =
+          prev.size > 0 &&
+          (pd.positions.some((pos) => {
+            const key = `${pos.subaccount}:${pos.product_id}`;
+            const prevAmt = prev.get(key);
+            return prevAmt === undefined || prevAmt !== pos.amount_x18;
+          }) ||
+            // Position closed: a previously-tracked key is no longer in the poll.
+            [...prev.keys()].some((key) => !newPositionKeys.has(key)));
         prevAmountsRef.current = new Map(
           pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
         );
@@ -1097,7 +1117,7 @@ export function useWalletData(rawAddress: string): WalletData {
               const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
               tradesRef.current = updatedTrades;
               latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
-              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades);
+              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades, tradesCompleteRef.current);
               const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
               setData((prev) => prev.stats
                 ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
@@ -1107,9 +1127,13 @@ export function useWalletData(rawAddress: string): WalletData {
           }
         }
         if (cancelled) return;
-        const pollPositions = applyPositionStats(
-          applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+        const pollPositions = applySessionFunding(
+          applyPositionStats(
+            applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+            positionStatsMapRef.current,
+          ),
           positionStatsMapRef.current,
+          fundingPaymentsRef.current,
         );
         const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
         setData((prev) => ({
@@ -1175,7 +1199,7 @@ export function useWalletData(rawAddress: string): WalletData {
               const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
               tradesRef.current = updatedTrades;
               latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
-              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades);
+              positionStatsMapRef.current = buildPositionStatsMap(updatedTrades, tradesCompleteRef.current);
               const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
               setData((prev) => prev.stats
                 ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
@@ -1185,9 +1209,13 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           if (cancelled) return;
 
-          const refreshPositions = applyPositionStats(
-            applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+          const refreshPositions = applySessionFunding(
+            applyPositionStats(
+              applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+              positionStatsMapRef.current,
+            ),
             positionStatsMapRef.current,
+            fundingPaymentsRef.current,
           );
           const refreshTotals = recomputeUnrealizedTotals(refreshPositions, pd.equityUsd, pd.unrealizedTotal);
           setData((prev) => ({

@@ -93,7 +93,8 @@ export function applySnapshotEntryPrices(
         ...p,
         entry_price: snapshot.entryPrice,
         unrealized_pnl: correctedPnl,
-        funding_cumulative: snapshot.fundingCumulative,
+        // funding_cumulative is computed live in parseSubaccountInfo from
+        // last_cumulative_funding_x18 — do not override with snapshot's lifetime counter.
       };
     }
     return p;
