@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,17 @@ function fmtPrice(value: number): string {
   if (abs > 0 && abs < 1) return fmtPrice6.format(value);
   if (abs < 1000) return fmtPrice3.format(value);
   return fmtUsd.format(value);
+}
+
+/** Maps 0–100 health % to a rainbow HSL color (green → yellow → red). */
+function healthStyle(pct: number): React.CSSProperties {
+  const hue = Math.round((pct / 100) * 142);
+  const color = `hsl(${hue}, 65%, 55%)`;
+  return {
+    color,
+    borderColor: `hsl(${hue}, 65%, 35%, 0.35)`,
+    backgroundColor: `hsl(${hue}, 65%, 45%, 0.12)`,
+  };
 }
 
 function fmtFunding(value: number): string {
@@ -182,7 +194,7 @@ export function WalletPositions({
                     key={h}
                     className={cn(
                       "font-normal text-muted-foreground/70 pb-2",
-                      h === "Health" || h === "Pair" || h === "Sub account"
+                      h === "Health" || h === "Pair" || h === "Account"
                         ? "text-center pr-2"
                         : "text-right pr-4",
                     )}
@@ -276,14 +288,8 @@ export function WalletPositions({
                       {healthPct != null && (
                         <Badge
                           variant="outline"
-                          className={cn(
-                            "text-[11px] px-2 py-0.5 h-5 font-mono tabular-nums font-semibold",
-                            healthPct > 66
-                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
-                              : healthPct > 33
-                                ? "border-orange-400/30 bg-orange-400/10 text-orange-400"
-                                : "border-red-400/30 bg-red-400/10 text-red-400",
-                          )}
+                          className="text-[11px] px-2 py-0.5 h-5 font-mono tabular-nums font-semibold"
+                          style={healthStyle(healthPct)}
                         >
                           {healthPct}%
                         </Badge>
