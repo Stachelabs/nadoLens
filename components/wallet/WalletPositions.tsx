@@ -171,10 +171,10 @@ export function WalletPositions({
                   "Health",
                   "Size",
                   "Avg entry",
-                  "Mark",
+                  "Oracle price",
                   "Liq Price",
                   "Unrealized PnL",
-                  "Realized",
+                  "Realized PnL",
                   "Funding",
                   "Fees",
                 ].map((h) => (
