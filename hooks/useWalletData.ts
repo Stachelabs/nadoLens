@@ -31,6 +31,7 @@ import {
   normalizeSubaccountDisplayName,
   subaccountDisplayLabelSortKey,
 } from "@/lib/wallet/subaccountLabel";
+import { isEmptyTrackedSpotBalances } from "@/lib/wallet/spotTracked";
 import type {
   Position,
   SpotBalance,
@@ -462,24 +463,40 @@ export function useWalletData(rawAddress: string): WalletData {
             ? isolatedParentSubaccountBySubaccount.get(p.subaccount.toLowerCase())
             : undefined,
         }));
-      // Merge spot balances: sum amounts for same product_id across subaccounts
-      const spotMap = new Map<number, SpotBalance>()
-      for (const r of results) {
-        for (const b of r.spotBalances) {
-          const existing = spotMap.get(b.product_id)
+      // Spot: cross (parent) subaccounts only; merge sums only subs with non-zero on tracked product IDs
+      const spotMap = new Map<number, SpotBalance>();
+      for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        if (!sub || sub.isolated) continue;
+        const balances = results[i]?.spotBalances ?? [];
+        if (isEmptyTrackedSpotBalances(balances)) continue;
+        for (const b of balances) {
+          const existing = spotMap.get(b.product_id);
           if (existing) {
-            spotMap.set(b.product_id, { ...existing, amount: existing.amount + b.amount, value_usd: existing.value_usd + b.value_usd })
+            spotMap.set(b.product_id, {
+              ...existing,
+              amount: existing.amount + b.amount,
+              value_usd: existing.value_usd + b.value_usd,
+            });
           } else {
-            spotMap.set(b.product_id, { ...b })
+            spotMap.set(b.product_id, { ...b });
           }
         }
       }
       const spotBalances = Array.from(spotMap.values());
       const spotBalancesBySubaccount: SpotBalancesGroup[] = subs
         .map((s, i) => ({
+          s,
+          balances: results[i]?.spotBalances ?? [],
+        }))
+        .filter(
+          ({ s, balances }) =>
+            !s.isolated && !isEmptyTrackedSpotBalances(balances),
+        )
+        .map(({ s, balances }) => ({
           label: normalizeSubaccountDisplayName(s.subaccount_name),
           subaccount: s.subaccount,
-          balances: results[i]?.spotBalances ?? [],
+          balances,
         }))
         .sort(
           (a, b) =>

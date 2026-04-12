@@ -36,29 +36,29 @@ function formatAmount(amount: number): string {
   });
 }
 
+const ALL_LABEL = "all";
+
 export function WalletSpotBalances({
   bySubaccount,
   mergedBalances,
 }: Props) {
   const groups = useMemo<SpotBalancesGroup[]>(() => {
-    if (bySubaccount.length > 0) return bySubaccount;
-    return [
-      {
-        label: "main",
-        subaccount: "",
-        balances: mergedBalances,
-      },
-    ];
+    const allGroup: SpotBalancesGroup = {
+      label: ALL_LABEL,
+      subaccount: "",
+      balances: mergedBalances,
+    };
+    return [allGroup, ...bySubaccount];
   }, [bySubaccount, mergedBalances]);
 
-  const [selectedLabel, setSelectedLabel] = useState<string>("main");
+  const [selectedLabel, setSelectedLabel] = useState<string>(ALL_LABEL);
 
   useEffect(() => {
     const labels = groups.map((g) => g.label);
     setSelectedLabel((prev) => {
       if (labels.includes(prev)) return prev;
-      if (labels.includes("main")) return "main";
-      return labels[0] ?? "main";
+      if (labels.includes(ALL_LABEL)) return ALL_LABEL;
+      return labels[0] ?? ALL_LABEL;
     });
   }, [groups]);
 
@@ -82,7 +82,7 @@ export function WalletSpotBalances({
               const isSelected = g.label === selectedLabel;
               return (
                 <button
-                  key={g.subaccount + g.label}
+                  key={g.label === ALL_LABEL ? ALL_LABEL : g.subaccount + g.label}
                   type="button"
                   className={cn(
                     badgeVariants({
