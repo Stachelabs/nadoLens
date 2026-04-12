@@ -140,6 +140,7 @@ export function WalletTradeHistory({ trades }: Props) {
                 {[
                   "Time",
                   "Pair",
+                  "Direction",
                   "Role",
                   "Price",
                   "Qty",
@@ -150,10 +151,10 @@ export function WalletTradeHistory({ trades }: Props) {
                     key={h}
                     className={cn(
                       "font-normal text-muted-foreground/70 pb-2",
-                      i <= 0
+                      i === 0
                         ? "text-left"
-                        : i >= 3
-                          ? i === 6
+                        : i >= 4
+                          ? i === 7
                             ? "text-right pr-2"
                             : "text-right pr-4"
                           : "text-center",
@@ -192,19 +193,17 @@ export function WalletTradeHistory({ trades }: Props) {
                       {fmtTime(t.timestamp)}
                     </TableCell>
                     <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-evenly">
-                        <div className="flex shrink-0 items-center justify-center">
-                          <Avatar size="sm">
-                            <AvatarImage
-                              src={perpIconSrcFromPair(t.pair)}
-                              alt=""
-                            />
-                            <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
-                              {assetInitial(t.pair)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <div className="flex flex-col items-center justify-center min-w-[72px]">
+                      <div className="flex items-center justify-center gap-2">
+                        <Avatar size="sm" className="shrink-0">
+                          <AvatarImage
+                            src={perpIconSrcFromPair(t.pair)}
+                            alt=""
+                          />
+                          <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
+                            {assetInitial(t.pair)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex min-w-[72px] flex-col items-center">
                           <span className="font-mono text-foreground">
                             {t.pair}
                           </span>
@@ -212,23 +211,25 @@ export function WalletTradeHistory({ trades }: Props) {
                             {t.isolated ? "Isolated" : "Cross"}
                           </span>
                         </div>
-                        <div className="inline-flex shrink-0 items-center justify-center p-0 m-0">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "h-3.5 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
-                              hasPnl
-                                ? t.side === "short"
-                                  ? "border-red-400/20 bg-red-400/10 text-red-400"
-                                  : "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                : t.side === "long"
-                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                  : "border-red-400/20 bg-red-400/10 text-red-400",
-                            )}
-                          >
-                            {hasPnl ? closePositionLabel : t.side.toUpperCase()}
-                          </Badge>
-                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2 text-center align-middle">
+                      <div className="flex justify-center">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "h-3.5 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
+                            hasPnl
+                              ? t.side === "short"
+                                ? "border-red-400/20 bg-red-400/10 text-red-400"
+                                : "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                              : t.side === "long"
+                                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                                : "border-red-400/20 bg-red-400/10 text-red-400",
+                          )}
+                        >
+                          {hasPnl ? closePositionLabel : t.side.toUpperCase()}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center">
