@@ -54,6 +54,8 @@ function WalletContent({ address }: { address: string }) {
       <WalletSpotBalances
         bySubaccount={stats.spot_balances_by_subaccount}
         mergedBalances={stats.spot_balances}
+        onRefreshSpotBalances={refreshUnrealizedPnl}
+        spotBalancesRefreshing={unrealizedRefreshing}
       />
       <WalletPositions
         positions={stats.positions}

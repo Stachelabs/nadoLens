@@ -1,16 +1,21 @@
 "use client";
 
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
 import { badgeVariants } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { SpotBalance, SpotBalancesGroup } from "@/types/nado";
+import { RefreshCw } from "lucide-react";
+import Image from "next/image";
+import { useMemo, useState } from "react";
 
 type Props = {
   bySubaccount: SpotBalancesGroup[];
   /** Aggregate across subs — used only if `bySubaccount` is empty. */
   mergedBalances: SpotBalance[];
+  /** Re-fetch Gateway subaccount_info for all cross subs (spot + positions). */
+  onRefreshSpotBalances?: () => void | Promise<void>;
+  spotBalancesRefreshing?: boolean;
 };
 
 const SPOT_ASSETS = [
@@ -36,11 +41,13 @@ function formatAmount(amount: number): string {
   });
 }
 
-const ALL_LABEL = "all";
+const ALL_LABEL = "All";
 
 export function WalletSpotBalances({
   bySubaccount,
   mergedBalances,
+  onRefreshSpotBalances,
+  spotBalancesRefreshing = false,
 }: Props) {
   const groups = useMemo<SpotBalancesGroup[]>(() => {
     const allGroup: SpotBalancesGroup = {
@@ -53,53 +60,74 @@ export function WalletSpotBalances({
 
   const [selectedLabel, setSelectedLabel] = useState<string>(ALL_LABEL);
 
-  useEffect(() => {
+  const displayLabel = useMemo(() => {
     const labels = groups.map((g) => g.label);
-    setSelectedLabel((prev) => {
-      if (labels.includes(prev)) return prev;
-      if (labels.includes(ALL_LABEL)) return ALL_LABEL;
-      return labels[0] ?? ALL_LABEL;
-    });
-  }, [groups]);
+    if (labels.includes(selectedLabel)) return selectedLabel;
+    if (labels.includes(ALL_LABEL)) return ALL_LABEL;
+    return labels[0] ?? ALL_LABEL;
+  }, [groups, selectedLabel]);
 
   const balances = useMemo(() => {
     const g =
-      groups.find((x) => x.label === selectedLabel) ?? groups[0] ?? null;
+      groups.find((x) => x.label === displayLabel) ?? groups[0] ?? null;
     return g?.balances ?? [];
-  }, [groups, selectedLabel]);
+  }, [groups, displayLabel]);
 
   const byId = new Map(balances.map((b) => [b.product_id, b]));
 
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2 min-h-6">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
             Spot Balances
           </div>
-          <div className="flex flex-wrap items-center gap-1">
-            {groups.map((g) => {
-              const isSelected = g.label === selectedLabel;
-              return (
-                <button
-                  key={g.label === ALL_LABEL ? ALL_LABEL : g.subaccount + g.label}
-                  type="button"
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1">
+              {groups.map((g) => {
+                const isSelected = g.label === displayLabel;
+                return (
+                  <button
+                    key={
+                      g.label === ALL_LABEL ? ALL_LABEL : g.subaccount + g.label
+                    }
+                    type="button"
+                    className={cn(
+                      badgeVariants({
+                        variant: isSelected ? "secondary" : "outline",
+                      }),
+                      "h-6 w-12 cursor-pointer text-[10px] font-medium transition-colors",
+                      !isSelected && "text-muted-foreground",
+                    )}
+                    onClick={() => setSelectedLabel(g.label)}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+            {onRefreshSpotBalances ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                disabled={spotBalancesRefreshing}
+                onClick={() => void onRefreshSpotBalances()}
+                aria-label="Refresh spot balances from Gateway"
+              >
+                <RefreshCw
                   className={cn(
-                    badgeVariants({
-                      variant: isSelected ? "secondary" : "ghost",
-                    }),
-                    "h-6 cursor-pointer px-2.5 text-[11px] font-medium transition-colors",
-                    !isSelected && "text-muted-foreground",
+                    "size-3",
+                    spotBalancesRefreshing && "animate-spin",
                   )}
-                  onClick={() => setSelectedLabel(g.label)}
-                >
-                  {g.label}
-                </button>
-              );
-            })}
+                  aria-hidden
+                />
+              </Button>
+            ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap  gap-2">
           {SPOT_ASSETS.map((asset) => {
             const balance = byId.get(asset.product_id);
             const amount = balance?.amount ?? 0;
