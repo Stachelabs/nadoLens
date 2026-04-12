@@ -171,6 +171,10 @@ export function WalletTradeHistory({ trades }: Props) {
                 const qty = Math.abs(fromX18BigInt(t.amount));
                 const fee = fromX18BigInt(t.fee);
                 const hasPnl = Math.abs(pnl) > 0.001;
+                // Fill side is opposite of the position being reduced on close:
+                // long fill → closing a short | short fill → closing a long
+                const closePositionLabel =
+                  t.side === "long" ? "CLOSE SHORT" : "CLOSE LONG";
                 const pnlColor = pnl >= 0 ? "text-emerald-400" : "text-red-400";
                 const role =
                   t.is_taker === true
@@ -212,27 +216,17 @@ export function WalletTradeHistory({ trades }: Props) {
                           <Badge
                             variant="outline"
                             className={cn(
-                              "px-2 font-bold",
+                              "h-3.5 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
                               hasPnl
-                                ? "flex min-h-9 flex-col items-center justify-center gap-0.5 py-1 leading-none"
-                                : "h-3.5 py-1 text-[10px]",
-                              t.side === "long"
-                                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                : "border-red-400/20 bg-red-400/10 text-red-400",
+                                ? t.side === "short"
+                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                                  : "border-red-400/20 bg-red-400/10 text-red-400"
+                                : t.side === "long"
+                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                                  : "border-red-400/20 bg-red-400/10 text-red-400",
                             )}
                           >
-                            {hasPnl ? (
-                              <>
-                                <span className="text-[9px] font-semibold tracking-wide opacity-90">
-                                  CLOSE
-                                </span>
-                                <span className="text-[10px]">
-                                  {t.side === "long" ? "LONG" : "SHORT"}
-                                </span>
-                              </>
-                            ) : (
-                              t.side.toUpperCase()
-                            )}
+                            {hasPnl ? closePositionLabel : t.side.toUpperCase()}
                           </Badge>
                         </div>
                       </div>
