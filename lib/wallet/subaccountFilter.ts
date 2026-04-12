@@ -1,4 +1,9 @@
-import type { SpotBalancesGroup, SubaccountHealthEntry, TradeMatch } from "@/types/nado";
+import type {
+  CrossSubaccountEntry,
+  SpotBalancesGroup,
+  SubaccountHealthEntry,
+  TradeMatch,
+} from "@/types/nado";
 
 export const SUBACCOUNT_FILTER_ALL = "All";
 
@@ -11,12 +16,16 @@ export function resolveSubaccountFilterDisplay(
   return SUBACCOUNT_FILTER_ALL;
 }
 
-/** Hex (lowercase) → display label — cross subs from spot groups + all health rows (isolated pockets). */
+/** Hex (lowercase) → display label — cross (incl. zero spot) + spot groups + health (isolated pockets). */
 export function buildSubaccountLabelByHex(stats: {
+  cross_subaccounts: CrossSubaccountEntry[];
   spot_balances_by_subaccount: SpotBalancesGroup[];
   subaccount_healths: SubaccountHealthEntry[];
 }): Map<string, string> {
   const m = new Map<string, string>();
+  for (const c of stats.cross_subaccounts) {
+    m.set(c.subaccount.toLowerCase(), c.label);
+  }
   for (const g of stats.spot_balances_by_subaccount) {
     m.set(g.subaccount.toLowerCase(), g.label);
   }

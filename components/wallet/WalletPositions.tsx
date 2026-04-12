@@ -1,6 +1,5 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,16 +12,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SubaccountFilterBadges } from "@/components/wallet/SubaccountFilterBadges";
+import { AccountFilterSelect } from "@/components/wallet/AccountFilterSelect";
+import { cn } from "@/lib/utils";
+import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import {
   resolveSubaccountFilterDisplay,
   SUBACCOUNT_FILTER_ALL,
 } from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
-import { cn } from "@/lib/utils";
-import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
 import { RefreshCw } from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -100,6 +100,11 @@ export function WalletPositions({
     [selectedFilter, crossSubaccountLabels],
   );
 
+  const accountFilterOptions = useMemo(
+    () => [SUBACCOUNT_FILTER_ALL, ...crossSubaccountLabels],
+    [crossSubaccountLabels],
+  );
+
   const displaySubaccount = useCallback((pos: Position): string => {
     if (!pos.isolated)
       return normalizeSubaccountDisplayName(pos.subaccount_name);
@@ -168,10 +173,10 @@ export function WalletPositions({
               Open Positions
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <SubaccountFilterBadges
-                crossLabels={crossSubaccountLabels}
-                displayLabel={displayFilter}
-                onSelect={setSelectedFilter}
+              <AccountFilterSelect
+                options={accountFilterOptions}
+                value={displayFilter}
+                onValueChange={setSelectedFilter}
               />
               {onRefreshUnrealized ? (
                 <Button
@@ -195,7 +200,7 @@ export function WalletPositions({
             </div>
           </div>
           <div className="text-sm text-muted-foreground/70 text-center py-6">
-            No open positions for this account filter
+            No open position for this subaccount
           </div>
         </CardContent>
       </Card>
@@ -213,10 +218,10 @@ export function WalletPositions({
             </span>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <SubaccountFilterBadges
-              crossLabels={crossSubaccountLabels}
-              displayLabel={displayFilter}
-              onSelect={setSelectedFilter}
+            <AccountFilterSelect
+              options={accountFilterOptions}
+              value={displayFilter}
+              onValueChange={setSelectedFilter}
             />
             {onRefreshUnrealized ? (
               <Button
@@ -229,7 +234,10 @@ export function WalletPositions({
                 aria-label="Refresh mark prices and unrealized PnL"
               >
                 <RefreshCw
-                  className={cn("size-3", unrealizedRefreshing && "animate-spin")}
+                  className={cn(
+                    "size-3",
+                    unrealizedRefreshing && "animate-spin",
+                  )}
                   aria-hidden
                 />
               </Button>
@@ -306,7 +314,7 @@ export function WalletPositions({
                     <TableCell className="py-2 pr-2">
                       <div className="flex items-center justify-evenly">
                         {/* 1 — Avatar */}
-                        <div className="flex shrink-0 items-center justify-center">
+                        <div className="flex shrink-0 items-center justify-center pr-1.25">
                           <Avatar size="sm">
                             <AvatarImage
                               src={perpIconSrcFromPair(pos.pair)}
@@ -327,7 +335,7 @@ export function WalletPositions({
                           </span>
                         </div>
                         {/* 3 — Long/Short badge */}
-                        <div className="inline-flex shrink-0 items-center justify-center p-0 m-0">
+                        <div className="inline-flex shrink-0 items-center justify-center pl-1.25">
                           <Badge
                             variant="outline"
                             className={cn(

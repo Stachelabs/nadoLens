@@ -1,6 +1,6 @@
 "use client";
 
-import { SubaccountFilterBadges } from "@/components/wallet/SubaccountFilterBadges";
+import { AccountFilterSelect } from "@/components/wallet/AccountFilterSelect";
 import {
   resolveSubaccountFilterDisplay,
   SUBACCOUNT_FILTER_ALL,
@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { fromX18BigInt } from "@/types/nado";
 import type { TradeMatch } from "@/types/nado";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
+import { RefreshCw } from "lucide-react";
 
 const PAGE_SIZE = 50;
 
@@ -81,17 +83,36 @@ function assetInitial(pair: string): string {
   return (pair.split("-")[0]?.[0] ?? pair[0] ?? "?").toUpperCase();
 }
 
+const TRADE_TABLE_COLUMNS: readonly { key: string; label: string | null }[] = [
+  { key: "time", label: "Time" },
+  { key: "icon", label: null },
+  { key: "pair", label: "Pair" },
+  { key: "direction", label: "Direction" },
+  { key: "role", label: "Role" },
+  { key: "price", label: "Price" },
+  { key: "qty", label: "Qty" },
+  { key: "pnl", label: "Realized PnL" },
+  { key: "fees", label: "Fees" },
+];
+
+const TRADE_TABLE_COL_COUNT = TRADE_TABLE_COLUMNS.length;
+
 type Props = {
   trades: TradeMatch[];
   crossSubaccountLabels: string[];
   /** Maps subaccount hex (lowercase) → display label (main, 1, …). */
   subaccountLabelByHex: Map<string, string>;
+  /** Incremental matches fetch (newer than newest cached trade). */
+  onRefreshTrades?: () => void | Promise<void>;
+  tradesRefreshing?: boolean;
 };
 
 export function WalletTradeHistory({
   trades,
   crossSubaccountLabels,
   subaccountLabelByHex,
+  onRefreshTrades,
+  tradesRefreshing = false,
 }: Props) {
   const [page, setPage] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
@@ -99,6 +120,11 @@ export function WalletTradeHistory({
   const displayFilter = useMemo(
     () => resolveSubaccountFilterDisplay(selectedFilter, crossSubaccountLabels),
     [selectedFilter, crossSubaccountLabels],
+  );
+
+  const accountFilterOptions = useMemo(
+    () => [SUBACCOUNT_FILTER_ALL, ...crossSubaccountLabels],
+    [crossSubaccountLabels],
   );
 
   const filteredTrades = useMemo(
@@ -124,7 +150,7 @@ export function WalletTradeHistory({
     );
   }
 
-  const totalPages = Math.ceil(filteredTrades.length / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredTrades.length / PAGE_SIZE));
   const maxPage = Math.max(0, totalPages - 1);
   const safePage = Math.min(page, maxPage);
   const pageStart = safePage * PAGE_SIZE;
@@ -146,35 +172,49 @@ export function WalletTradeHistory({
             </span>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <SubaccountFilterBadges
-              crossLabels={crossSubaccountLabels}
-              displayLabel={displayFilter}
-              onSelect={handleSubaccountFilter}
+            <AccountFilterSelect
+              options={accountFilterOptions}
+              value={displayFilter}
+              onValueChange={handleSubaccountFilter}
             />
-            {totalPages > 1 ? (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                <button
-                  type="button"
-                  onClick={() => setPage(Math.max(0, safePage - 1))}
-                  disabled={safePage === 0}
-                  className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  ←
-                </button>
-                <span className="tabular-nums">
-                  {safePage + 1} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPage(Math.min(maxPage, safePage + 1))
-                  }
-                  disabled={safePage === totalPages - 1}
-                  className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  →
-                </button>
-              </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+              <button
+                type="button"
+                onClick={() => setPage(Math.max(0, safePage - 1))}
+                disabled={safePage === 0 || filteredTrades.length === 0}
+                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                ←
+              </button>
+              <span className="tabular-nums">
+                {safePage + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage(Math.min(maxPage, safePage + 1))}
+                disabled={
+                  safePage === totalPages - 1 || filteredTrades.length === 0
+                }
+                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                →
+              </button>
+            </div>
+            {onRefreshTrades ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                disabled={tradesRefreshing}
+                onClick={() => void onRefreshTrades()}
+                aria-label="Fetch new trades since last sync"
+              >
+                <RefreshCw
+                  className={cn("size-3", tradesRefreshing && "animate-spin")}
+                  aria-hidden
+                />
+              </Button>
             ) : null}
           </div>
         </div>
@@ -182,30 +222,26 @@ export function WalletTradeHistory({
           <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
-                {[
-                  "Time",
-                  "Pair",
-                  "Direction",
-                  "Role",
-                  "Price",
-                  "Qty",
-                  "Realized PnL",
-                  "Fees",
-                ].map((h, i) => (
+                {TRADE_TABLE_COLUMNS.map((col, i) => (
                   <TableHead
-                    key={h}
+                    key={col.key}
                     className={cn(
                       "font-normal text-muted-foreground/70 pb-2",
                       i === 0
                         ? "text-left"
-                        : i >= 4
-                          ? i === 7
+                        : i >= 5
+                          ? i === 8
                             ? "text-right pr-2"
                             : "text-right pr-4"
                           : "text-center",
+                      col.key === "icon" && "w-12 px-1",
                     )}
                   >
-                    {h}
+                    {col.label === null ? (
+                      <span className="sr-only">Asset icon</span>
+                    ) : (
+                      col.label
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -214,7 +250,7 @@ export function WalletTradeHistory({
               {filteredTrades.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={TRADE_TABLE_COL_COUNT}
                     className="py-8 text-center text-sm text-muted-foreground/70"
                   >
                     No trades for this account filter
@@ -231,6 +267,11 @@ export function WalletTradeHistory({
                 // long fill → closing a short | short fill → closing a long
                 const closePositionLabel =
                   t.side === "long" ? "CLOSE SHORT" : "CLOSE LONG";
+                const openPositionLabel =
+                  t.side === "long" ? "OPEN LONG" : "OPEN SHORT";
+                const directionLabel = hasPnl
+                  ? closePositionLabel
+                  : openPositionLabel;
                 const pnlColor = pnl >= 0 ? "text-emerald-400" : "text-red-400";
                 const role =
                   t.is_taker === true
@@ -247,8 +288,8 @@ export function WalletTradeHistory({
                     <TableCell className="py-2 pr-4 text-muted-foreground whitespace-nowrap">
                       {fmtTime(t.timestamp)}
                     </TableCell>
-                    <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-center gap-4">
+                    <TableCell className="py-2 px-1 align-middle">
+                      <div className="flex justify-center">
                         <Avatar size="sm" className="shrink-0">
                           <AvatarImage
                             src={perpIconSrcFromPair(t.pair)}
@@ -258,14 +299,14 @@ export function WalletTradeHistory({
                             {assetInitial(t.pair)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex min-w-[72px] flex-col items-center">
-                          <span className="font-mono text-foreground">
-                            {t.pair}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/70">
-                            {t.isolated ? "Isolated" : "Cross"}
-                          </span>
-                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-2 text-center align-middle">
+                      <div className="flex min-w-[72px] flex-col items-center justify-center">
+                        <span className="font-mono text-foreground">{t.pair}</span>
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {t.isolated ? "Isolated" : "Cross"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center align-middle">
@@ -274,16 +315,12 @@ export function WalletTradeHistory({
                           variant="outline"
                           className={cn(
                             "px-2 py-1 text-[10px] font-bold whitespace-nowrap",
-                            hasPnl
-                              ? t.side === "short"
-                                ? "border-red-400/20 bg-red-400/10 text-red-400"
-                                : "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                              : t.side === "long"
-                                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                : "border-red-400/20 bg-red-400/10 text-red-400",
+                            t.side === "long"
+                              ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                              : "border-red-400/20 bg-red-400/10 text-red-400",
                           )}
                         >
-                          {hasPnl ? closePositionLabel : t.side.toUpperCase()}
+                          {directionLabel}
                         </Badge>
                       </div>
                     </TableCell>
@@ -327,52 +364,60 @@ export function WalletTradeHistory({
             </TableBody>
           </Table>
         </div>
-        {totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
-            <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-              {pageStart + 1}–
-              {Math.min(pageStart + PAGE_SIZE, filteredTrades.length)} of{" "}
-              {filteredTrades.length}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
+          <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+            {filteredTrades.length === 0 ? (
+              <>0 of 0</>
+            ) : (
+              <>
+                {pageStart + 1}–
+                {Math.min(pageStart + PAGE_SIZE, filteredTrades.length)} of{" "}
+                {filteredTrades.length}
+              </>
+            )}
+          </span>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+            <button
+              type="button"
+              onClick={() => setPage(0)}
+              disabled={safePage === 0 || filteredTrades.length === 0}
+              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(Math.max(0, safePage - 1))}
+              disabled={safePage === 0 || filteredTrades.length === 0}
+              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              ←
+            </button>
+            <span className="tabular-nums">
+              {safePage + 1} / {totalPages}
             </span>
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-              <button
-                type="button"
-                onClick={() => setPage(0)}
-                disabled={safePage === 0}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                «
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage(Math.max(0, safePage - 1))}
-                disabled={safePage === 0}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                ←
-              </button>
-              <span className="tabular-nums">
-                {safePage + 1} / {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage(Math.min(maxPage, safePage + 1))}
-                disabled={safePage === totalPages - 1}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                →
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage(totalPages - 1)}
-                disabled={safePage === totalPages - 1}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                »
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPage(Math.min(maxPage, safePage + 1))}
+              disabled={
+                safePage === totalPages - 1 || filteredTrades.length === 0
+              }
+              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(totalPages - 1)}
+              disabled={
+                safePage === totalPages - 1 || filteredTrades.length === 0
+              }
+              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              »
+            </button>
           </div>
-        ) : null}
+        </div>
       </CardContent>
     </Card>
   );

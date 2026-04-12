@@ -110,6 +110,12 @@ export type SpotBalancesGroup = {
   balances: SpotBalance[]
 }
 
+/** Every cross parent subaccount from Archive (for trade history filters — includes zero spot). */
+export type CrossSubaccountEntry = {
+  subaccount: string
+  label: string
+}
+
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export type SubaccountHealthEntry = {
@@ -135,6 +141,8 @@ export type WalletStats = {
   spot_balances: SpotBalance[]
   /** Per-subaccount spot for UI selector (main, 1, 2, …). */
   spot_balances_by_subaccount: SpotBalancesGroup[]
+  /** All cross subs for trade history account filter (not filtered by spot balance). */
+  cross_subaccounts: CrossSubaccountEntry[]
 
   // PnL — 3 categories
   trading_pnl_usd: number

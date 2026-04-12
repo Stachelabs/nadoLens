@@ -1,6 +1,6 @@
 "use client";
 
-import { badgeVariants } from "@/components/ui/badge";
+import { AccountFilterSelect } from "@/components/wallet/AccountFilterSelect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,11 @@ export function WalletSpotBalances({
     return g?.balances ?? [];
   }, [groups, displayLabel]);
 
+  const accountOptions = useMemo(
+    () => groups.map((g) => g.label),
+    [groups],
+  );
+
   const byId = new Map(balances.map((b) => [b.product_id, b]));
 
   return (
@@ -82,29 +87,11 @@ export function WalletSpotBalances({
             Spot Balances
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap items-center gap-1">
-              {groups.map((g) => {
-                const isSelected = g.label === displayLabel;
-                return (
-                  <button
-                    key={
-                      g.label === ALL_LABEL ? ALL_LABEL : g.subaccount + g.label
-                    }
-                    type="button"
-                    className={cn(
-                      badgeVariants({
-                        variant: isSelected ? "secondary" : "outline",
-                      }),
-                      " h-5 w-12 cursor-pointer text-[10px] font-medium transition-colors",
-                      !isSelected && "text-muted-foreground",
-                    )}
-                    onClick={() => setSelectedLabel(g.label)}
-                  >
-                    {g.label}
-                  </button>
-                );
-              })}
-            </div>
+            <AccountFilterSelect
+              options={accountOptions}
+              value={displayLabel}
+              onValueChange={setSelectedLabel}
+            />
             {onRefreshSpotBalances ? (
               <Button
                 type="button"

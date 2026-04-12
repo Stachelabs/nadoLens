@@ -13,7 +13,6 @@ import { isClosingTrade } from "@/lib/wallet/performance";
 import {
   filterTradesByPeriod,
   filterFundingPaymentsByPeriod,
-  formatEquityPeriodLabel,
   type EquityPeriod,
 } from "@/lib/wallet/equityPeriod";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +25,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,12 +47,6 @@ const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 2,
-});
-
-const fmtUsdHeader = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
 });
 
 const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
@@ -122,7 +117,6 @@ export function WalletEquityCurve({
     },
   } satisfies ChartConfig;
 
-  const periodLabel = formatEquityPeriodLabel(period);
   const emptyInPeriod =
     tradesComplete && tradesInPeriod.length === 0 && period !== "All time";
 
@@ -130,56 +124,40 @@ export function WalletEquityCurve({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
-              Perp Equity Curve
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {period === "All time" ? "All time" : periodLabel}
-            </div>
+          <div className="min-w-0 text-[11px] uppercase tracking-wider text-muted-foreground/70">
+            Perp Equity Curve
           </div>
-          <div className="flex flex-col gap-2 sm:items-end">
+          <div className="shrink-0 sm:ml-auto">
             <Select
               value={period}
               onValueChange={(v) => {
-                setPeriod(v as EquityPeriod);
+                if (v != null) setPeriod(v as EquityPeriod);
               }}
             >
               <SelectTrigger
                 size="sm"
-                className="w-full min-w-[140px] sm:w-[160px]"
+                className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40  px-2 text-[11px] font-medium text-muted-foreground"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end">
-                {PERIOD_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel className="px-1.5 py-1 text-[11px]">
+                    Period
+                  </SelectLabel>
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
-            {points.length > 0 && (
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                  Period net PnL
-                </div>
-                <div
-                  className={cn(
-                    "text-sm font-bold tabular-nums",
-                    finalValue >= 0 ? "text-emerald-400" : "text-red-400",
-                  )}
-                >
-                  {finalValue >= 0 ? "+" : ""}
-                  {fmtUsdHeader.format(finalValue)}
-                </div>
-              </div>
-            )}
           </div>
         </div>
         {!tradesComplete ? (
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
-            Loading full trade history…
+            Loading trades history…
           </div>
         ) : emptyInPeriod ? (
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
@@ -293,7 +271,7 @@ export function WalletEquityCurve({
             </span>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
-            <span className="font-medium text-foreground">Total PnL</span>
+            <span className="font-medium text-foreground">Period Net PnL</span>
             <span
               className={cn(
                 "font-semibold tabular-nums",

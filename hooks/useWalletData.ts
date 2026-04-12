@@ -33,6 +33,7 @@ import {
 } from "@/lib/wallet/subaccountLabel";
 import { isEmptyTrackedSpotBalances } from "@/lib/wallet/spotTracked";
 import type {
+  CrossSubaccountEntry,
   Position,
   SpotBalance,
   SpotBalancesGroup,
@@ -254,17 +255,21 @@ export type WalletData = {
   refreshing: boolean;
   /** True while re-fetching Gateway subaccount_info for live marks / unrealized only. */
   unrealizedRefreshing: boolean;
+  /** True while re-fetching cross spot balances only (Gateway, no Archive matches). */
+  spotBalancesRefreshing: boolean;
   /** Reloads account snapshot, trade history, and funding — not polled automatically. */
   refresh: () => Promise<void>;
   /** Re-query Gateway for positions + unrealized only (same as 30s poll, immediate). */
   refreshUnrealizedPnl: () => Promise<void>;
+  /** Cross subaccount spot via Gateway only — does not call /api/matches. */
+  refreshSpotBalances: () => Promise<void>;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWalletData(rawAddress: string): WalletData {
   const [data, setData] = useState<
-    Omit<WalletData, "refresh" | "refreshUnrealizedPnl">
+    Omit<WalletData, "refresh" | "refreshUnrealizedPnl" | "refreshSpotBalances">
   >({
     stats: null,
     trades: [],
@@ -275,6 +280,7 @@ export function useWalletData(rawAddress: string): WalletData {
     error: null,
     refreshing: false,
     unrealizedRefreshing: false,
+    spotBalancesRefreshing: false,
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
@@ -300,6 +306,7 @@ export function useWalletData(rawAddress: string): WalletData {
   const tradesCompleteRef = useRef(false);
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
+  const refreshSpotBalancesImplRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!rawAddress) return;
@@ -433,6 +440,7 @@ export function useWalletData(rawAddress: string): WalletData {
       positions: Position[];
       spotBalances: SpotBalance[];
       spotBalancesBySubaccount: SpotBalancesGroup[];
+      crossSubaccounts: CrossSubaccountEntry[];
       equityUsd: number;
       availableMargin: number;
       maintenanceMargin: number;
@@ -503,6 +511,17 @@ export function useWalletData(rawAddress: string): WalletData {
             subaccountDisplayLabelSortKey(a.label) -
             subaccountDisplayLabelSortKey(b.label),
         );
+      const crossSubaccounts: CrossSubaccountEntry[] = subs
+        .filter((s) => !s.isolated)
+        .map((s) => ({
+          subaccount: s.subaccount,
+          label: normalizeSubaccountDisplayName(s.subaccount_name),
+        }))
+        .sort(
+          (a, b) =>
+            subaccountDisplayLabelSortKey(a.label) -
+            subaccountDisplayLabelSortKey(b.label),
+        );
       const equityUsd = results.reduce((s, r) => s + r.equityUsd, 0);
       const availableMargin = results.reduce((s, r) => s + r.availableMargin, 0);
       const maintenanceMargin = results.reduce((s, r) => s + r.maintenanceMargin, 0);
@@ -533,6 +552,7 @@ export function useWalletData(rawAddress: string): WalletData {
         positions: allPositions,
         spotBalances,
         spotBalancesBySubaccount,
+        crossSubaccounts,
         equityUsd,
         availableMargin,
         maintenanceMargin,
@@ -898,6 +918,7 @@ export function useWalletData(rawAddress: string): WalletData {
             fundingComplete: false,
             refreshing: false,
             unrealizedRefreshing: false,
+            spotBalancesRefreshing: false,
             error:
               "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
           });
@@ -946,6 +967,7 @@ export function useWalletData(rawAddress: string): WalletData {
           positions: initPositions,
           spot_balances: positionData.spotBalances,
           spot_balances_by_subaccount: positionData.spotBalancesBySubaccount,
+          cross_subaccounts: positionData.crossSubaccounts,
           trades: allTrades,
           trades_complete: firstPages.every((page) => page.done),
           ...initialPnlStats,
@@ -955,6 +977,7 @@ export function useWalletData(rawAddress: string): WalletData {
         loading: false,
         refreshing: false,
         unrealizedRefreshing: false,
+        spotBalancesRefreshing: false,
         tradesComplete: firstPages.every((page) => page.done),
         fundingComplete: fundingData.complete,
         error:
@@ -1186,6 +1209,7 @@ export function useWalletData(rawAddress: string): WalletData {
                 maintenance_margin: pd.maintenanceMargin,
                 spot_balances: pd.spotBalances,
                 spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
+                cross_subaccounts: pd.crossSubaccounts,
                 unrealized_pnl_usd: pollTotals.unrealizedTotal,
               }
             : null,
@@ -1270,12 +1294,68 @@ export function useWalletData(rawAddress: string): WalletData {
                   maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
                   spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
+                  cross_subaccounts: pd.crossSubaccounts,
                   unrealized_pnl_usd: refreshTotals.unrealizedTotal,
                 }
               : null,
           }));
         } catch {
           setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
+        }
+      };
+
+      refreshSpotBalancesImplRef.current = async () => {
+        if (cancelled) return;
+        setData((prev) => ({ ...prev, spotBalancesRefreshing: true }));
+        try {
+          const freshSubs = await fetchSubaccounts();
+          if (cancelled) {
+            setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
+            return;
+          }
+          subaccountsRef.current = freshSubs;
+
+          const crossSubs = freshSubs.filter((s) => !s.isolated);
+          if (crossSubs.length === 0) {
+            setData((prev) => ({
+              ...prev,
+              spotBalancesRefreshing: false,
+              stats: prev.stats
+                ? {
+                    ...prev.stats,
+                    spot_balances: [],
+                    spot_balances_by_subaccount: [],
+                    cross_subaccounts: [],
+                  }
+                : null,
+            }));
+            return;
+          }
+
+          const pd = await fetchAllPositions(
+            crossSubs,
+            isolatedParentNameRef.current,
+            isolatedParentSubaccountRef.current,
+          );
+          if (cancelled) {
+            setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
+            return;
+          }
+
+          setData((prev) => ({
+            ...prev,
+            spotBalancesRefreshing: false,
+            stats: prev.stats
+              ? {
+                  ...prev.stats,
+                  spot_balances: pd.spotBalances,
+                  spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
+                  cross_subaccounts: pd.crossSubaccounts,
+                }
+              : null,
+          }));
+        } catch {
+          setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
         }
       };
       } finally {
@@ -1331,6 +1411,7 @@ export function useWalletData(rawAddress: string): WalletData {
           loading: false,
           refreshing: false,
           unrealizedRefreshing: false,
+          spotBalancesRefreshing: false,
           tradesComplete: true,
           stats: p.stats ? { ...p.stats, trades_complete: true } : null,
           error: "Failed to load wallet data",
@@ -1355,5 +1436,6 @@ export function useWalletData(rawAddress: string): WalletData {
     ...data,
     refresh: () => refreshImplRef.current(),
     refreshUnrealizedPnl: () => refreshUnrealizedImplRef.current(),
+    refreshSpotBalances: () => refreshSpotBalancesImplRef.current(),
   };
 }

@@ -322,7 +322,9 @@ export function WalletSummary({
                   />
                 )
               }
-              valueClass={isFundingPositive ? "text-emerald-400" : "text-red-400"}
+              valueClass={
+                isFundingPositive ? "text-emerald-400" : "text-red-400"
+              }
             />
             <Row
               label="First Trade"

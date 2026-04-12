@@ -31,10 +31,17 @@ function WalletContent({ address }: { address: string }) {
     refreshing,
     refreshUnrealizedPnl,
     unrealizedRefreshing,
+    refreshSpotBalances,
+    spotBalancesRefreshing,
   } = useWalletData(address);
 
-  const crossSubaccountLabels = useMemo(
+  const positionCrossSubaccountLabels = useMemo(
     () => stats?.spot_balances_by_subaccount.map((g) => g.label) ?? [],
+    [stats],
+  );
+
+  const tradeCrossSubaccountLabels = useMemo(
+    () => stats?.cross_subaccounts.map((c) => c.label) ?? [],
     [stats],
   );
 
@@ -65,12 +72,12 @@ function WalletContent({ address }: { address: string }) {
       <WalletSpotBalances
         bySubaccount={stats.spot_balances_by_subaccount}
         mergedBalances={stats.spot_balances}
-        onRefreshSpotBalances={refreshUnrealizedPnl}
-        spotBalancesRefreshing={unrealizedRefreshing}
+        onRefreshSpotBalances={refreshSpotBalances}
+        spotBalancesRefreshing={spotBalancesRefreshing}
       />
       <WalletPositions
         positions={stats.positions}
-        crossSubaccountLabels={crossSubaccountLabels}
+        crossSubaccountLabels={positionCrossSubaccountLabels}
         subaccountHealths={stats.subaccount_healths}
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
@@ -96,8 +103,10 @@ function WalletContent({ address }: { address: string }) {
       />
       <WalletTradeHistory
         trades={trades}
-        crossSubaccountLabels={crossSubaccountLabels}
+        crossSubaccountLabels={tradeCrossSubaccountLabels}
         subaccountLabelByHex={subaccountLabelByHex}
+        onRefreshTrades={refresh}
+        tradesRefreshing={refreshing}
       />
     </div>
   );
