@@ -51,7 +51,10 @@ function WalletContent({ address }: { address: string }) {
   return (
     <div className="space-y-6">
       <WalletHeader stats={stats} />
-      <WalletSpotBalances balances={stats.spot_balances} />
+      <WalletSpotBalances
+        bySubaccount={stats.spot_balances_by_subaccount}
+        mergedBalances={stats.spot_balances}
+      />
       <WalletPositions
         positions={stats.positions}
         subaccountHealths={stats.subaccount_healths}

@@ -103,6 +103,13 @@ export type SpotBalance = {
   value_usd: number
 }
 
+/** Spot balances for one subaccount (label: main, 1, 2, …). */
+export type SpotBalancesGroup = {
+  label: string
+  subaccount: string
+  balances: SpotBalance[]
+}
+
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export type SubaccountHealthEntry = {
@@ -124,7 +131,10 @@ export type WalletStats = {
   maintenance_margin: number
   unrealized_pnl_usd: number
   positions: Position[]
+  /** Sum of spot across all subaccounts (legacy / totals). */
   spot_balances: SpotBalance[]
+  /** Per-subaccount spot for UI selector (main, 1, 2, …). */
+  spot_balances_by_subaccount: SpotBalancesGroup[]
 
   // PnL — 3 categories
   trading_pnl_usd: number

@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import { cn } from "@/lib/utils";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
@@ -88,18 +89,11 @@ export function WalletPositions({
     subaccountHealths.map((h) => [h.subaccount.toLowerCase(), h.health_score]),
   );
 
-  const normalizeCrossLabel = (name?: string): string => {
-    if (!name) return "main";
-    if (name === "default") return "main";
-    const m = /^default_(\d+)$/.exec(name);
-    if (m) return m[1] ?? "main";
-    return name;
-  };
-
   const displaySubaccount = (pos: Position): string => {
-    if (!pos.isolated) return normalizeCrossLabel(pos.subaccount_name);
+    if (!pos.isolated)
+      return normalizeSubaccountDisplayName(pos.subaccount_name);
     if (pos.parent_subaccount_name) {
-      return normalizeCrossLabel(pos.parent_subaccount_name);
+      return normalizeSubaccountDisplayName(pos.parent_subaccount_name);
     }
     return `isolated ${pos.subaccount.slice(-4)}`;
   };
@@ -241,7 +235,7 @@ export function WalletPositions({
                     className="border-border/50"
                   >
                     <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-around">
+                      <div className="flex items-center justify-evenly">
                         {/* 1 — Avatar */}
                         <div className="flex shrink-0 items-center justify-center">
                           <Avatar size="sm">
@@ -268,7 +262,7 @@ export function WalletPositions({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[9px] px-1 py-0.5 h-3.5 font-bold",
+                              "text-[9px] px-1 py-0.5 h-4 font-bold",
                               isLong
                                 ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                                 : "border-red-400/20 bg-red-400/10 text-red-400",

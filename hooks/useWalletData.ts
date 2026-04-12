@@ -27,7 +27,18 @@ import {
   mergePnl,
 } from "@/lib/wallet/performance";
 import { usePairsStore, productName } from "@/store/pairsStore";
-import type { Position, SpotBalance, SubaccountHealthEntry, TradeMatch, WalletStats } from "@/types/nado";
+import {
+  normalizeSubaccountDisplayName,
+  subaccountDisplayLabelSortKey,
+} from "@/lib/wallet/subaccountLabel";
+import type {
+  Position,
+  SpotBalance,
+  SpotBalancesGroup,
+  SubaccountHealthEntry,
+  TradeMatch,
+  WalletStats,
+} from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { useEffect, useRef, useState } from "react";
 
@@ -420,6 +431,7 @@ export function useWalletData(rawAddress: string): WalletData {
     ): Promise<{
       positions: Position[];
       spotBalances: SpotBalance[];
+      spotBalancesBySubaccount: SpotBalancesGroup[];
       equityUsd: number;
       availableMargin: number;
       maintenanceMargin: number;
@@ -462,7 +474,18 @@ export function useWalletData(rawAddress: string): WalletData {
           }
         }
       }
-      const spotBalances = Array.from(spotMap.values())
+      const spotBalances = Array.from(spotMap.values());
+      const spotBalancesBySubaccount: SpotBalancesGroup[] = subs
+        .map((s, i) => ({
+          label: normalizeSubaccountDisplayName(s.subaccount_name),
+          subaccount: s.subaccount,
+          balances: results[i]?.spotBalances ?? [],
+        }))
+        .sort(
+          (a, b) =>
+            subaccountDisplayLabelSortKey(a.label) -
+            subaccountDisplayLabelSortKey(b.label),
+        );
       const equityUsd = results.reduce((s, r) => s + r.equityUsd, 0);
       const availableMargin = results.reduce((s, r) => s + r.availableMargin, 0);
       const maintenanceMargin = results.reduce((s, r) => s + r.maintenanceMargin, 0);
@@ -472,12 +495,6 @@ export function useWalletData(rawAddress: string): WalletData {
         results[primaryIdx >= 0 ? primaryIdx : 0]?.healthScore ?? 1;
       const unrealizedTotal = results.reduce((s, r) => s + r.unrealizedTotal, 0);
 
-      const normalizeSubName = (name: string): string => {
-        if (name === 'default') return 'main'
-        const m = /^default_(\d+)$/.exec(name)
-        if (m) return m[1] ?? 'main'
-        return name
-      }
       const subaccountHealths: SubaccountHealthEntry[] = subs
         .flatMap((sub, i): SubaccountHealthEntry[] => {
           const r = results[i]
@@ -485,7 +502,7 @@ export function useWalletData(rawAddress: string): WalletData {
           if (r.equityUsd === 0 && r.positions.length === 0) return []
           const entry: SubaccountHealthEntry = {
             subaccount: sub.subaccount,
-            subaccount_name: normalizeSubName(sub.subaccount_name ?? 'default'),
+            subaccount_name: normalizeSubaccountDisplayName(sub.subaccount_name),
             health_score: r.healthScore,
             isolated: sub.isolated,
           }
@@ -498,6 +515,7 @@ export function useWalletData(rawAddress: string): WalletData {
       return {
         positions: allPositions,
         spotBalances,
+        spotBalancesBySubaccount,
         equityUsd,
         availableMargin,
         maintenanceMargin,
@@ -910,6 +928,7 @@ export function useWalletData(rawAddress: string): WalletData {
           unrealized_pnl_usd: initTotals.unrealizedTotal,
           positions: initPositions,
           spot_balances: positionData.spotBalances,
+          spot_balances_by_subaccount: positionData.spotBalancesBySubaccount,
           trades: allTrades,
           trades_complete: firstPages.every((page) => page.done),
           ...initialPnlStats,
@@ -1149,6 +1168,7 @@ export function useWalletData(rawAddress: string): WalletData {
                 available_margin: pd.availableMargin,
                 maintenance_margin: pd.maintenanceMargin,
                 spot_balances: pd.spotBalances,
+                spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
                 unrealized_pnl_usd: pollTotals.unrealizedTotal,
               }
             : null,
@@ -1232,6 +1252,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   available_margin: pd.availableMargin,
                   maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
+                  spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
                   unrealized_pnl_usd: refreshTotals.unrealizedTotal,
                 }
               : null,
