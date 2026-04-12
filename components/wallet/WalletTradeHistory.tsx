@@ -219,8 +219,8 @@ export function WalletTradeHistory({ trades }: Props) {
                               "h-3.5 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
                               hasPnl
                                 ? t.side === "short"
-                                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                  : "border-red-400/20 bg-red-400/10 text-red-400"
+                                  ? "border-red-400/20 bg-red-400/10 text-red-400"
+                                  : "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                                 : t.side === "long"
                                   ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                                   : "border-red-400/20 bg-red-400/10 text-red-400",
