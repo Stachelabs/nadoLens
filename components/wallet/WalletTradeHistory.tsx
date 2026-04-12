@@ -212,13 +212,27 @@ export function WalletTradeHistory({ trades }: Props) {
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[10px] px-2 py-1 h-3.5 font-bold",
+                              "px-2 font-bold",
+                              hasPnl
+                                ? "flex min-h-9 flex-col items-center justify-center gap-0.5 py-1 leading-none"
+                                : "h-3.5 py-1 text-[10px]",
                               t.side === "long"
                                 ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                                 : "border-red-400/20 bg-red-400/10 text-red-400",
                             )}
                           >
-                            {t.side.toUpperCase()}
+                            {hasPnl ? (
+                              <>
+                                <span className="text-[9px] font-semibold tracking-wide opacity-90">
+                                  CLOSE
+                                </span>
+                                <span className="text-[10px]">
+                                  {t.side === "long" ? "LONG" : "SHORT"}
+                                </span>
+                              </>
+                            ) : (
+                              t.side.toUpperCase()
+                            )}
                           </Badge>
                         </div>
                       </div>
