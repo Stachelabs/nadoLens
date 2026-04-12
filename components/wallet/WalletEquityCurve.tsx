@@ -132,7 +132,7 @@ export function WalletEquityCurve({
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
-              Equity Curve
+              Perp Equity Curve
             </div>
             <div className="text-xs text-muted-foreground">
               {period === "All time" ? "All time" : periodLabel}
@@ -264,7 +264,12 @@ export function WalletEquityCurve({
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">PnL</span>
-            <span className={cn("tabular-nums", breakdown.tradingPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+            <span
+              className={cn(
+                "tabular-nums",
+                breakdown.tradingPnl >= 0 ? "text-emerald-400" : "text-red-400",
+              )}
+            >
               {breakdown.tradingPnl >= 0 ? "+" : ""}
               {fmtUsd.format(breakdown.tradingPnl)}
             </span>
@@ -277,14 +282,26 @@ export function WalletEquityCurve({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Funding</span>
-            <span className={cn("tabular-nums", breakdown.funding >= 0 ? "text-emerald-400" : "text-red-400")}>
+            <span
+              className={cn(
+                "tabular-nums",
+                breakdown.funding >= 0 ? "text-emerald-400" : "text-red-400",
+              )}
+            >
               {breakdown.funding >= 0 ? "+" : ""}
               {fmtUsd.format(breakdown.funding)}
             </span>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="font-medium text-foreground">Total PnL</span>
-            <span className={cn("font-semibold tabular-nums", breakdown.totalNetPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+            <span
+              className={cn(
+                "font-semibold tabular-nums",
+                breakdown.totalNetPnl >= 0
+                  ? "text-emerald-400"
+                  : "text-red-400",
+              )}
+            >
               {breakdown.totalNetPnl >= 0 ? "+" : ""}
               {fmtUsd.format(breakdown.totalNetPnl)}
             </span>

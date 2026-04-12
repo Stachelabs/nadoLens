@@ -68,8 +68,7 @@ export function WalletSpotBalances({
   }, [groups, selectedLabel]);
 
   const balances = useMemo(() => {
-    const g =
-      groups.find((x) => x.label === displayLabel) ?? groups[0] ?? null;
+    const g = groups.find((x) => x.label === displayLabel) ?? groups[0] ?? null;
     return g?.balances ?? [];
   }, [groups, displayLabel]);
 
@@ -78,7 +77,7 @@ export function WalletSpotBalances({
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="mb-3 flex flex-wrap items-center gap-2 min-h-6">
+        <div className="mb-3 flex flex-wrap  items-center gap-2 min-h-6">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
             Spot Balances
           </div>
@@ -96,7 +95,7 @@ export function WalletSpotBalances({
                       badgeVariants({
                         variant: isSelected ? "secondary" : "outline",
                       }),
-                      "h-6 w-12 cursor-pointer text-[10px] font-medium transition-colors",
+                      " h-5 w-12 cursor-pointer text-[10px] font-medium transition-colors",
                       !isSelected && "text-muted-foreground",
                     )}
                     onClick={() => setSelectedLabel(g.label)}

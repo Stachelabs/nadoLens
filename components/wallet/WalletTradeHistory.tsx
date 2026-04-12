@@ -193,7 +193,7 @@ export function WalletTradeHistory({ trades }: Props) {
                       {fmtTime(t.timestamp)}
                     </TableCell>
                     <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-4">
                         <Avatar size="sm" className="shrink-0">
                           <AvatarImage
                             src={perpIconSrcFromPair(t.pair)}
@@ -218,7 +218,7 @@ export function WalletTradeHistory({ trades }: Props) {
                         <Badge
                           variant="outline"
                           className={cn(
-                            "h-3.5 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
+                            "px-2 py-1 text-[10px] font-bold whitespace-nowrap",
                             hasPnl
                               ? t.side === "short"
                                 ? "border-red-400/20 bg-red-400/10 text-red-400"
