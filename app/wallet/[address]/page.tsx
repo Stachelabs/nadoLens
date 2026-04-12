@@ -24,8 +24,13 @@ function WalletContent({ address }: { address: string }) {
     trades,
     fundingPayments,
     loading,
+    phase1Ready,
     tradesComplete,
     fundingComplete,
+    globalMatchesComplete,
+    globalFundingLoading,
+    globalFundingComplete,
+    loadGlobalFunding,
     error,
     refresh,
     refreshing,
@@ -50,7 +55,7 @@ function WalletContent({ address }: { address: string }) {
     [stats],
   );
 
-  if (loading) {
+  if (!phase1Ready) {
     return (
       <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
         <Spinner size={48} />
@@ -89,8 +94,10 @@ function WalletContent({ address }: { address: string }) {
       />
       <WalletSummary
         stats={stats}
-        tradesComplete={tradesComplete}
-        fundingComplete={fundingComplete}
+        globalMatchesComplete={globalMatchesComplete}
+        globalFundingComplete={globalFundingComplete}
+        globalFundingLoading={globalFundingLoading}
+        loadGlobalFunding={loadGlobalFunding}
         onRefresh={refresh}
         refreshing={refreshing}
         onRefreshUnrealized={refreshUnrealizedPnl}
@@ -99,7 +106,7 @@ function WalletContent({ address }: { address: string }) {
       <WalletEquityCurve
         trades={trades}
         fundingPayments={fundingPayments}
-        tradesComplete={tradesComplete}
+        globalMatchesComplete={globalMatchesComplete}
       />
       <WalletTradeHistory
         trades={trades}
@@ -107,6 +114,7 @@ function WalletContent({ address }: { address: string }) {
         subaccountLabelByHex={subaccountLabelByHex}
         onRefreshTrades={refresh}
         tradesRefreshing={refreshing}
+        globalMatchesComplete={globalMatchesComplete}
       />
     </div>
   );

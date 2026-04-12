@@ -54,8 +54,10 @@ function timeAgo(nanoTs: string | null): string {
 
 type Props = {
   stats: WalletStats;
-  tradesComplete?: boolean;
-  fundingComplete?: boolean;
+  globalMatchesComplete?: boolean;
+  globalFundingComplete?: boolean;
+  globalFundingLoading?: boolean;
+  loadGlobalFunding?: () => Promise<void>;
   /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
   onRefresh?: () => void | Promise<void>;
   refreshing?: boolean;
@@ -121,8 +123,10 @@ function Section({
 
 export function WalletSummary({
   stats,
-  tradesComplete = true,
-  fundingComplete = true,
+  globalMatchesComplete = true,
+  globalFundingComplete = true,
+  globalFundingLoading = false,
+  loadGlobalFunding,
   onRefresh,
   refreshing = false,
   onRefreshUnrealized,
@@ -184,7 +188,7 @@ export function WalletSummary({
               <Row
                 label="All Time PnL"
                 value={
-                  tradesComplete && fundingComplete ? (
+                  globalMatchesComplete && globalFundingComplete ? (
                     `${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`
                   ) : (
                     <Skeleton
@@ -203,7 +207,7 @@ export function WalletSummary({
           <Section
             className="min-w-0 w-full lg:flex-1 lg:basis-0"
             title="Overview"
-            loading={!tradesComplete}
+            loading={!globalMatchesComplete}
             action={
               onRefresh ? (
                 <Button
@@ -226,7 +230,7 @@ export function WalletSummary({
             <Row
               label="Total Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.total_volume_usd)
                 ) : (
                   <Skeleton
@@ -239,7 +243,7 @@ export function WalletSummary({
             <Row
               label="Perp Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.perp_volume_usd)
                 ) : (
                   <Skeleton
@@ -252,7 +256,7 @@ export function WalletSummary({
             <Row
               label="Spot Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.spot_volume_usd)
                 ) : (
                   <Skeleton
@@ -265,7 +269,7 @@ export function WalletSummary({
             <Row
               label="Spot Trades"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   stats.spot_trades_count.toString()
                 ) : (
                   <Skeleton
@@ -278,7 +282,7 @@ export function WalletSummary({
             <Row
               label="Perp Trades"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   stats.perp_trades_count.toString()
                 ) : (
                   <Skeleton
@@ -291,7 +295,7 @@ export function WalletSummary({
             <Row
               label="Total Fees"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsd.format(stats.total_fees_usd)
                 ) : (
                   <Skeleton
@@ -309,9 +313,9 @@ export function WalletSummary({
             <Row
               label="Total Funding"
               value={
-                tradesComplete ? (
+                globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(stats.funding_pnl_usd)}`
-                ) : (
+                ) : globalFundingLoading ? (
                   <Skeleton
                     className={cn(
                       "h-4 shrink-0 rounded-sm",
@@ -320,6 +324,16 @@ export function WalletSummary({
                     )}
                     aria-hidden
                   />
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-5 text-[10px] px-2"
+                    onClick={() => void loadGlobalFunding?.()}
+                  >
+                    Load full history
+                  </Button>
                 )
               }
               valueClass={
@@ -329,7 +343,7 @@ export function WalletSummary({
             <Row
               label="First Trade"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   formatTimestamp(stats.first_trade_at)
                 ) : (
                   <Skeleton
@@ -342,7 +356,7 @@ export function WalletSummary({
             <Row
               label="Last Trade"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   timeAgo(stats.last_trade_at)
                 ) : (
                   <Skeleton

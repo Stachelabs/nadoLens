@@ -32,12 +32,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
   trades: TradeMatch[];
   fundingPayments: FundingPaymentEntry[];
   /** When false, cumulative PnL / volumes are incomplete — hide misleading chart */
-  tradesComplete?: boolean;
+  globalMatchesComplete?: boolean;
 };
 
 const BULL_STROKE = "#34d399";
@@ -59,19 +60,19 @@ const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
 export function WalletEquityCurve({
   trades,
   fundingPayments,
-  tradesComplete = true,
+  globalMatchesComplete = true,
 }: Props) {
-  const [period, setPeriod] = useState<EquityPeriod>("All time");
+  const [period, setPeriod] = useState<EquityPeriod>("7 Days");
 
   const tradesInPeriod = useMemo(() => {
-    if (!tradesComplete) return [];
+    if (!globalMatchesComplete) return [];
     return filterTradesByPeriod(trades, period);
-  }, [trades, tradesComplete, period]);
+  }, [trades, globalMatchesComplete, period]);
 
   const fundingInPeriod = useMemo(() => {
-    if (!tradesComplete) return [];
+    if (!globalMatchesComplete) return [];
     return filterFundingPaymentsByPeriod(fundingPayments, period);
-  }, [fundingPayments, tradesComplete, period]);
+  }, [fundingPayments, globalMatchesComplete, period]);
 
   const breakdown = useMemo(() => {
     const tradingPnl = tradesInPeriod.reduce((sum, trade) => {
@@ -99,12 +100,12 @@ export function WalletEquityCurve({
 
   const points = useMemo(
     () =>
-      tradesComplete
+      globalMatchesComplete
         ? buildEquityCurveData(tradesInPeriod, {
             fundingPayments: fundingInPeriod,
           })
         : [],
-    [tradesInPeriod, fundingInPeriod, tradesComplete],
+    [tradesInPeriod, fundingInPeriod, globalMatchesComplete],
   );
 
   const finalValue = points[points.length - 1]?.equity ?? 0;
@@ -118,7 +119,7 @@ export function WalletEquityCurve({
   } satisfies ChartConfig;
 
   const emptyInPeriod =
-    tradesComplete && tradesInPeriod.length === 0 && period !== "All time";
+    globalMatchesComplete && tradesInPeriod.length === 0 && period !== "All time";
 
   return (
     <Card className="border-border bg-card">
@@ -155,10 +156,8 @@ export function WalletEquityCurve({
             </Select>
           </div>
         </div>
-        {!tradesComplete ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
-            Loading trades history…
-          </div>
+        {!globalMatchesComplete ? (
+          <Skeleton className="h-48 w-full rounded-md" />
         ) : emptyInPeriod ? (
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
             No trades in this period
