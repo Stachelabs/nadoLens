@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SubaccountFilterBadges } from "@/components/wallet/SubaccountFilterBadges";
+import {
+  resolveSubaccountFilterDisplay,
+  SUBACCOUNT_FILTER_ALL,
+} from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import { cn } from "@/lib/utils";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
@@ -73,6 +78,8 @@ function assetInitial(pair: string): string {
 
 type Props = {
   positions: Position[];
+  /** Cross subaccount labels with non-zero tracked spot (same as Spot Balances badges). */
+  crossSubaccountLabels: string[];
   subaccountHealths?: SubaccountHealthEntry[];
   /** Re-fetch Gateway subaccount_info for live marks / unrealized only. */
   onRefreshUnrealized?: () => void | Promise<void>;
@@ -81,22 +88,31 @@ type Props = {
 
 export function WalletPositions({
   positions,
+  crossSubaccountLabels,
   subaccountHealths = [],
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
-  const healthBySubaccount = new Map(
-    subaccountHealths.map((h) => [h.subaccount.toLowerCase(), h.health_score]),
+  const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
+
+  const displayFilter = useMemo(
+    () => resolveSubaccountFilterDisplay(selectedFilter, crossSubaccountLabels),
+    [selectedFilter, crossSubaccountLabels],
   );
 
-  const displaySubaccount = (pos: Position): string => {
+  const displaySubaccount = useCallback((pos: Position): string => {
     if (!pos.isolated)
       return normalizeSubaccountDisplayName(pos.subaccount_name);
     if (pos.parent_subaccount_name) {
       return normalizeSubaccountDisplayName(pos.parent_subaccount_name);
     }
     return `isolated ${pos.subaccount.slice(-4)}`;
-  };
+  }, []);
+
+  const filteredPositions = useMemo(() => {
+    if (displayFilter === SUBACCOUNT_FILTER_ALL) return positions;
+    return positions.filter((p) => displaySubaccount(p) === displayFilter);
+  }, [positions, displayFilter, displaySubaccount]);
 
   const accountSortRank = (name: string): number => {
     if (name === "main") return 0;
@@ -105,25 +121,28 @@ export function WalletPositions({
     return Number.MAX_SAFE_INTEGER;
   };
 
-  const orderedPositions = [...positions].sort((a, b) => {
-    const aAcc = displaySubaccount(a);
-    const bAcc = displaySubaccount(b);
-    const byAccount = accountSortRank(aAcc) - accountSortRank(bAcc);
-    if (byAccount !== 0) return byAccount;
+  const orderedPositions = useMemo(() => {
+    return [...filteredPositions].sort((a, b) => {
+      const aAcc = displaySubaccount(a);
+      const bAcc = displaySubaccount(b);
+      const byAccount = accountSortRank(aAcc) - accountSortRank(bAcc);
+      if (byAccount !== 0) return byAccount;
 
-    // Within each account: cross first, then isolated.
-    if (a.isolated !== b.isolated) return a.isolated ? 1 : -1;
+      if (a.isolated !== b.isolated) return a.isolated ? 1 : -1;
 
-    // Within each block (cross or isolated): sort by product_id.
-    const byProductId = a.product_id - b.product_id;
-    if (byProductId !== 0) return byProductId;
+      const byProductId = a.product_id - b.product_id;
+      if (byProductId !== 0) return byProductId;
 
-    // Stable secondary ordering for readability.
-    return a.pair.localeCompare(b.pair);
-  });
+      return a.pair.localeCompare(b.pair);
+    });
+  }, [filteredPositions, displaySubaccount]);
+
+  const healthBySubaccount = new Map(
+    subaccountHealths.map((h) => [h.subaccount.toLowerCase(), h.health_score]),
+  );
 
   const hasMultipleSubaccounts =
-    new Set(positions.map((p) => p.subaccount.toLowerCase())).size > 1;
+    new Set(filteredPositions.map((p) => p.subaccount.toLowerCase())).size > 1;
 
   if (positions.length === 0) {
     return (
@@ -140,32 +159,82 @@ export function WalletPositions({
     );
   }
 
+  if (filteredPositions.length === 0) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+              Open Positions
+            </div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <SubaccountFilterBadges
+                crossLabels={crossSubaccountLabels}
+                displayLabel={displayFilter}
+                onSelect={setSelectedFilter}
+              />
+              {onRefreshUnrealized ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                  disabled={unrealizedRefreshing}
+                  onClick={() => void onRefreshUnrealized()}
+                  aria-label="Refresh mark prices and unrealized PnL"
+                >
+                  <RefreshCw
+                    className={cn(
+                      "size-3",
+                      unrealizedRefreshing && "animate-spin",
+                    )}
+                    aria-hidden
+                  />
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="text-sm text-muted-foreground/70 text-center py-6">
+            No open positions for this account filter
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-2 mb-3 min-h-6">
+        <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
             Open Positions{" "}
             <span className="ml-1 text-muted-foreground/50">
-              ({positions.length})
+              ({orderedPositions.length})
             </span>
           </div>
-          {onRefreshUnrealized ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-              disabled={unrealizedRefreshing}
-              onClick={() => void onRefreshUnrealized()}
-              aria-label="Refresh mark prices and unrealized PnL"
-            >
-              <RefreshCw
-                className={cn("size-3", unrealizedRefreshing && "animate-spin")}
-                aria-hidden
-              />
-            </Button>
-          ) : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <SubaccountFilterBadges
+              crossLabels={crossSubaccountLabels}
+              displayLabel={displayFilter}
+              onSelect={setSelectedFilter}
+            />
+            {onRefreshUnrealized ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
+                disabled={unrealizedRefreshing}
+                onClick={() => void onRefreshUnrealized()}
+                aria-label="Refresh mark prices and unrealized PnL"
+              >
+                <RefreshCw
+                  className={cn("size-3", unrealizedRefreshing && "animate-spin")}
+                  aria-hidden
+                />
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <Table className="text-xs">

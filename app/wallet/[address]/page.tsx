@@ -1,6 +1,7 @@
 "use client";
 
-import { use } from "react";
+import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
+import { use, useMemo } from "react";
 import { isAddress } from "viem";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
@@ -32,6 +33,16 @@ function WalletContent({ address }: { address: string }) {
     unrealizedRefreshing,
   } = useWalletData(address);
 
+  const crossSubaccountLabels = useMemo(
+    () => stats?.spot_balances_by_subaccount.map((g) => g.label) ?? [],
+    [stats],
+  );
+
+  const subaccountLabelByHex = useMemo(
+    () => (stats ? buildSubaccountLabelByHex(stats) : new Map<string, string>()),
+    [stats],
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
@@ -59,6 +70,7 @@ function WalletContent({ address }: { address: string }) {
       />
       <WalletPositions
         positions={stats.positions}
+        crossSubaccountLabels={crossSubaccountLabels}
         subaccountHealths={stats.subaccount_healths}
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
@@ -82,7 +94,11 @@ function WalletContent({ address }: { address: string }) {
         fundingPayments={fundingPayments}
         tradesComplete={tradesComplete}
       />
-      <WalletTradeHistory trades={trades} />
+      <WalletTradeHistory
+        trades={trades}
+        crossSubaccountLabels={crossSubaccountLabels}
+        subaccountLabelByHex={subaccountLabelByHex}
+      />
     </div>
   );
 }

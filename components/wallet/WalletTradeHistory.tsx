@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { SubaccountFilterBadges } from "@/components/wallet/SubaccountFilterBadges";
+import {
+  resolveSubaccountFilterDisplay,
+  SUBACCOUNT_FILTER_ALL,
+  tradeMatchesSubaccountFilter,
+} from "@/lib/wallet/subaccountFilter";
+import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { fromX18BigInt } from "@/types/nado";
 import type { TradeMatch } from "@/types/nado";
@@ -77,10 +83,31 @@ function assetInitial(pair: string): string {
 
 type Props = {
   trades: TradeMatch[];
+  crossSubaccountLabels: string[];
+  /** Maps subaccount hex (lowercase) → display label (main, 1, …). */
+  subaccountLabelByHex: Map<string, string>;
 };
 
-export function WalletTradeHistory({ trades }: Props) {
+export function WalletTradeHistory({
+  trades,
+  crossSubaccountLabels,
+  subaccountLabelByHex,
+}: Props) {
   const [page, setPage] = useState(0);
+  const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
+
+  const displayFilter = useMemo(
+    () => resolveSubaccountFilterDisplay(selectedFilter, crossSubaccountLabels),
+    [selectedFilter, crossSubaccountLabels],
+  );
+
+  const filteredTrades = useMemo(
+    () =>
+      trades.filter((t) =>
+        tradeMatchesSubaccountFilter(t, subaccountLabelByHex, displayFilter),
+      ),
+    [trades, subaccountLabelByHex, displayFilter],
+  );
 
   if (trades.length === 0) {
     return (
@@ -97,41 +124,59 @@ export function WalletTradeHistory({ trades }: Props) {
     );
   }
 
-  const totalPages = Math.ceil(trades.length / PAGE_SIZE);
-  const pageStart = page * PAGE_SIZE;
-  const pageTrades = trades.slice(pageStart, pageStart + PAGE_SIZE);
+  const totalPages = Math.ceil(filteredTrades.length / PAGE_SIZE);
+  const maxPage = Math.max(0, totalPages - 1);
+  const safePage = Math.min(page, maxPage);
+  const pageStart = safePage * PAGE_SIZE;
+  const pageTrades = filteredTrades.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const handleSubaccountFilter = (label: string) => {
+    setSelectedFilter(label);
+    setPage(0);
+  };
 
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
             Trade History
             <span className="ml-1.5 text-muted-foreground/50 normal-case tracking-normal">
-              {trades.length} total
+              {filteredTrades.length} total
             </span>
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                ←
-              </button>
-              <span className="tabular-nums">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                →
-              </button>
-            </div>
-          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <SubaccountFilterBadges
+              crossLabels={crossSubaccountLabels}
+              displayLabel={displayFilter}
+              onSelect={handleSubaccountFilter}
+            />
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                <button
+                  type="button"
+                  onClick={() => setPage(Math.max(0, safePage - 1))}
+                  disabled={safePage === 0}
+                  className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  ←
+                </button>
+                <span className="tabular-nums">
+                  {safePage + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPage(Math.min(maxPage, safePage + 1))
+                  }
+                  disabled={safePage === totalPages - 1}
+                  className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  →
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <Table className="text-xs">
@@ -166,6 +211,16 @@ export function WalletTradeHistory({ trades }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {filteredTrades.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={8}
+                    className="py-8 text-center text-sm text-muted-foreground/70"
+                  >
+                    No trades for this account filter
+                  </TableCell>
+                </TableRow>
+              ) : null}
               {pageTrades.map((t, i) => {
                 const pnl = fromX18BigInt(t.realized_pnl);
                 const price = fromX18BigInt(t.price);
@@ -272,47 +327,52 @@ export function WalletTradeHistory({ trades }: Props) {
             </TableBody>
           </Table>
         </div>
-        {totalPages > 1 && (
+        {totalPages > 1 ? (
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
             <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-              {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, trades.length)}{" "}
-              of {trades.length}
+              {pageStart + 1}–
+              {Math.min(pageStart + PAGE_SIZE, filteredTrades.length)} of{" "}
+              {filteredTrades.length}
             </span>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
               <button
+                type="button"
                 onClick={() => setPage(0)}
-                disabled={page === 0}
+                disabled={safePage === 0}
                 className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 «
               </button>
               <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
+                type="button"
+                onClick={() => setPage(Math.max(0, safePage - 1))}
+                disabled={safePage === 0}
                 className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 ←
               </button>
               <span className="tabular-nums">
-                {page + 1} / {totalPages}
+                {safePage + 1} / {totalPages}
               </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page === totalPages - 1}
+                type="button"
+                onClick={() => setPage(Math.min(maxPage, safePage + 1))}
+                disabled={safePage === totalPages - 1}
                 className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 →
               </button>
               <button
+                type="button"
                 onClick={() => setPage(totalPages - 1)}
-                disabled={page === totalPages - 1}
+                disabled={safePage === totalPages - 1}
                 className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 »
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
