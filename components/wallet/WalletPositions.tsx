@@ -427,10 +427,20 @@ export function WalletPositions({
                     >
                       {!positionMatchesComplete ? (
                         <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
-                      ) : realizedNet != null ? (
-                        `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
                       ) : (
-                        "—"
+                        <div className="flex flex-col items-end gap-0.5 leading-tight">
+                          <span>
+                            {realizedNet != null
+                              ? `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
+                              : "—"}
+                          </span>
+                          {!positionFundingComplete && (
+                            <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5">
+                              <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                              funding loading
+                            </span>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell

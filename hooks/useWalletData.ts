@@ -1051,6 +1051,9 @@ export function useWalletData(rawAddress: string): WalletData {
         }
       }
 
+      // Phase 3a may not have arrived yet, so positionStatsMapRef may be empty.
+      // Build a stats map from position-scoped trades (Phase 2a, fully loaded, tradesComplete=true).
+      const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       setData(prev => ({
         ...prev,
         positionFunding: accumulated,
@@ -1060,7 +1063,7 @@ export function useWalletData(rawAddress: string): WalletData {
               ...prev.stats,
               positions: applySessionFunding(
                 prev.stats.positions,
-                positionStatsMapRef.current,
+                positionSessionStatsMap,
                 accumulated,
               ),
             }
