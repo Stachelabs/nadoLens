@@ -74,15 +74,15 @@ export function WalletEquityCurve({
 }: Props) {
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
 
-  const tradesInPeriod = useMemo(() => {
-    if (!globalMatchesComplete) return [];
-    return filterTradesByPeriod(trades, period);
-  }, [trades, globalMatchesComplete, period]);
+  const tradesInPeriod = useMemo(
+    () => filterTradesByPeriod(trades, period),
+    [trades, period],
+  );
 
-  const fundingInPeriod = useMemo(() => {
-    if (!globalMatchesComplete) return [];
-    return filterFundingPaymentsByPeriod(fundingPayments, period);
-  }, [fundingPayments, globalMatchesComplete, period]);
+  const fundingInPeriod = useMemo(
+    () => filterFundingPaymentsByPeriod(fundingPayments, period),
+    [fundingPayments, period],
+  );
 
   const breakdown = useMemo(() => {
     const tradingPnl = tradesInPeriod.reduce((sum, trade) => {
@@ -109,13 +109,8 @@ export function WalletEquityCurve({
   }, [tradesInPeriod, fundingInPeriod]);
 
   const points = useMemo(
-    () =>
-      globalMatchesComplete
-        ? buildEquityCurveData(tradesInPeriod, {
-            fundingPayments: fundingInPeriod,
-          })
-        : [],
-    [tradesInPeriod, fundingInPeriod, globalMatchesComplete],
+    () => buildEquityCurveData(tradesInPeriod, { fundingPayments: fundingInPeriod }),
+    [tradesInPeriod, fundingInPeriod],
   );
 
   const finalValue = points[points.length - 1]?.equity ?? 0;
@@ -128,11 +123,10 @@ export function WalletEquityCurve({
     },
   } satisfies ChartConfig;
 
-  const emptyInPeriod =
-    globalMatchesComplete && tradesInPeriod.length === 0 && period !== "All time";
-
-  // Show skeleton on breakdown value boxes when data for the period isn't loaded yet.
-  const pnlLoading = !globalMatchesComplete && tradesInPeriod.length === 0;
+  // No trades for this period AND all data already loaded → genuinely empty.
+  const emptyInPeriod = globalMatchesComplete && tradesInPeriod.length === 0 && period !== "All time";
+  // Still loading matches AND no data for this period yet → show skeleton.
+  const periodDataPending = !globalMatchesComplete && tradesInPeriod.length === 0;
   const isFundingPositive = breakdown.funding >= 0;
 
   return (
@@ -170,7 +164,10 @@ export function WalletEquityCurve({
             </Select>
           </div>
         </div>
-        {points.length >= 2 ? (
+        {/* "All time" with incomplete data → keep skeleton (partial all-time is misleading) */}
+        {period === "All time" && !globalMatchesComplete ? (
+          <Skeleton className="h-48 w-full rounded-md" />
+        ) : points.length >= 2 ? (
           <ChartContainer
             config={chartConfig}
             className="aspect-auto h-48 w-full min-h-[192px] justify-stretch [&>div]:aspect-auto"
@@ -241,7 +238,7 @@ export function WalletEquityCurve({
               />
             </LineChart>
           </ChartContainer>
-        ) : !globalMatchesComplete ? (
+        ) : periodDataPending ? (
           <Skeleton className="h-48 w-full rounded-md" />
         ) : emptyInPeriod ? (
           <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
@@ -255,7 +252,7 @@ export function WalletEquityCurve({
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">PnL</span>
-            {pnlLoading ? (
+            {periodDataPending ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
               <span
@@ -271,7 +268,7 @@ export function WalletEquityCurve({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Fees</span>
-            {pnlLoading ? (
+            {periodDataPending ? (
               <Skeleton className="h-3.5 w-20 rounded-sm bg-red-400/15" />
             ) : (
               <span className="tabular-nums text-red-400">
@@ -312,7 +309,7 @@ export function WalletEquityCurve({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="font-medium text-foreground">Period Net PnL</span>
-            {pnlLoading || !globalFundingComplete ? (
+            {periodDataPending || !globalFundingComplete ? (
               <Skeleton className="h-3.5 w-24 rounded-sm" />
             ) : (
               <span
