@@ -162,6 +162,8 @@ export function WalletTradeHistory({
     );
   }
 
+  // Once we have any trades, render the table even if global pagination is still running.
+
   const totalPages = Math.max(1, Math.ceil(filteredTrades.length / PAGE_SIZE));
   const maxPage = Math.max(0, totalPages - 1);
   const safePage = Math.min(page, maxPage);

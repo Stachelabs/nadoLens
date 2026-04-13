@@ -15,6 +15,7 @@ import {
   filterFundingPaymentsByPeriod,
   type EquityPeriod,
 } from "@/lib/wallet/equityPeriod";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -37,8 +38,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 type Props = {
   trades: TradeMatch[];
   fundingPayments: FundingPaymentEntry[];
-  /** When false, cumulative PnL / volumes are incomplete — hide misleading chart */
+  /** When false, global match pagination is still running — chart shows if data available. */
   globalMatchesComplete?: boolean;
+  /** True once global funding CTA has completed. */
+  globalFundingComplete?: boolean;
+  /** True while loadGlobalFunding() is in-flight. */
+  globalFundingLoading?: boolean;
+  /** CTA trigger — same as WalletSummary "Load full history". */
+  loadGlobalFunding?: () => Promise<void>;
 };
 
 const BULL_STROKE = "#34d399";
@@ -61,6 +68,9 @@ export function WalletEquityCurve({
   trades,
   fundingPayments,
   globalMatchesComplete = true,
+  globalFundingComplete = true,
+  globalFundingLoading = false,
+  loadGlobalFunding,
 }: Props) {
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
 
@@ -121,6 +131,10 @@ export function WalletEquityCurve({
   const emptyInPeriod =
     globalMatchesComplete && tradesInPeriod.length === 0 && period !== "All time";
 
+  // Show skeleton on breakdown value boxes when data for the period isn't loaded yet.
+  const pnlLoading = !globalMatchesComplete && tradesInPeriod.length === 0;
+  const isFundingPositive = breakdown.funding >= 0;
+
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
@@ -156,17 +170,7 @@ export function WalletEquityCurve({
             </Select>
           </div>
         </div>
-        {!globalMatchesComplete ? (
-          <Skeleton className="h-48 w-full rounded-md" />
-        ) : emptyInPeriod ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
-            No trades in this period
-          </div>
-        ) : points.length < 2 ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
-            Not enough trade data to plot curve
-          </div>
-        ) : (
+        {points.length >= 2 ? (
           <ChartContainer
             config={chartConfig}
             className="aspect-auto h-48 w-full min-h-[192px] justify-stretch [&>div]:aspect-auto"
@@ -237,51 +241,90 @@ export function WalletEquityCurve({
               />
             </LineChart>
           </ChartContainer>
+        ) : !globalMatchesComplete ? (
+          <Skeleton className="h-48 w-full rounded-md" />
+        ) : emptyInPeriod ? (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+            No trades in this period
+          </div>
+        ) : (
+          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+            Not enough trade data to plot curve
+          </div>
         )}
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">PnL</span>
-            <span
-              className={cn(
-                "tabular-nums",
-                breakdown.tradingPnl >= 0 ? "text-emerald-400" : "text-red-400",
-              )}
-            >
-              {breakdown.tradingPnl >= 0 ? "+" : ""}
-              {fmtUsd.format(breakdown.tradingPnl)}
-            </span>
+            {pnlLoading ? (
+              <Skeleton className="h-3.5 w-20 rounded-sm" />
+            ) : (
+              <span
+                className={cn(
+                  "tabular-nums",
+                  breakdown.tradingPnl >= 0 ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                {breakdown.tradingPnl >= 0 ? "+" : ""}
+                {fmtUsd.format(breakdown.tradingPnl)}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Fees</span>
-            <span className="tabular-nums text-red-400">
-              -{fmtUsd.format(breakdown.fees)}
-            </span>
+            {pnlLoading ? (
+              <Skeleton className="h-3.5 w-20 rounded-sm bg-red-400/15" />
+            ) : (
+              <span className="tabular-nums text-red-400">
+                -{fmtUsd.format(breakdown.fees)}
+              </span>
+            )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Funding</span>
-            <span
-              className={cn(
-                "tabular-nums",
-                breakdown.funding >= 0 ? "text-emerald-400" : "text-red-400",
-              )}
-            >
-              {breakdown.funding >= 0 ? "+" : ""}
-              {fmtUsd.format(breakdown.funding)}
-            </span>
+            {globalFundingComplete ? (
+              <span
+                className={cn(
+                  "tabular-nums",
+                  isFundingPositive ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                {isFundingPositive ? "+" : ""}
+                {fmtUsd.format(breakdown.funding)}
+              </span>
+            ) : globalFundingLoading ? (
+              <Skeleton
+                className={cn(
+                  "h-3.5 w-20 rounded-sm",
+                  isFundingPositive ? "bg-emerald-400/15" : "bg-red-400/15",
+                )}
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-5 text-[10px] px-2"
+                onClick={() => void loadGlobalFunding?.()}
+              >
+                Load full history
+              </Button>
+            )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="font-medium text-foreground">Period Net PnL</span>
-            <span
-              className={cn(
-                "font-semibold tabular-nums",
-                breakdown.totalNetPnl >= 0
-                  ? "text-emerald-400"
-                  : "text-red-400",
-              )}
-            >
-              {breakdown.totalNetPnl >= 0 ? "+" : ""}
-              {fmtUsd.format(breakdown.totalNetPnl)}
-            </span>
+            {pnlLoading || !globalFundingComplete ? (
+              <Skeleton className="h-3.5 w-24 rounded-sm" />
+            ) : (
+              <span
+                className={cn(
+                  "font-semibold tabular-nums",
+                  breakdown.totalNetPnl >= 0 ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                {breakdown.totalNetPnl >= 0 ? "+" : ""}
+                {fmtUsd.format(breakdown.totalNetPnl)}
+              </span>
+            )}
           </div>
         </div>
       </CardContent>

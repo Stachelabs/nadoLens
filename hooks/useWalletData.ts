@@ -1055,6 +1055,16 @@ export function useWalletData(rawAddress: string): WalletData {
         ...prev,
         positionFunding: accumulated,
         positionFundingComplete: true,
+        stats: prev.stats
+          ? {
+              ...prev.stats,
+              positions: applySessionFunding(
+                prev.stats.positions,
+                positionStatsMapRef.current,
+                accumulated,
+              ),
+            }
+          : null,
       }));
     }
 

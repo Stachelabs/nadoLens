@@ -38,6 +38,8 @@ function WalletContent({ address }: { address: string }) {
     unrealizedRefreshing,
     refreshSpotBalances,
     spotBalancesRefreshing,
+    positionMatchesComplete,
+    positionFundingComplete,
   } = useWalletData(address);
 
   const positionCrossSubaccountLabels = useMemo(
@@ -86,6 +88,8 @@ function WalletContent({ address }: { address: string }) {
         subaccountHealths={stats.subaccount_healths}
         onRefreshUnrealized={refreshUnrealizedPnl}
         unrealizedRefreshing={unrealizedRefreshing}
+        positionMatchesComplete={positionMatchesComplete}
+        positionFundingComplete={positionFundingComplete}
       />
       <WalletStats
         stats={stats}
@@ -107,6 +111,9 @@ function WalletContent({ address }: { address: string }) {
         trades={trades}
         fundingPayments={fundingPayments}
         globalMatchesComplete={globalMatchesComplete}
+        globalFundingComplete={globalFundingComplete}
+        globalFundingLoading={globalFundingLoading}
+        loadGlobalFunding={loadGlobalFunding}
       />
       <WalletTradeHistory
         trades={trades}
