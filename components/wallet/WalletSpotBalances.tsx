@@ -72,10 +72,7 @@ export function WalletSpotBalances({
     return g?.balances ?? [];
   }, [groups, displayLabel]);
 
-  const accountOptions = useMemo(
-    () => groups.map((g) => g.label),
-    [groups],
-  );
+  const accountOptions = useMemo(() => groups.map((g) => g.label), [groups]);
 
   const byId = new Map(balances.map((b) => [b.product_id, b]));
 
@@ -113,7 +110,7 @@ export function WalletSpotBalances({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap  gap-2">
+        <div className="flex flex-wrap gap-2">
           {SPOT_ASSETS.map((asset) => {
             const balance = byId.get(asset.product_id);
             const amount = balance?.amount ?? 0;
@@ -123,7 +120,7 @@ export function WalletSpotBalances({
             return (
               <div
                 key={asset.product_id}
-                className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2"
+                className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[280px]"
               >
                 <Image
                   src={asset.icon}

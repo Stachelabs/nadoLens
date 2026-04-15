@@ -54,8 +54,10 @@ function timeAgo(nanoTs: string | null): string {
 
 type Props = {
   stats: WalletStats;
-  tradesComplete?: boolean;
-  fundingComplete?: boolean;
+  globalMatchesComplete?: boolean;
+  globalFundingComplete?: boolean;
+  globalFundingLoading?: boolean;
+  loadGlobalFunding?: () => Promise<void>;
   /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
   onRefresh?: () => void | Promise<void>;
   refreshing?: boolean;
@@ -121,8 +123,10 @@ function Section({
 
 export function WalletSummary({
   stats,
-  tradesComplete = true,
-  fundingComplete = true,
+  globalMatchesComplete = true,
+  globalFundingComplete = true,
+  globalFundingLoading = false,
+  loadGlobalFunding,
   onRefresh,
   refreshing = false,
   onRefreshUnrealized,
@@ -184,11 +188,11 @@ export function WalletSummary({
               <Row
                 label="All Time PnL"
                 value={
-                  tradesComplete && fundingComplete ? (
+                  globalMatchesComplete ? (
                     `${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`
                   ) : (
                     <Skeleton
-                      className={cn("h-4 shrink-0 rounded-sm", "w-26")}
+                      className="h-4 w-28 shrink-0 rounded-sm"
                       aria-hidden
                     />
                   )
@@ -203,7 +207,7 @@ export function WalletSummary({
           <Section
             className="min-w-0 w-full lg:flex-1 lg:basis-0"
             title="Overview"
-            loading={!tradesComplete}
+            loading={!globalMatchesComplete}
             action={
               onRefresh ? (
                 <Button
@@ -226,11 +230,11 @@ export function WalletSummary({
             <Row
               label="Total Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.total_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-30")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -239,11 +243,11 @@ export function WalletSummary({
             <Row
               label="Perp Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.perp_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-30")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -252,11 +256,11 @@ export function WalletSummary({
             <Row
               label="Spot Volume"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsdCompact.format(stats.spot_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-20")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -265,11 +269,11 @@ export function WalletSummary({
             <Row
               label="Spot Trades"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   stats.spot_trades_count.toString()
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-10")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -278,11 +282,11 @@ export function WalletSummary({
             <Row
               label="Perp Trades"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   stats.perp_trades_count.toString()
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-12")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -291,15 +295,11 @@ export function WalletSummary({
             <Row
               label="Total Fees"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   fmtUsd.format(stats.total_fees_usd)
                 ) : (
                   <Skeleton
-                    className={cn(
-                      "h-4 shrink-0 rounded-sm",
-                      "w-21",
-                      "bg-red-400/15",
-                    )}
+                    className="h-4 w-28 shrink-0 rounded-sm bg-red-400/15"
                     aria-hidden
                   />
                 )
@@ -309,17 +309,23 @@ export function WalletSummary({
             <Row
               label="Total Funding"
               value={
-                tradesComplete ? (
+                globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(stats.funding_pnl_usd)}`
+                ) : globalFundingLoading ? (
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
+                    <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                    Funding loading ...
+                  </span>
                 ) : (
-                  <Skeleton
-                    className={cn(
-                      "h-4 shrink-0 rounded-sm",
-                      "w-22",
-                      isFundingPositive ? "bg-emerald-400/15" : "bg-red-400/15",
-                    )}
-                    aria-hidden
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-5 text-[10px] px-2"
+                    onClick={() => void loadGlobalFunding?.()}
+                  >
+                    Add funding history
+                  </Button>
                 )
               }
               valueClass={
@@ -329,11 +335,11 @@ export function WalletSummary({
             <Row
               label="First Trade"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   formatTimestamp(stats.first_trade_at)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-44")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -342,11 +348,11 @@ export function WalletSummary({
             <Row
               label="Last Trade"
               value={
-                tradesComplete ? (
+                globalMatchesComplete ? (
                   timeAgo(stats.last_trade_at)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-26")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )

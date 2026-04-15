@@ -16,10 +16,8 @@ type Props = {
 export function WalletStats({
   stats,
   tradesComplete = true,
-  fundingComplete = true,
 }: Props) {
   const isPnlPositive = stats.net_pnl_usd >= 0
-  const pnlComplete = tradesComplete && fundingComplete
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count
   const metricsLoading = !tradesComplete
 
@@ -27,7 +25,6 @@ export function WalletStats({
     {
       label: 'Win Rate',
       skeleton: metricsLoading,
-      skeletonClass: 'h-5 w-14 mx-auto',
       value: `${stats.win_rate.toFixed(1)}%`,
       color: stats.win_rate >= 50 ? 'text-emerald-400' : 'text-red-400',
       sub: null,
@@ -35,8 +32,7 @@ export function WalletStats({
     },
     {
       label: 'Total PnL',
-      skeleton: !pnlComplete,
-      skeletonClass: 'h-5 w-24 mx-auto',
+      skeleton: metricsLoading,
       value: `${isPnlPositive ? '+' : ''}${fmtUsd.format(stats.net_pnl_usd)}`,
       color: isPnlPositive ? 'text-emerald-400' : 'text-red-400',
       sub: null,
@@ -45,37 +41,33 @@ export function WalletStats({
     {
       label: 'Volume',
       skeleton: metricsLoading,
-      skeletonClass: 'h-5 w-28 mx-auto',
       value: fmtUsd.format(stats.total_volume_usd),
       color: 'text-foreground',
       sub: null,
       subSkeleton: false,
     },
     {
-      label: 'Avg Trade',
+      label: 'Avg Trade Size',
       skeleton: metricsLoading,
-      skeletonClass: 'h-5 w-20 mx-auto',
       color: 'text-foreground/70',
       value: fmtUsd.format(stats.avg_trade_size_usd),
       sub: null,
       subSkeleton: false,
     },
     {
-      label: 'Trades',
+      label: 'Trades (matches)',
       skeleton: metricsLoading,
-      skeletonClass: 'h-5 w-12 mx-auto',
       value: totalTrades.toString(),
       color: 'text-foreground/70',
       sub:
         tradesComplete && (stats.perp_trades_count > 0 || stats.spot_trades_count > 0)
           ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
           : null,
-      subSkeleton: metricsLoading,
+      subSkeleton: false,
     },
     {
       label: 'Total Fees',
       skeleton: metricsLoading,
-      skeletonClass: 'h-5 w-20 mx-auto',
       value: fmtUsd.format(stats.total_fees_usd),
       color: 'text-red-400',
       sub: null,
@@ -83,20 +75,9 @@ export function WalletStats({
     },
   ]
 
-  const showLoadingHint = !tradesComplete || !fundingComplete
-
   return (
-    <div className="space-y-1.5">
-      {showLoadingHint && (
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-          {!tradesComplete
-            ? 'Loading trade history…'
-            : 'Loading funding…'}
-        </div>
-      )}
     <div className="flex flex-row flex-wrap gap-3 lg:flex-nowrap">
-      {items.map(({ label, value, color, sub, skeleton, skeletonClass, subSkeleton }) => (
+      {items.map(({ label, value, color, sub, skeleton, subSkeleton }) => (
         <Card
           key={label}
           className="border-border bg-card min-w-0 flex-[1_1_calc(50%-6px)] sm:flex-[1_1_calc(33.333%-8px)] lg:flex-1"
@@ -105,7 +86,7 @@ export function WalletStats({
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">{label}</div>
             <div className={cn('min-h-7 flex items-center justify-center')}>
               {skeleton ? (
-                <Skeleton className={skeletonClass} />
+                <Skeleton className="h-5 w-24 mx-auto" />
               ) : (
                 <span className={`text-base font-bold tabular-nums ${color}`}>{value}</span>
               )}
@@ -118,7 +99,6 @@ export function WalletStats({
           </CardContent>
         </Card>
       ))}
-    </div>
     </div>
   )
 }

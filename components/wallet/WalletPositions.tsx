@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -48,6 +49,11 @@ function fmtQty(value: number): string {
   return Math.abs(value) < 1 ? fmtQty5.format(value) : fmtQty4.format(value);
 }
 
+/** Quote notional (USD): |base size| × mark/oracle price — see Nado notional / perp balance docs. */
+function positionNotionalUsd(pos: Position): number {
+  return Math.abs(pos.amount) * pos.mark_price;
+}
+
 function fmtPrice(value: number): string {
   const abs = Math.abs(value);
   if (abs > 0 && abs < 1) return fmtPrice6.format(value);
@@ -84,6 +90,10 @@ type Props = {
   /** Re-fetch Gateway subaccount_info for live marks / unrealized only. */
   onRefreshUnrealized?: () => void | Promise<void>;
   unrealizedRefreshing?: boolean;
+  /** True once position-scoped matches (Phase 2a) are done — enables Realized PnL + Fees. */
+  positionMatchesComplete?: boolean;
+  /** True once position-scoped funding (Phase 2b) is done — enables Funding column. */
+  positionFundingComplete?: boolean;
 };
 
 export function WalletPositions({
@@ -92,6 +102,8 @@ export function WalletPositions({
   subaccountHealths = [],
   onRefreshUnrealized,
   unrealizedRefreshing = false,
+  positionMatchesComplete = true,
+  positionFundingComplete = true,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
@@ -270,7 +282,19 @@ export function WalletPositions({
                         : "text-right pr-4",
                     )}
                   >
-                    {h}
+                    {h === "Realized PnL" &&
+                    positionMatchesComplete &&
+                    !positionFundingComplete ? (
+                      <div className="flex flex-col items-end gap-0.5 leading-tight">
+                        <span>Realized PnL</span>
+                        <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5 font-normal normal-case tracking-normal">
+                          <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                          Funding loading ...
+                        </span>
+                      </div>
+                    ) : (
+                      h
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -367,7 +391,16 @@ export function WalletPositions({
                       )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {fmtQty(Math.abs(pos.amount))}
+                      <div className="flex flex-col items-end gap-1.25">
+                        <span className="leading-none">
+                          {fmtQty(Math.abs(pos.amount))}
+                        </span>
+                        <span className="text-[10px] leading-none text-muted-foreground/70">
+                          {pos.mark_price > 0
+                            ? fmtUsd.format(positionNotionalUsd(pos))
+                            : "—"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
                       {pos.entry_price != null
@@ -401,31 +434,44 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        realizedNet != null
+                        positionMatchesComplete && realizedNet != null
                           ? realizedColor
                           : "text-muted-foreground/40",
                       )}
                     >
-                      {realizedNet != null
-                        ? `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
-                        : "—"}
+                      {!positionMatchesComplete ? (
+                        <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
+                      ) : realizedNet != null ? (
+                        `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        pos.funding_cumulative != null
+                        positionFundingComplete &&
+                          pos.funding_cumulative != null
                           ? fundingColor
                           : "text-muted-foreground/40",
                       )}
                     >
-                      {pos.funding_cumulative != null
-                        ? fmtFunding(pos.funding_cumulative)
-                        : "—"}
+                      {!positionFundingComplete ? (
+                        <Skeleton className="h-3.5 w-14 ml-auto rounded-sm" />
+                      ) : pos.funding_cumulative != null ? (
+                        fmtFunding(pos.funding_cumulative)
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/60">
-                      {pos.fees_cumulative != null
-                        ? fmtUsd.format(pos.fees_cumulative)
-                        : "—"}
+                      {!positionMatchesComplete ? (
+                        <Skeleton className="h-3.5 w-12 ml-auto rounded-sm" />
+                      ) : pos.fees_cumulative != null ? (
+                        fmtUsd.format(pos.fees_cumulative)
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                   </TableRow>
                 );

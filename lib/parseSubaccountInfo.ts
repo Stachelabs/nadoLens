@@ -52,10 +52,11 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     })
   const totalCollateral = spotBalances.reduce((s, b) => s + Math.max(0, b.value_usd), 0)
 
-  // Maintenance health (account-level) from healths[1].
-  // healths[0] = initial, healths[1] = maintenance, healths[2] = unweighted.
+  // healths[0] = initial health  → ability to open new positions (< 0 = blocked)
+  // healths[1] = maintenance health → buffer before liquidation (< 0 = immediate liquidation)
+  // healths[2] = unweighted health
   // health = assets - liabilities (already provided by the API as the `health` field).
-  // Used directly in the Nado official per-position liquidation price formula.
+  const initialHealthEntry = data.healths[0]
   const maintHealthEntry = data.healths[1]
   const maintHealthUsd = maintHealthEntry ? fromX18BigInt(maintHealthEntry.health) : 0
 
@@ -156,7 +157,13 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   const totalMaintMargin = positions.reduce((s, p) => s + p.margin_used, 0)
   const totalNotional = positions.reduce((s, p) => s + Math.abs(p.amount) * p.mark_price, 0)
   const maintMarginUsage = totalNotional > 0 ? totalMaintMargin / totalNotional : 0
-  const availableMargin = Math.max(0, totalCollateral - totalMaintMargin)
+  // Available margin = max(0, initial_health) — Nado "Funds Available" definition.
+  // healths[0] accounts for initial weights (stricter than maintenance) and is the
+  // true amount usable for new positions / withdrawals. Fallback to collateral-based
+  // estimate if the API omits healths[0] for some reason.
+  const availableMargin = initialHealthEntry
+    ? Math.max(0, fromX18BigInt(initialHealthEntry.health))
+    : Math.max(0, totalCollateral - totalMaintMargin)
   const dropTolerance = totalNotional > 0 ? (availableMargin / totalNotional) * 100 : 100
   const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0)
 

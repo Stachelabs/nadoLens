@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import { RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PAGE_SIZE = 50;
 
@@ -105,6 +106,8 @@ type Props = {
   /** Incremental matches fetch (newer than newest cached trade). */
   onRefreshTrades?: () => void | Promise<void>;
   tradesRefreshing?: boolean;
+  /** When false and no trades yet, show skeleton placeholder rows. */
+  globalMatchesComplete?: boolean;
 };
 
 export function WalletTradeHistory({
@@ -113,6 +116,7 @@ export function WalletTradeHistory({
   subaccountLabelByHex,
   onRefreshTrades,
   tradesRefreshing = false,
+  globalMatchesComplete = true,
 }: Props) {
   const [page, setPage] = useState(0);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
@@ -142,13 +146,23 @@ export function WalletTradeHistory({
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
             Trade History
           </div>
-          <div className="text-sm text-muted-foreground/70 text-center py-6">
-            No trades found
-          </div>
+          {!globalMatchesComplete ? (
+            <div className="flex flex-col gap-2 py-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground/70 text-center py-6">
+              No trades found
+            </div>
+          )}
         </CardContent>
       </Card>
     );
   }
+
+  // Once we have any trades, render the table even if global pagination is still running.
 
   const totalPages = Math.max(1, Math.ceil(filteredTrades.length / PAGE_SIZE));
   const maxPage = Math.max(0, totalPages - 1);
