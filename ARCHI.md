@@ -194,7 +194,8 @@ components/wallet/
   WalletSummary.tsx       Props: { stats, tradesComplete, fundingComplete, onRefresh, refreshing, ... }
                                                                                 ← global PnL summary (trading + funding + fees)
   WalletTradeHistory.tsx  Props: { trades: TradeMatch[] }                      ← last N trades history
-  WalletEquityCurve.tsx   Props: { trades, fundingPayments, tradesComplete }   ← TradingView equity curve
+  WalletEquityCurve.tsx   Props: { trades, fundingPayments, tradesComplete }   ← Recharts equity curve
+  AccountFilterSelect.tsx Props: { options, value, onValueChange }             ← subaccount filter dropdown (positions, trades, spot)
 
 hooks/
   useWalletData.ts     ← multi-subaccount fetch + 6s polling → WalletData
@@ -322,11 +323,7 @@ Not available via public API. Ignore for MVP → display "—" or hide.
 
 ## 11. Known Bugs
 
-| File | Bug | Fix |
-|---|---|---|
-| `hooks/useNadoPairs.ts` | Expects `{ pair }` but API returns `{ ticker_id, base, quote }` | Update schema |
-| `app/api/orderbook/route.ts` | Param `?pair=BTCUSDT0` but API expects `?ticker_id=BTC-PERP_USDT0&depth=N` | Fix param |
-| `app/api/predicted-liquidations/route.ts` | Parses `data.account_snapshots` but response = `data.snapshots` | Fix key |
+No known bugs at this time.
 
 ---
 

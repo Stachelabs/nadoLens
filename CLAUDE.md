@@ -41,7 +41,7 @@ Priority IDs:
 
 ## Stack
 
-Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Zustand 5 · wagmi 2 · viem 2 · RainbowKit 2 · TradingView Lightweight Charts v5 · Zod 4 · Prisma 5 · Neon
+Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zustand 5 · wagmi 2 · viem 2 · RainbowKit 2 · Zod 4 · Prisma 5 · Neon
 
 ---
 
