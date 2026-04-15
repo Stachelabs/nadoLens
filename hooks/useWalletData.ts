@@ -347,6 +347,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const positionOpenTimeMapRef = useRef<Record<string, number>>({});
   /** Dedup set for position-scoped trade IDs. */
   const positionSeenTradeIdsRef = useRef<Set<string>>(new Set());
+  /** Position-scoped funding payments — persisted so the poller can use them as fallback. */
+  const positionFundingPaymentsRef = useRef<FundingPaymentEntry[]>([]);
 
   useEffect(() => {
     if (!rawAddress) return;
@@ -354,6 +356,7 @@ export function useWalletData(rawAddress: string): WalletData {
     let cancelled = false;
     fundingPaidUsdRef.current = 0;
     fundingPaymentsRef.current = [];
+    positionFundingPaymentsRef.current = [];
     prevAmountsRef.current = new Map();
     positionTradesRef.current = [];
     positionOpenTimeMapRef.current = {};
@@ -1054,6 +1057,8 @@ export function useWalletData(rawAddress: string): WalletData {
       // Phase 3a may not have arrived yet, so positionStatsMapRef may be empty.
       // Build a stats map from position-scoped trades (Phase 2a, fully loaded, tradesComplete=true).
       const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
+      // Persist so the poller can use these as fallback (fundingPaymentsRef stays [] until CTA).
+      positionFundingPaymentsRef.current = accumulated;
       setData(prev => ({
         ...prev,
         positionFunding: accumulated,
@@ -1510,13 +1515,17 @@ export function useWalletData(rawAddress: string): WalletData {
           }
         }
         if (cancelled) return;
+        // Use global funding if loaded (CTA clicked), otherwise fall back to position-scoped funding.
+        const effectiveFunding = fundingPaymentsRef.current.length > 0
+          ? fundingPaymentsRef.current
+          : positionFundingPaymentsRef.current;
         const pollPositions = applySessionFunding(
           applyPositionStats(
             applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
             positionStatsMapRef.current,
           ),
           positionStatsMapRef.current,
-          fundingPaymentsRef.current,
+          effectiveFunding,
         );
         const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
         setData((prev) => ({

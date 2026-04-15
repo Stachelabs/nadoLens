@@ -188,11 +188,11 @@ export function WalletSummary({
               <Row
                 label="All Time PnL"
                 value={
-                  globalMatchesComplete && globalFundingComplete ? (
+                  globalMatchesComplete ? (
                     `${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`
                   ) : (
                     <Skeleton
-                      className={cn("h-4 shrink-0 rounded-sm", "w-26")}
+                      className="h-4 w-28 shrink-0 rounded-sm"
                       aria-hidden
                     />
                   )
@@ -234,7 +234,7 @@ export function WalletSummary({
                   fmtUsdCompact.format(stats.total_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-30")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -247,7 +247,7 @@ export function WalletSummary({
                   fmtUsdCompact.format(stats.perp_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-30")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -260,7 +260,7 @@ export function WalletSummary({
                   fmtUsdCompact.format(stats.spot_volume_usd)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-20")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -273,7 +273,7 @@ export function WalletSummary({
                   stats.spot_trades_count.toString()
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-10")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -286,7 +286,7 @@ export function WalletSummary({
                   stats.perp_trades_count.toString()
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-12")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -299,11 +299,7 @@ export function WalletSummary({
                   fmtUsd.format(stats.total_fees_usd)
                 ) : (
                   <Skeleton
-                    className={cn(
-                      "h-4 shrink-0 rounded-sm",
-                      "w-21",
-                      "bg-red-400/15",
-                    )}
+                    className="h-4 w-28 shrink-0 rounded-sm bg-red-400/15"
                     aria-hidden
                   />
                 )
@@ -316,14 +312,10 @@ export function WalletSummary({
                 globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(stats.funding_pnl_usd)}`
                 ) : globalFundingLoading ? (
-                  <Skeleton
-                    className={cn(
-                      "h-4 shrink-0 rounded-sm",
-                      "w-22",
-                      isFundingPositive ? "bg-emerald-400/15" : "bg-red-400/15",
-                    )}
-                    aria-hidden
-                  />
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
+                    <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                    Funding loading ...
+                  </span>
                 ) : (
                   <Button
                     type="button"
@@ -332,7 +324,7 @@ export function WalletSummary({
                     className="h-5 text-[10px] px-2"
                     onClick={() => void loadGlobalFunding?.()}
                   >
-                    Load full history
+                    Add funding history
                   </Button>
                 )
               }
@@ -347,7 +339,7 @@ export function WalletSummary({
                   formatTimestamp(stats.first_trade_at)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-44")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )
@@ -360,7 +352,7 @@ export function WalletSummary({
                   timeAgo(stats.last_trade_at)
                 ) : (
                   <Skeleton
-                    className={cn("h-4 shrink-0 rounded-sm", "w-26")}
+                    className="h-4 w-28 shrink-0 rounded-sm"
                     aria-hidden
                   />
                 )

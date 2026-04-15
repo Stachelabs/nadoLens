@@ -282,7 +282,19 @@ export function WalletPositions({
                         : "text-right pr-4",
                     )}
                   >
-                    {h}
+                    {h === "Realized PnL" &&
+                    positionMatchesComplete &&
+                    !positionFundingComplete ? (
+                      <div className="flex flex-col items-end gap-0.5 leading-tight">
+                        <span>Realized PnL</span>
+                        <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5 font-normal normal-case tracking-normal">
+                          <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                          Funding loading ...
+                        </span>
+                      </div>
+                    ) : (
+                      h
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -379,9 +391,11 @@ export function WalletPositions({
                       )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      <div className="flex flex-col items-end gap-0 leading-tight">
-                        <span>{fmtQty(Math.abs(pos.amount))}</span>
-                        <span className="text-[10px] text-muted-foreground/70">
+                      <div className="flex flex-col items-end gap-1.25">
+                        <span className="leading-none">
+                          {fmtQty(Math.abs(pos.amount))}
+                        </span>
+                        <span className="text-[10px] leading-none text-muted-foreground/70">
                           {pos.mark_price > 0
                             ? fmtUsd.format(positionNotionalUsd(pos))
                             : "—"}
@@ -427,26 +441,17 @@ export function WalletPositions({
                     >
                       {!positionMatchesComplete ? (
                         <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
+                      ) : realizedNet != null ? (
+                        `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
                       ) : (
-                        <div className="flex flex-col items-end gap-0.5 leading-tight">
-                          <span>
-                            {realizedNet != null
-                              ? `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
-                              : "—"}
-                          </span>
-                          {!positionFundingComplete && (
-                            <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5">
-                              <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
-                              funding loading
-                            </span>
-                          )}
-                        </div>
+                        "—"
                       )}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        positionFundingComplete && pos.funding_cumulative != null
+                        positionFundingComplete &&
+                          pos.funding_cumulative != null
                           ? fundingColor
                           : "text-muted-foreground/40",
                       )}
