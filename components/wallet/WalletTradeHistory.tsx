@@ -286,7 +286,7 @@ export function WalletTradeHistory({
                 const directionLabel = hasPnl
                   ? closePositionLabel
                   : openPositionLabel;
-                const pnlColor = pnl >= 0 ? "text-emerald-400" : "text-red-400";
+                const pnlColor = pnl >= 0 ? "text-primary" : "text-destructive";
                 const role =
                   t.is_taker === true
                     ? "TAKER"
@@ -330,8 +330,8 @@ export function WalletTradeHistory({
                           className={cn(
                             "px-2 py-1 text-[10px] font-bold whitespace-nowrap",
                             t.side === "long"
-                              ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                              : "border-red-400/20 bg-red-400/10 text-red-400",
+                              ? "border-primary/20 bg-primary/10 text-primary"
+                              : "border-destructive/20 bg-destructive/10 text-destructive",
                           )}
                         >
                           {directionLabel}

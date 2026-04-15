@@ -49,8 +49,8 @@ type Props = {
   loadGlobalFunding?: () => Promise<void>;
 };
 
-const BULL_STROKE = "#34d399";
-const BEAR_STROKE = "#f87171";
+const BULL_STROKE = "var(--color-bull)";
+const BEAR_STROKE = "var(--color-bear)";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -271,8 +271,8 @@ export function WalletEquityCurve({
                 className={cn(
                   "tabular-nums",
                   breakdown.tradingPnl >= 0
-                    ? "text-emerald-400"
-                    : "text-red-400",
+                    ? "text-primary"
+                    : "text-destructive",
                 )}
               >
                 {breakdown.tradingPnl >= 0 ? "+" : ""}
@@ -285,7 +285,7 @@ export function WalletEquityCurve({
             {periodDataPending ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
-              <span className="tabular-nums text-red-400">
+              <span className="tabular-nums text-destructive">
                 -{fmtUsd.format(breakdown.fees)}
               </span>
             )}
@@ -296,7 +296,7 @@ export function WalletEquityCurve({
               <span
                 className={cn(
                   "tabular-nums",
-                  isFundingPositive ? "text-emerald-400" : "text-red-400",
+                  isFundingPositive ? "text-primary" : "text-destructive",
                 )}
               >
                 {isFundingPositive ? "+" : ""}
@@ -312,7 +312,7 @@ export function WalletEquityCurve({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-5 text-[10px] px-2 text-emerald-400 border-emerald-400/30"
+                className="h-5 text-[10px] px-2 text-primary border-primary/30"
                 onClick={() => void loadGlobalFunding?.()}
               >
                 Add funding history
@@ -328,8 +328,8 @@ export function WalletEquityCurve({
                 className={cn(
                   "font-semibold tabular-nums",
                   breakdown.totalNetPnl >= 0
-                    ? "text-emerald-400"
-                    : "text-red-400",
+                    ? "text-primary"
+                    : "text-destructive",
                 )}
               >
                 {breakdown.totalNetPnl >= 0 ? "+" : ""}

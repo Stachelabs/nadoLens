@@ -303,11 +303,11 @@ export function WalletPositions({
               {orderedPositions.map((pos) => {
                 const isLong = pos.amount >= 0;
                 const pnlColor =
-                  pos.unrealized_pnl >= 0 ? "text-emerald-400" : "text-red-400";
+                  pos.unrealized_pnl >= 0 ? "text-primary" : "text-destructive";
                 const fundingColor =
                   (pos.funding_cumulative ?? 0) >= 0
-                    ? "text-emerald-400"
-                    : "text-red-400";
+                    ? "text-primary"
+                    : "text-destructive";
                 const realizedNet =
                   pos.realized_pnl_cumulative != null
                     ? pos.realized_pnl_cumulative -
@@ -316,8 +316,8 @@ export function WalletPositions({
                     : null;
                 const realizedColor =
                   realizedNet != null && realizedNet >= 0
-                    ? "text-emerald-400"
-                    : "text-red-400";
+                    ? "text-primary"
+                    : "text-destructive";
                 const nearLiq =
                   pos.liquidation_price > 0 &&
                   Math.abs(pos.mark_price - pos.liquidation_price) /
@@ -365,8 +365,8 @@ export function WalletPositions({
                             className={cn(
                               "text-[9px] px-1 py-0.5 h-4 font-bold",
                               isLong
-                                ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                                : "border-red-400/20 bg-red-400/10 text-red-400",
+                                ? "border-primary/20 bg-primary/10 text-primary"
+                                : "border-destructive/20 bg-destructive/10 text-destructive",
                             )}
                           >
                             {isLong ? "LONG" : "SHORT"}
@@ -414,7 +414,7 @@ export function WalletPositions({
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
                         nearLiq
-                          ? "text-red-400 font-bold"
+                          ? "text-destructive font-bold"
                           : "text-muted-foreground",
                       )}
                     >
