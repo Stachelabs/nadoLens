@@ -143,3 +143,8 @@
   50%  { transform: rotate(180deg) scale(1.25); }
   100% { transform: rotate(360deg) scale(1);    }
 }
+
+@keyframes shimmer-text {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}

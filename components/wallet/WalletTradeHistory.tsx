@@ -147,10 +147,57 @@ export function WalletTradeHistory({
             Trade History
           </div>
           {!globalMatchesComplete ? (
-            <div className="flex flex-col gap-2 py-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full rounded-md" />
-              ))}
+            <div className="overflow-x-auto">
+              <Table className="text-xs">
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    {TRADE_TABLE_COLUMNS.map((col, i) => (
+                      <TableHead
+                        key={col.key}
+                        className={cn(
+                          "font-normal text-muted-foreground/70 pb-2",
+                          i === 0 ? "text-left" : i >= 5 ? (i === 8 ? "text-right pr-2" : "text-right pr-4") : "text-center",
+                          col.key === "icon" && "w-12 px-1",
+                        )}
+                      >
+                        {col.label === null ? <span className="sr-only">Asset icon</span> : col.label}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={i} className="border-border/50">
+                      <TableCell className="py-2.5 pr-4"><Skeleton className="h-3 w-24 rounded" /></TableCell>
+                      <TableCell className="py-2.5 px-1">
+                        <div className="flex justify-center">
+                          <Skeleton className="h-7 w-7 rounded-full" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <Skeleton className="h-3 w-16 rounded" />
+                          <Skeleton className="h-2.5 w-10 rounded" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-center">
+                        <div className="flex justify-center">
+                          <Skeleton className="h-5 w-24 rounded-full" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-center">
+                        <div className="flex justify-center">
+                          <Skeleton className="h-5 w-14 rounded-full" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 pr-4"><div className="flex justify-end"><Skeleton className="h-3 w-16 rounded" /></div></TableCell>
+                      <TableCell className="py-2.5 pr-4"><div className="flex justify-end"><Skeleton className="h-3 w-12 rounded" /></div></TableCell>
+                      <TableCell className="py-2.5 pr-4"><div className="flex justify-end"><Skeleton className="h-3 w-14 rounded" /></div></TableCell>
+                      <TableCell className="py-2.5"><div className="flex justify-end"><Skeleton className="h-3 w-12 rounded" /></div></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : (
             <div className="text-sm text-muted-foreground/70 text-center py-6">

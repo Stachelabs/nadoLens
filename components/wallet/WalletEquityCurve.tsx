@@ -13,9 +13,9 @@ import { isClosingTrade } from "@/lib/wallet/performance";
 import {
   filterTradesByPeriod,
   filterFundingPaymentsByPeriod,
+  isFundingLoaded,
   type EquityPeriod,
 } from "@/lib/wallet/equityPeriod";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -32,21 +32,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingShimmer } from "@/components/ui/LoadingShimmer";
 
 type Props = {
   trades: TradeMatch[];
   fundingPayments: FundingPaymentEntry[];
   /** When false, global match pagination is still running — chart shows if data available. */
   globalMatchesComplete?: boolean;
-  /** True once global funding CTA has completed. */
+  /** True once all funding has loaded. */
   globalFundingComplete?: boolean;
-  /** True while loadGlobalFunding() is in-flight. */
+  /** True while funding history is loading. */
   globalFundingLoading?: boolean;
-  /** CTA trigger — same as WalletSummary "Load full history". */
-  loadGlobalFunding?: () => Promise<void>;
+  /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time. */
+  fundingLoadedSince?: number;
 };
 
 const BULL_STROKE = "var(--color-bull)";
@@ -69,9 +69,9 @@ export function WalletEquityCurve({
   trades,
   fundingPayments,
   globalMatchesComplete = true,
-  globalFundingComplete = true,
+  globalFundingComplete = false,
   globalFundingLoading = false,
-  loadGlobalFunding,
+  fundingLoadedSince = Infinity,
 }: Props) {
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
 
@@ -135,7 +135,14 @@ export function WalletEquityCurve({
   // Still loading matches AND no data for this period yet → show skeleton.
   const periodDataPending =
     !globalMatchesComplete && tradesInPeriod.length === 0;
+  // Chart is in loading/shimmer state — stats cards should also show skeletons.
+  const chartLoading =
+    periodDataPending || (period === "All time" && !globalMatchesComplete);
   const isFundingPositive = breakdown.funding >= 0;
+  const fundingReadyForPeriod = isFundingLoaded(period, fundingLoadedSince);
+  const displayNetPnl = fundingReadyForPeriod
+    ? breakdown.tradingPnl - breakdown.fees + breakdown.funding
+    : breakdown.tradingPnl - breakdown.fees;
 
   return (
     <Card className="border-border bg-card">
@@ -174,13 +181,11 @@ export function WalletEquityCurve({
         </div>
         {/* "All time" with incomplete data → keep skeleton (partial all-time is misleading) */}
         {period === "All time" && !globalMatchesComplete ? (
-          <div className="h-48 w-full rounded-md flex items-center justify-center [&_svg]:animate-[spin_1.1s_linear_infinite]">
-            <Spinner size={32} />
-          </div>
+          <LoadingShimmer text="Loading PnL curve..." />
         ) : points.length >= 2 ? (
           <ChartContainer
             config={chartConfig}
-            className="aspect-auto h-48 w-full min-h-[192px] justify-stretch [&>div]:aspect-auto"
+            className="aspect-auto h-80 w-full min-h-[320px] justify-stretch [&>div]:aspect-auto"
           >
             <LineChart
               accessibilityLayer
@@ -249,22 +254,20 @@ export function WalletEquityCurve({
             </LineChart>
           </ChartContainer>
         ) : periodDataPending ? (
-          <div className="h-48 w-full rounded-md flex items-center justify-center [&_svg]:animate-[spin_1.1s_linear_infinite]">
-            <Spinner size={32} />
-          </div>
+          <LoadingShimmer text="Loading PnL curve..." />
         ) : emptyInPeriod ? (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/70">
             No trades in this period
           </div>
         ) : (
-          <div className="h-48 flex items-center justify-center text-sm text-muted-foreground/70">
+          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/70">
             Not enough trade data to plot curve
           </div>
         )}
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">PnL</span>
-            {periodDataPending ? (
+            {chartLoading ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
               <span
@@ -282,7 +285,7 @@ export function WalletEquityCurve({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Fees</span>
-            {periodDataPending ? (
+            {chartLoading ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
               <span className="tabular-nums text-destructive">
@@ -292,7 +295,7 @@ export function WalletEquityCurve({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="text-muted-foreground">Funding</span>
-            {globalFundingComplete ? (
+            {fundingReadyForPeriod ? (
               <span
                 className={cn(
                   "tabular-nums",
@@ -302,38 +305,23 @@ export function WalletEquityCurve({
                 {isFundingPositive ? "+" : ""}
                 {fmtUsd.format(breakdown.funding)}
               </span>
-            ) : globalFundingLoading ? (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
-                <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
-                Funding loading ...
-              </span>
             ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-5 text-[10px] px-2 text-primary border-primary/30"
-                onClick={() => void loadGlobalFunding?.()}
-              >
-                Add funding history
-              </Button>
+              <Skeleton className="h-3.5 w-20 rounded-sm" />
             )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
             <span className="font-medium text-foreground">Period Net PnL</span>
-            {periodDataPending ? (
+            {chartLoading ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
               <span
                 className={cn(
                   "font-semibold tabular-nums",
-                  breakdown.totalNetPnl >= 0
-                    ? "text-primary"
-                    : "text-destructive",
+                  displayNetPnl >= 0 ? "text-primary" : "text-destructive",
                 )}
               >
-                {breakdown.totalNetPnl >= 0 ? "+" : ""}
-                {fmtUsd.format(breakdown.totalNetPnl)}
+                {displayNetPnl >= 0 ? "+" : ""}
+                {fmtUsd.format(displayNetPnl)}
               </span>
             )}
           </div>

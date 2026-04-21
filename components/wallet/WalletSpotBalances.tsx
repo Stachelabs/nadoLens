@@ -120,7 +120,7 @@ export function WalletSpotBalances({
             return (
               <div
                 key={asset.product_id}
-                className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[280px]"
+                className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[234px]"
               >
                 <Image
                   src={asset.icon}

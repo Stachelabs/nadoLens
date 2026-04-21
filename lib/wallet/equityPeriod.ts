@@ -55,6 +55,19 @@ export function filterFundingPaymentsByPeriod(
   })
 }
 
+/**
+ * Returns true if funding data for `period` is fully covered by the loaded range.
+ * @param fundingLoadedSince unix ms — Infinity = nothing, 0 = all time.
+ */
+export function isFundingLoaded(period: EquityPeriod, fundingLoadedSince: number): boolean {
+  if (fundingLoadedSince === 0) return true
+  if (fundingLoadedSince === Infinity) return false
+  if (period === 'All time') return false
+  const bounds = getPeriodBoundsUtc(period)
+  if (!bounds) return false
+  return fundingLoadedSince <= bounds.startSec * 1000
+}
+
 /** Short label for the chart header (period scope). */
 export function formatEquityPeriodLabel(period: EquityPeriod): string {
   switch (period) {

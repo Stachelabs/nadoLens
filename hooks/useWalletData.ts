@@ -33,6 +33,7 @@ import {
 } from "@/lib/wallet/subaccountLabel";
 import { isEmptyTrackedSpotBalances } from "@/lib/wallet/spotTracked";
 import { nanoStringToUnixSec } from "@/lib/wallet/nanoTime";
+import { type EquityPeriod, getPeriodBoundsUtc } from "@/lib/wallet/equityPeriod";
 import type {
   CrossSubaccountEntry,
   Position,
@@ -55,8 +56,8 @@ const MAX_PAGES = 50;
 /** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
 const MATCHES_BURST_MS = 220;
 const MATCHES_429_MAX_ATTEMPTS = 8;
-const FUNDING_BURST_MS = 120;
-const FUNDING_429_MAX_ATTEMPTS = 8;
+const FUNDING_BURST_MS = 350;
+const FUNDING_429_MAX_ATTEMPTS = 10;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -75,6 +76,8 @@ type FundingFetchResult = {
   payments: FundingPaymentEntry[];
   complete: boolean;
   rateLimited?: boolean;
+  /** Cursor for resuming pagination. null = subaccount exhausted. */
+  nextMaxIdx?: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -284,13 +287,23 @@ export type WalletData = {
   refreshSpotBalances: () => Promise<void>;
   /** CTA: fetch full funding history for all subaccounts. */
   loadGlobalFunding: () => Promise<void>;
+  /** Fetch funding for specific product IDs only (incremental, deduped). */
+  loadFundingForProducts: (productIds: number[]) => Promise<void>;
+  /** Product IDs whose funding has been loaded (grows as products are fetched). */
+  loadedFundingProductIds: number[];
+  /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time loaded. */
+  fundingLoadedSince: number;
+  /** True while a period-scoped funding load is in progress. */
+  fundingPeriodLoading: boolean;
+  /** Load funding history up to the given period, resuming from stored cursor. */
+  loadFundingForPeriod: (period: EquityPeriod) => Promise<void>;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWalletData(rawAddress: string): WalletData {
   const [data, setData] = useState<
-    Omit<WalletData, "refresh" | "refreshUnrealizedPnl" | "refreshSpotBalances" | "loadGlobalFunding">
+    Omit<WalletData, "refresh" | "refreshUnrealizedPnl" | "refreshSpotBalances" | "loadGlobalFunding" | "loadFundingForProducts" | "loadFundingForPeriod">
   >({
     stats: null,
     trades: [],
@@ -306,6 +319,9 @@ export function useWalletData(rawAddress: string): WalletData {
     globalFundingLoading: false,
     globalFundingComplete: false,
     fundingComplete: false,
+    loadedFundingProductIds: [],
+    fundingLoadedSince: Infinity,
+    fundingPeriodLoading: false,
     error: null,
     refreshing: false,
     unrealizedRefreshing: false,
@@ -337,8 +353,18 @@ export function useWalletData(rawAddress: string): WalletData {
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshSpotBalancesImplRef = useRef<() => Promise<void>>(async () => {});
   const loadGlobalFundingImplRef = useRef<() => Promise<void>>(async () => {});
+  const loadFundingForProductsImplRef = useRef<(productIds: number[]) => Promise<void>>(async () => {});
+  const loadedFundingProductIdsRef = useRef<Set<number>>(new Set());
+  const loadingFundingProductIdsRef = useRef<Set<number>>(new Set());
   /** Guards against concurrent calls to loadGlobalFundingImpl (e.g. double-click on CTA). */
   const globalFundingActiveRef = useRef(false);
+  /** Guards against concurrent calls to loadFundingForPeriodImpl. */
+  const fundingPeriodActiveRef = useRef(false);
+  /** Per-subaccount pagination cursor. undefined = not started, null = exhausted. */
+  const fundingSubaccountCursorsRef = useRef<Map<string, string | null>>(new Map());
+  /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time. */
+  const fundingLoadedSinceRef = useRef<number>(Infinity);
+  const loadFundingForPeriodImplRef = useRef<(period: EquityPeriod) => Promise<void>>(async () => {});
   /** When true, Archive pagination loops yield to let the poller finish unblocked. */
   const archiveQueuePausedRef = useRef(false);
   /** Position-scoped trades — separate from tradesRef (global). */
@@ -696,22 +722,24 @@ export function useWalletData(rawAddress: string): WalletData {
     const fetchFundingPaidBySubaccount = async (
       subaccount: string,
       productIds: number[],
+      options?: { stopBeforeMs?: number; resumeFromIdx?: string | null },
     ): Promise<FundingFetchResult> => {
       if (productIds.length === 0) {
-        return {
-          totalFundingUsd: 0,
-          payments: [],
-          complete: true,
-        };
+        return { totalFundingUsd: 0, payments: [], complete: true, nextMaxIdx: null };
+      }
+      // Already exhausted for this subaccount
+      if (options?.resumeFromIdx === null) {
+        return { totalFundingUsd: 0, payments: [], complete: true, nextMaxIdx: null };
       }
       const LIMIT = 100;
       const FUNDING_MAX_PAGES = 100;
       let page = 0;
-      let maxIdx: string | undefined;
+      let maxIdx: string | undefined = options?.resumeFromIdx ?? undefined;
       let totalFundingUsd = 0;
       const seen = new Set<string>();
       const payments: FundingPaymentEntry[] = [];
       let complete = true;
+      let nextMaxIdx: string | null = null;
 
       while (page < FUNDING_MAX_PAGES) {
         page += 1;
@@ -732,16 +760,11 @@ export function useWalletData(rawAddress: string): WalletData {
           });
           if (res.status !== 429) break;
           if (attempt < FUNDING_429_MAX_ATTEMPTS) {
-            await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 2500));
+            await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 8000));
           }
         }
         if (!res || res.status === 429) {
-          return {
-            totalFundingUsd,
-            payments,
-            complete: false,
-            rateLimited: true,
-          };
+          return { totalFundingUsd, payments, complete: false, rateLimited: true, nextMaxIdx: maxIdx ?? null };
         }
         if (!res.ok) {
           complete = false;
@@ -755,36 +778,49 @@ export function useWalletData(rawAddress: string): WalletData {
           break;
         }
 
-        const collectPayments = (
-          items: typeof result.data.funding_payments,
-        ) => {
-          for (const payment of items) {
-            const key = `funding:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            const amount = fromX18BigInt(payment.amount);
-            totalFundingUsd += amount;
-            payments.push({
-              subaccount,
-              product_id: payment.product_id,
-              idx: payment.idx,
-              timestamp: payment.timestamp,
-              amount: payment.amount,
-              source: "funding",
-            });
+        for (const payment of result.data.funding_payments) {
+          const key = `funding:${subaccount}:${payment.idx}:${payment.product_id}:${payment.amount}:${payment.timestamp}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const amount = fromX18BigInt(payment.amount);
+          totalFundingUsd += amount;
+          payments.push({
+            subaccount,
+            product_id: payment.product_id,
+            idx: payment.idx,
+            timestamp: payment.timestamp,
+            amount: payment.amount,
+            source: "funding",
+          });
+        }
+
+        const pageNextIdx = result.data.next_idx;
+        if (pageNextIdx === null || pageNextIdx === undefined) {
+          nextMaxIdx = null; // exhausted
+          break;
+        }
+        maxIdx = String(pageNextIdx);
+
+        // Early stop: last item on this page is older than the requested cutoff
+        if (options?.stopBeforeMs !== undefined) {
+          const lastTs = result.data.funding_payments.at(-1)?.timestamp;
+          if (lastTs) {
+            const lastSec = nanoStringToUnixSec(lastTs);
+            if (lastSec !== null && lastSec * 1000 <= options.stopBeforeMs) {
+              nextMaxIdx = maxIdx; // save cursor for future expansion
+              break;
+            }
           }
-        };
+        }
 
-        collectPayments(result.data.funding_payments);
-
-        const nextIdx = result.data.next_idx;
-        if (nextIdx === null || nextIdx === undefined) break;
-        maxIdx = String(nextIdx);
         await sleep(FUNDING_BURST_MS);
       }
 
-      if (page >= FUNDING_MAX_PAGES) complete = false;
-      return { totalFundingUsd, payments, complete };
+      if (page >= FUNDING_MAX_PAGES) {
+        complete = false;
+        nextMaxIdx = maxIdx ?? null;
+      }
+      return { totalFundingUsd, payments, complete, nextMaxIdx };
     };
 
     /** One paginated stream per subaccount — serialized to avoid bursting Archive. */
@@ -1014,7 +1050,7 @@ export function useWalletData(rawAddress: string): WalletData {
             });
             if (res.status !== 429) break;
             if (attempt < FUNDING_429_MAX_ATTEMPTS) {
-              await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 2500));
+              await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 8000));
             }
           }
 
@@ -1089,15 +1125,19 @@ export function useWalletData(rawAddress: string): WalletData {
         fundingPaidUsdRef.current = fundingData.totalFundingUsd;
         fundingPaymentsRef.current = fundingData.payments;
         const updatedPnlStats = buildPnlStats(tradesRef.current, fundingData.totalFundingUsd);
+        const fundingComplete = !fundingData.rateLimited && fundingData.complete;
+        if (fundingData.rateLimited) {
+          globalFundingActiveRef.current = false;
+        }
         if (!cancelled) {
           setData(prev => ({
             ...prev,
             fundingPayments: fundingData.payments,
-            globalFundingComplete: true,
+            globalFundingComplete: fundingComplete,
             fundingComplete: true,
             globalFundingLoading: false,
             error: fundingData.rateLimited
-              ? "Archive rate limit while loading funding — partial funding data shown."
+              ? "Archive rate limit while loading funding — retry by switching tabs."
               : !fundingData.complete
                 ? "Funding history may be partial (page cap or API error)."
                 : prev.error,
@@ -1122,6 +1162,168 @@ export function useWalletData(rawAddress: string): WalletData {
         globalFundingActiveRef.current = false;
         if (!cancelled) {
           setData(prev => ({ ...prev, globalFundingLoading: false }));
+        }
+      }
+    }
+
+    async function loadFundingForPeriodImpl(
+      subAddrs: string[],
+      fallbackProductIds: number[],
+      period: EquityPeriod,
+    ): Promise<void> {
+      if (globalFundingActiveRef.current || fundingPeriodActiveRef.current) return;
+
+      const bounds = getPeriodBoundsUtc(period);
+      const stopBeforeMs = bounds ? bounds.startSec * 1000 : undefined;
+
+      // Check if already loaded
+      const already =
+        period === 'All time'
+          ? fundingLoadedSinceRef.current === 0
+          : fundingLoadedSinceRef.current !== Infinity &&
+            fundingLoadedSinceRef.current <= (stopBeforeMs ?? 0);
+      if (already) return;
+
+      fundingPeriodActiveRef.current = true;
+      setData(prev => ({ ...prev, fundingPeriodLoading: true }));
+
+      const allPerpIds = getAllPerpProductIds();
+      const productIds = allPerpIds.length > 0
+        ? allPerpIds
+        : Array.from(new Set(fallbackProductIds));
+
+      if (productIds.length === 0) {
+        fundingPeriodActiveRef.current = false;
+        setData(prev => ({ ...prev, fundingPeriodLoading: false }));
+        return;
+      }
+
+      const existingKeys = new Set(
+        fundingPaymentsRef.current.map(p => `${p.subaccount}:${p.idx}`),
+      );
+      const newPayments: FundingPaymentEntry[] = [];
+      let rateLimited = false;
+
+      for (let i = 0; i < subAddrs.length; i++) {
+        if (cancelled) break;
+        const subaccount = subAddrs[i]!;
+        const cursor = fundingSubaccountCursorsRef.current.get(subaccount);
+
+        const result = await fetchFundingPaidBySubaccount(subaccount, productIds, {
+          stopBeforeMs,
+          resumeFromIdx: cursor,
+        });
+
+        // Update per-subaccount cursor
+        if (result.nextMaxIdx !== undefined) {
+          fundingSubaccountCursorsRef.current.set(subaccount, result.nextMaxIdx);
+        }
+
+        for (const p of result.payments) {
+          const key = `${p.subaccount}:${p.idx}`;
+          if (!existingKeys.has(key)) {
+            existingKeys.add(key);
+            newPayments.push(p);
+          }
+        }
+
+        if (result.rateLimited) {
+          rateLimited = true;
+          break;
+        }
+
+        if (i < subAddrs.length - 1) await sleep(FUNDING_BURST_MS);
+      }
+
+      if (cancelled) {
+        fundingPeriodActiveRef.current = false;
+        return;
+      }
+
+      fundingPaymentsRef.current = [...fundingPaymentsRef.current, ...newPayments];
+
+      if (!rateLimited) {
+        const allExhausted = subAddrs.every(
+          s => fundingSubaccountCursorsRef.current.get(s) === null,
+        );
+        fundingLoadedSinceRef.current = allExhausted ? 0 : (stopBeforeMs ?? 0);
+      }
+
+      fundingPeriodActiveRef.current = false;
+      const loadedSince = fundingLoadedSinceRef.current;
+
+      setData(prev => ({
+        ...prev,
+        fundingPayments: fundingPaymentsRef.current,
+        fundingPeriodLoading: false,
+        fundingLoadedSince: loadedSince,
+        globalFundingComplete: loadedSince === 0,
+        fundingComplete: loadedSince !== Infinity,
+        error: rateLimited
+          ? "Archive rate limit while loading funding — retry by switching tabs."
+          : prev.error,
+      }));
+    }
+
+    async function loadFundingForProductsImpl(
+      subAddrs: string[],
+      productIds: number[],
+    ): Promise<void> {
+      const toLoad = productIds.filter(
+        id => !loadedFundingProductIdsRef.current.has(id)
+           && !loadingFundingProductIdsRef.current.has(id),
+      )
+      if (toLoad.length === 0) return
+
+      toLoad.forEach(id => loadingFundingProductIdsRef.current.add(id))
+      setData(prev => ({ ...prev, globalFundingLoading: true }))
+
+      try {
+        const result = await fetchFundingPaidAllSubaccounts(subAddrs, toLoad)
+
+        if (cancelled) return
+
+        toLoad.forEach(id => {
+          loadingFundingProductIdsRef.current.delete(id)
+          loadedFundingProductIdsRef.current.add(id)
+        })
+
+        const existingIdxs = new Set(fundingPaymentsRef.current.map(p => p.idx))
+        const newPayments = result.payments.filter(p => !existingIdxs.has(p.idx))
+        fundingPaymentsRef.current = [...fundingPaymentsRef.current, ...newPayments]
+        fundingPaidUsdRef.current += result.totalFundingUsd
+
+        const loadedIds = [...loadedFundingProductIdsRef.current]
+        const updatedPnlStats = buildPnlStats(tradesRef.current, fundingPaidUsdRef.current)
+
+        setData(prev => ({
+          ...prev,
+          fundingPayments: fundingPaymentsRef.current,
+          loadedFundingProductIds: loadedIds,
+          globalFundingLoading: loadingFundingProductIdsRef.current.size > 0,
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                ...updatedPnlStats,
+                positions: applySessionFunding(
+                  applyPositionStats(
+                    applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+                    positionStatsMapRef.current,
+                  ),
+                  positionStatsMapRef.current,
+                  fundingPaymentsRef.current,
+                ),
+              }
+            : null,
+        }))
+      } catch (e) {
+        console.error('loadFundingForProducts failed:', e)
+        toLoad.forEach(id => loadingFundingProductIdsRef.current.delete(id))
+        if (!cancelled) {
+          setData(prev => ({
+            ...prev,
+            globalFundingLoading: loadingFundingProductIdsRef.current.size > 0,
+          }))
         }
       }
     }
@@ -1215,6 +1417,9 @@ export function useWalletData(rawAddress: string): WalletData {
         globalFundingLoading: false,
         globalFundingComplete: false,
         fundingComplete: false,
+        loadedFundingProductIds: [],
+        fundingLoadedSince: Infinity,
+        fundingPeriodLoading: false,
         refreshing: false,
         unrealizedRefreshing: false,
         spotBalancesRefreshing: false,
@@ -1227,6 +1432,10 @@ export function useWalletData(rawAddress: string): WalletData {
           subAddrs,
           positionData.positions.map(p => p.product_id),
         );
+      loadFundingForProductsImplRef.current = (ids: number[]) =>
+        loadFundingForProductsImpl(subAddrs, ids);
+      loadFundingForPeriodImplRef.current = (period: EquityPeriod) =>
+        loadFundingForPeriodImpl(subAddrs, positionData.positions.map(p => p.product_id), period);
 
       // ── Phase 2 + 3 (concurrent, background) ─────────────────────────────
 
@@ -1767,6 +1976,11 @@ export function useWalletData(rawAddress: string): WalletData {
       positionTradesRef.current = [];
       positionOpenTimeMapRef.current = {};
       positionSeenTradeIdsRef.current = new Set();
+      loadedFundingProductIdsRef.current = new Set();
+      loadingFundingProductIdsRef.current = new Set();
+      fundingSubaccountCursorsRef.current = new Map();
+      fundingLoadedSinceRef.current = Infinity;
+      fundingPeriodActiveRef.current = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [rawAddress]);
@@ -1777,5 +1991,7 @@ export function useWalletData(rawAddress: string): WalletData {
     refreshUnrealizedPnl: () => refreshUnrealizedImplRef.current(),
     refreshSpotBalances: () => refreshSpotBalancesImplRef.current(),
     loadGlobalFunding: () => loadGlobalFundingImplRef.current(),
+    loadFundingForProducts: (ids: number[]) => loadFundingForProductsImplRef.current(ids),
+    loadFundingForPeriod: (period: EquityPeriod) => loadFundingForPeriodImplRef.current(period),
   };
 }
