@@ -44,7 +44,9 @@ import type {
   WalletStats,
 } from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useAccountStream, type FillEvent } from "@/hooks/useAccountStream";
 
 // Poll interval for live positions + marks.
 // subaccount_info = weight 2, account_snapshots = weight ~2 → 4 weight/poll/subaccount.
@@ -363,6 +365,23 @@ export function useWalletData(rawAddress: string): WalletData {
   /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time. */
   const fundingLoadedSinceRef = useRef<number>(Infinity);
   const loadFundingForPeriodImplRef = useRef<(period: EquityPeriod) => Promise<void>>(async () => {});
+  /** Fill handler wired up inside the useEffect — called by useAccountStream. */
+  const wsFillHandlerRef = useRef<((event: FillEvent) => void) | null>(null);
+  /** Debounce timer for rapid multi-leg fills arriving via WS. */
+  const wsFillDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Subscribe to fill events via SSE (WS proxy co-located on nado-matches).
+  // Fires wsFillHandlerRef.current which is set inside the useEffect below.
+  // The existing 6s poll fillDetected branch remains as fallback.
+  const defaultSubaccount = rawAddress ? toSubaccount(rawAddress) : null;
+  const onWsFill = useCallback((event: FillEvent) => {
+    if (wsFillDebounceRef.current) clearTimeout(wsFillDebounceRef.current);
+    wsFillDebounceRef.current = setTimeout(() => {
+      wsFillHandlerRef.current?.(event);
+    }, 100);
+  }, []);
+  useAccountStream(defaultSubaccount, { onFill: onWsFill });
+
   /** Position-scoped trades — separate from tradesRef (global). */
   const positionTradesRef = useRef<TradeMatch[]>([]);
   /** Earliest open time per position key — boundary for position-scoped funding. */
@@ -1889,6 +1908,50 @@ export function useWalletData(rawAddress: string): WalletData {
       }
     };
 
+    // Wire up the WS fill handler. Closes over all helper functions defined above
+    // so it can trigger the same fetch path as the poll-based fillDetected branch.
+    wsFillHandlerRef.current = async (fillEvent: FillEvent) => {
+      if (cancelled) return;
+
+      // Show toast immediately — before Archive fetch completes
+      const pairLabel = productName(fillEvent.product_id) || `#${fillEvent.product_id}`;
+      const direction = fillEvent.is_bid ? "Long" : "Short";
+      const qty = Math.abs(fromX18BigInt(fillEvent.filled_qty));
+      const price = fromX18BigInt(fillEvent.price);
+      const role = fillEvent.is_taker ? "taker" : "maker";
+      toast.success(`${pairLabel} — ${direction}`, {
+        description: `${qty.toFixed(4)} @ $${price.toLocaleString("en-US", { maximumFractionDigits: 2 })} · ${role}`,
+      });
+
+      // Immediately trigger the same fetch path as the poll-based fillDetected branch
+      const crossSubs = subaccountsRef.current
+        .filter((s) => !s.isolated)
+        .map((s) => s.subaccount);
+      const [freshMap, newTrades] = await Promise.all([
+        fetchSnapshotEntryPrices(crossSubs),
+        latestKnownIdxRef.current
+          ? fetchIncrementalTrades(
+              chunk(subaccountsRef.current.map((s) => s.subaccount), 5),
+              latestKnownIdxRef.current,
+            )
+          : Promise.resolve([] as TradeMatch[]),
+      ]);
+      if (cancelled) return;
+      entryPriceMapRef.current = freshMap;
+      if (newTrades.length > 0) {
+        const updatedTrades = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+        tradesRef.current = updatedTrades;
+        latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+        positionStatsMapRef.current = buildPositionStatsMap(updatedTrades, tradesCompleteRef.current);
+        const updatedPnlStats = buildPnlStats(updatedTrades, fundingPaidUsdRef.current);
+        setData((prev) =>
+          prev.stats
+            ? { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...updatedPnlStats } }
+            : prev,
+        );
+      }
+    };
+
     void loadWallet("initial").catch((e: unknown) => {
       console.error("[useWalletData] loadWallet failed:", e);
       if (!cancelled)
@@ -1923,6 +1986,8 @@ export function useWalletData(rawAddress: string): WalletData {
       fundingSubaccountCursorsRef.current = new Map();
       fundingLoadedSinceRef.current = Infinity;
       fundingPeriodActiveRef.current = false;
+      wsFillHandlerRef.current = null;
+      if (wsFillDebounceRef.current) clearTimeout(wsFillDebounceRef.current);
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [rawAddress]);

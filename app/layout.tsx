@@ -3,6 +3,7 @@ import { Outfit, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const outfit = Outfit({
@@ -36,6 +37,7 @@ export default function RootLayout({
           <Providers>
             <Nav />
             <main className="flex-1">{children}</main>
+            <Toaster position="bottom-right" theme="dark" richColors />
           </Providers>
         </ThemeProvider>
       </body>
