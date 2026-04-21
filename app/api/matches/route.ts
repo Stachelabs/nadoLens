@@ -1,4 +1,4 @@
-import { NADO_ARCHIVE_REST } from "@/lib/nado";
+import { NADO_MATCHES_SERVICE_URL } from "@/lib/nado";
 import {
   ArchiveMatchesResponseSchema,
   MatchesQueryRequestSchema,
@@ -20,29 +20,26 @@ export async function POST(
     return NextResponse.json({ error: "Invalid matches request body" }, { status: 400 });
   }
 
-  const response = await fetch(NADO_ARCHIVE_REST, {
+  if (!NADO_MATCHES_SERVICE_URL) {
+    return NextResponse.json(
+      { error: "Matches service not configured" },
+      { status: 503 },
+    );
+  }
+
+  const response = await fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Accept-Encoding": "gzip, br, deflate",
+      "X-Service-Secret": process.env.SERVICE_SECRET ?? "",
     },
-    body: JSON.stringify({
-      matches: {
-        subaccounts: bodyResult.data.subaccounts,
-        limit: bodyResult.data.limit,
-        isolated: bodyResult.data.isolated,
-        ...(bodyResult.data.idx ? { idx: bodyResult.data.idx } : {}),
-        ...(bodyResult.data.product_ids?.length
-          ? { product_ids: bodyResult.data.product_ids }
-          : {}),
-      },
-    }),
+    body: JSON.stringify(bodyResult.data),
     cache: "no-store",
   });
 
   if (!response.ok) {
     return NextResponse.json(
-      { error: "Archive matches request failed" },
+      { error: "Matches service request failed" },
       { status: response.status },
     );
   }
@@ -51,7 +48,7 @@ export async function POST(
   const parsed = parseArchiveJson(ArchiveMatchesResponseSchema, raw);
   if (!parsed.ok) {
     return NextResponse.json(
-      { error: "Invalid matches response from Archive" },
+      { error: "Invalid matches response from service" },
       { status: 502 },
     );
   }

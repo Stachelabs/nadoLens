@@ -1,4 +1,4 @@
-import { NADO_ARCHIVE_REST } from "@/lib/nado";
+import { NADO_FUNDING_SERVICE_URL } from "@/lib/nado";
 import {
   InterestAndFundingPaymentsResponseSchema,
   InterestAndFundingRequestSchema,
@@ -22,26 +22,26 @@ export async function POST(
     return NextResponse.json({ error: "Invalid funding request body" }, { status: 400 });
   }
 
-  const response = await fetch(NADO_ARCHIVE_REST, {
+  if (!NADO_FUNDING_SERVICE_URL) {
+    return NextResponse.json(
+      { error: "Funding service not configured" },
+      { status: 503 },
+    );
+  }
+
+  const response = await fetch(`${NADO_FUNDING_SERVICE_URL}/funding`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Accept-Encoding": "gzip, br, deflate",
+      "X-Service-Secret": process.env.SERVICE_SECRET ?? "",
     },
-    body: JSON.stringify({
-      interest_and_funding: {
-        subaccount: bodyResult.data.subaccount,
-        product_ids: bodyResult.data.product_ids,
-        limit: bodyResult.data.limit,
-        ...(bodyResult.data.max_idx ? { max_idx: bodyResult.data.max_idx } : {}),
-      },
-    }),
+    body: JSON.stringify(bodyResult.data),
     cache: "no-store",
   });
 
   if (!response.ok) {
     return NextResponse.json(
-      { error: "Archive funding request failed" },
+      { error: "Funding service request failed" },
       { status: response.status },
     );
   }
@@ -50,7 +50,7 @@ export async function POST(
   const parsed = parseArchiveJson(InterestAndFundingPaymentsResponseSchema, raw);
   if (!parsed.ok) {
     return NextResponse.json(
-      { error: "Invalid funding response from Archive" },
+      { error: "Invalid funding response from service" },
       { status: 502 },
     );
   }

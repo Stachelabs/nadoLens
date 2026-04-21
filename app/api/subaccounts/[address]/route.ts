@@ -1,6 +1,9 @@
 import { NADO_ARCHIVE_REST } from "@/lib/nado";
 import { ArchiveSubaccountsResponseSchema } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
+import { parseArchiveJson } from "@/lib/api/validateResponse";
+import { withArchiveRetry } from "@/lib/archiveRetry";
+import { cacheKey, redis } from "@/lib/redis";
 import { isAddress } from "viem";
 import { z } from "zod";
 
@@ -23,12 +26,28 @@ export async function GET(
     return NextResponse.json({ error: "Invalid address" }, { status: 400 });
   }
 
-  const response = await fetch(NADO_ARCHIVE_REST, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept-Encoding": "gzip" },
-    body: JSON.stringify({ subaccounts: { address } }),
-    cache: "no-store",
-  });
+  const key = cacheKey("subaccounts", address.toLowerCase());
+
+  try {
+    const cached = await redis.get<OkResponse>(key);
+    if (cached !== null) {
+      const revalidated = ArchiveSubaccountsResponseSchema.safeParse(cached);
+      if (revalidated.success) return NextResponse.json(revalidated.data);
+    }
+  } catch {
+    // Cache unavailable — proceed to Archive
+  }
+
+  const response = await withArchiveRetry(
+    () =>
+      fetch(NADO_ARCHIVE_REST, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept-Encoding": "gzip" },
+        body: JSON.stringify({ subaccounts: { address } }),
+        cache: "no-store",
+      }),
+    { maxAttempts: 5, baseDelayMs: 400, maxDelayMs: 30_000 },
+  );
 
   if (!response.ok) {
     return NextResponse.json(
@@ -38,13 +57,19 @@ export async function GET(
   }
 
   const raw: unknown = await response.json();
-  const result = ArchiveSubaccountsResponseSchema.safeParse(raw);
-  if (!result.success) {
+  const parsed = parseArchiveJson(ArchiveSubaccountsResponseSchema, raw);
+  if (!parsed.ok) {
     return NextResponse.json(
       { error: "Invalid response from Archive" },
       { status: 502 },
     );
   }
 
-  return NextResponse.json(result.data);
+  try {
+    await redis.set(key, parsed.data, { ex: 300 });
+  } catch {
+    // Cache write failure is non-fatal
+  }
+
+  return NextResponse.json(parsed.data);
 }

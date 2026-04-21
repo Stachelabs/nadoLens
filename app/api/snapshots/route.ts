@@ -5,11 +5,18 @@ import {
 } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
+import { withArchiveRetry } from "@/lib/archiveRetry";
+import { cacheKey, hashParams, redis } from "@/lib/redis";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
 type ErrResponse = { error: string };
+
+// Floor to nearest 5-minute bucket so repeated loads within a window hit cache
+function timestampBucket(): number {
+  return Math.floor(Date.now() / 1000 / 300) * 300;
+}
 
 export async function POST(
   request: NextRequest,
@@ -23,6 +30,23 @@ export async function POST(
   const { subaccounts, isolated } = bodyResult.data;
   const timestamps = [Math.floor(Date.now() / 1000)];
 
+  const key = cacheKey(
+    "snapshots",
+    hashParams({ subaccounts: [...subaccounts].sort(), isolated, bucket: timestampBucket() }),
+  );
+
+  type OkResponse = z.infer<typeof AccountSnapshotsResponseSchema>;
+
+  try {
+    const cached = await redis.get<OkResponse>(key);
+    if (cached !== null) {
+      const revalidated = AccountSnapshotsResponseSchema.safeParse(cached);
+      if (revalidated.success) return NextResponse.json(revalidated.data);
+    }
+  } catch {
+    // Cache unavailable — proceed to Archive
+  }
+
   const archiveBody: Record<string, unknown> = {
     account_snapshots: {
       subaccounts,
@@ -32,15 +56,19 @@ export async function POST(
     },
   };
 
-  const response = await fetch(NADO_ARCHIVE_REST, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept-Encoding": "gzip, br, deflate",
-    },
-    body: JSON.stringify(archiveBody),
-    cache: "no-store",
-  });
+  const response = await withArchiveRetry(
+    () =>
+      fetch(NADO_ARCHIVE_REST, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Encoding": "gzip, br, deflate",
+        },
+        body: JSON.stringify(archiveBody),
+        cache: "no-store",
+      }),
+    { maxAttempts: 5, baseDelayMs: 400, maxDelayMs: 30_000 },
+  );
 
   if (!response.ok) {
     return NextResponse.json(
@@ -56,6 +84,12 @@ export async function POST(
       { error: "Invalid snapshots response from Archive" },
       { status: 502 },
     );
+  }
+
+  try {
+    await redis.set(key, parsed.data, { ex: 300 });
+  } catch {
+    // Cache write failure is non-fatal
   }
 
   return NextResponse.json(parsed.data);

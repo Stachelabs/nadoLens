@@ -53,11 +53,9 @@ import { useEffect, useRef, useState } from "react";
 const POSITIONS_POLL_MS = 6_000;
 const MATCHES_LIMIT = 500;
 const MAX_PAGES = 50;
-/** Space out Archive `matches` calls — parallel bursts hit IP rate limits (HTTP 429). */
+/** Space out Archive `matches` calls to avoid saturating the service. */
 const MATCHES_BURST_MS = 220;
-const MATCHES_429_MAX_ATTEMPTS = 8;
 const FUNDING_BURST_MS = 350;
-const FUNDING_429_MAX_ATTEMPTS = 10;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -365,8 +363,6 @@ export function useWalletData(rawAddress: string): WalletData {
   /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time. */
   const fundingLoadedSinceRef = useRef<number>(Infinity);
   const loadFundingForPeriodImplRef = useRef<(period: EquityPeriod) => Promise<void>>(async () => {});
-  /** When true, Archive pagination loops yield to let the poller finish unblocked. */
-  const archiveQueuePausedRef = useRef(false);
   /** Position-scoped trades — separate from tradesRef (global). */
   const positionTradesRef = useRef<TradeMatch[]>([]);
   /** Earliest open time per position key — boundary for position-scoped funding. */
@@ -387,13 +383,6 @@ export function useWalletData(rawAddress: string): WalletData {
     positionTradesRef.current = [];
     positionOpenTimeMapRef.current = {};
     positionSeenTradeIdsRef.current = new Set();
-
-    /** Yield to let the Gateway poller finish if it's active — avoids Archive bursts during poll. */
-    async function yieldToPollerIfNeeded(): Promise<void> {
-      if (archiveQueuePausedRef.current) {
-        await new Promise<void>(r => setTimeout(r, MATCHES_BURST_MS));
-      }
-    }
 
     // 1. Resolve all subaccounts (default + isolated) via Archive
     const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
@@ -657,66 +646,42 @@ export function useWalletData(rawAddress: string): WalletData {
           : {}),
       };
 
-      for (let attempt = 0; attempt < MATCHES_429_MAX_ATTEMPTS; attempt++) {
-        try {
-          const res = await fetch("/api/matches", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            cache: "no-store",
-          });
+      try {
+        const res = await fetch("/api/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          cache: "no-store",
+        });
 
-          if (res.status === 429) {
-            if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
-              const ra = res.headers.get("Retry-After");
-              const fromHeader = ra ? Math.min(parseInt(ra, 10) * 1000, 60_000) : 0;
-              const backoff = Math.min(
-                400 * 2 ** attempt + fromHeader,
-                60_000,
-              );
-              await sleep(backoff);
-              continue;
-            }
-            return {
-              trades: [],
-              nextIdx: lastIdx ?? null,
-              done: false,
-              rateLimited: true,
-            };
-          }
+        if (res.status === 429) {
+          return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true };
+        }
 
-          if (!res.ok) {
-            return { trades: [], nextIdx: null, done: true };
-          }
-
-          const raw: unknown = await res.json();
-          const result = ArchiveMatchesResponseSchema.safeParse(raw);
-          if (!result.success || result.data.matches.length === 0) {
-            return { trades: [], nextIdx: null, done: true };
-          }
-
-          const pageMatches = result.data.matches;
-          const txMap = new Map<string, number>();
-          for (const tx of result.data.txs) {
-            txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10));
-          }
-          const trades = parseMatchesBatch(pageMatches, txMap);
-          const done = pageMatches.length < MATCHES_LIMIT;
-          const nextIdx = done
-            ? null
-            : pageMatches[pageMatches.length - 1].submission_idx;
-          return { trades, nextIdx, done };
-        } catch {
+        if (!res.ok) {
           return { trades: [], nextIdx: null, done: true };
         }
-      }
 
-      return {
-        trades: [],
-        nextIdx: lastIdx ?? null,
-        done: false,
-        rateLimited: true,
-      };
+        const raw: unknown = await res.json();
+        const result = ArchiveMatchesResponseSchema.safeParse(raw);
+        if (!result.success || result.data.matches.length === 0) {
+          return { trades: [], nextIdx: null, done: true };
+        }
+
+        const pageMatches = result.data.matches;
+        const txMap = new Map<string, number>();
+        for (const tx of result.data.txs) {
+          txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10));
+        }
+        const trades = parseMatchesBatch(pageMatches, txMap);
+        const done = pageMatches.length < MATCHES_LIMIT;
+        const nextIdx = done
+          ? null
+          : pageMatches[pageMatches.length - 1].submission_idx;
+        return { trades, nextIdx, done };
+      } catch {
+        return { trades: [], nextIdx: null, done: true };
+      }
     };
 
     const fetchFundingPaidBySubaccount = async (
@@ -750,20 +715,13 @@ export function useWalletData(rawAddress: string): WalletData {
           ...(maxIdx ? { max_idx: maxIdx } : {}),
         };
 
-        let res: Response | null = null;
-        for (let attempt = 1; attempt <= FUNDING_429_MAX_ATTEMPTS; attempt++) {
-          res = await fetch("/api/funding", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            cache: "no-store",
-          });
-          if (res.status !== 429) break;
-          if (attempt < FUNDING_429_MAX_ATTEMPTS) {
-            await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 8000));
-          }
-        }
-        if (!res || res.status === 429) {
+        const res = await fetch("/api/funding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          cache: "no-store",
+        });
+        if (res.status === 429) {
           return { totalFundingUsd, payments, complete: false, rateLimited: true, nextMaxIdx: maxIdx ?? null };
         }
         if (!res.ok) {
@@ -951,7 +909,6 @@ export function useWalletData(rawAddress: string): WalletData {
           const pairKey = `${pair.subaccount}:${pair.productId}`;
           if (completedProducts.has(pairKey)) continue;
 
-          await yieldToPollerIfNeeded();
 
           const result = await fetchOnePage(
             [pair.subaccount],
@@ -1030,29 +987,21 @@ export function useWalletData(rawAddress: string): WalletData {
         for (let page = 0; page < 100; page++) {
           if (completedProducts.size >= openPerpProductIds.length) break;
 
-          await yieldToPollerIfNeeded();
 
           const activeProductIds = openPerpProductIds.filter(id => !completedProducts.has(id));
           if (activeProductIds.length === 0) break;
 
-          let res: Response | null = null;
-          for (let attempt = 1; attempt <= FUNDING_429_MAX_ATTEMPTS; attempt++) {
-            res = await fetch("/api/funding", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                subaccount,
-                product_ids: activeProductIds,
-                limit: 100,
-                ...(nextIdx !== undefined ? { max_idx: nextIdx } : {}),
-              }),
-              cache: "no-store",
-            });
-            if (res.status !== 429) break;
-            if (attempt < FUNDING_429_MAX_ATTEMPTS) {
-              await sleep(Math.min(FUNDING_BURST_MS * 2 ** (attempt - 1), 8000));
-            }
-          }
+          const res = await fetch("/api/funding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subaccount,
+              product_ids: activeProductIds,
+              limit: 100,
+              ...(nextIdx !== undefined ? { max_idx: nextIdx } : {}),
+            }),
+            cache: "no-store",
+          });
 
           if (!res || !res.ok) break;
 
@@ -1459,7 +1408,6 @@ export function useWalletData(rawAddress: string): WalletData {
           const pages: MatchesPageResult[] = [];
           for (let c = 0; c < subaccountChunks.length; c++) {
             const subChunk = subaccountChunks[c]!;
-            await yieldToPollerIfNeeded();
             const p = await fetchOnePage(subChunk);
             if (p.rateLimited) throw new Error("RATE_LIMIT");
             pages.push(p);
@@ -1527,7 +1475,6 @@ export function useWalletData(rawAddress: string): WalletData {
 
             for (let a = 0; a < active.length; a++) {
               const state = active[a]!;
-              await yieldToPollerIfNeeded();
               const result = await fetchOnePage(
                 state.chunk,
                 state.nextIdx ?? undefined,
@@ -1622,8 +1569,6 @@ export function useWalletData(rawAddress: string): WalletData {
       // avg_entry must be refreshed. Otherwise we skip the Archive call entirely.
       const pollPositionsOnly = async () => {
         if (cancelled) return;
-        archiveQueuePausedRef.current = true;
-        try {
         let pd = await fetchAllPositions(
           subaccountsRef.current,
           isolatedParentNameRef.current,
@@ -1755,9 +1700,6 @@ export function useWalletData(rawAddress: string): WalletData {
               }
             : null,
         }));
-        } finally {
-          archiveQueuePausedRef.current = false;
-        }
       };
 
       intervalRef.current = setInterval(() => {

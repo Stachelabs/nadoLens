@@ -8,6 +8,12 @@ export const NADO_GATEWAY_V2 =
 export const NADO_ARCHIVE_V2 =
   process.env.NADO_ARCHIVE_V2 ?? "https://archive.prod.nado.xyz/v2";
 
+// ─── External microservice URLs (Fly.io — separate IP buckets from Vercel) ───
+export const NADO_MATCHES_SERVICE_URL =
+  process.env.NADO_MATCHES_SERVICE_URL ?? "";
+export const NADO_FUNDING_SERVICE_URL =
+  process.env.NADO_FUNDING_SERVICE_URL ?? "";
+
 // ─── Client-safe URLs (NEXT_PUBLIC_ — visible dans le bundle browser) ─────────
 // Utilisé par les hooks qui appellent Nado directement (ex: fetchMatches)
 export const NADO_ARCHIVE_V1 =
