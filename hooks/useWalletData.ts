@@ -1919,7 +1919,8 @@ export function useWalletData(rawAddress: string): WalletData {
       const qty = Math.abs(fromX18BigInt(fillEvent.filled_qty));
       const price = fromX18BigInt(fillEvent.price);
       const role = fillEvent.is_taker ? "taker" : "maker";
-      toast.success(`${pairLabel} — ${direction}`, {
+      const toastFn = fillEvent.is_bid ? toast.success : toast.error;
+      toastFn(`${pairLabel} — ${direction}`, {
         description: `${qty.toFixed(4)} @ $${price.toLocaleString("en-US", { maximumFractionDigits: 2 })} · ${role}`,
       });
 

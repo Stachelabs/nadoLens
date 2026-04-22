@@ -40,7 +40,10 @@ Results → WalletStats parsed in useWalletData
 Refresh strategy:
   - Positions: 6s polling via setInterval (all subaccounts via subaccountsRef)
   - Isolated pocket discovery: every 6 poll ticks (≈36s) via isolated_positions(parent)
-  - Trade history: initial fetch + incremental on fill detection
+  - Trade history: initial fetch + incremental on fill detection (WS or poll fallback)
+  - WS fill stream (useAccountStream → /sse on nado-matches): immediate trigger for
+    fetchSnapshotEntryPrices + fetchIncrementalTrades + sonner toast (< 1s latency)
+  - Poll fill detection (pollDetectedFill): fallback when WS is down — still fires on 6s tick
   - Assets (pairsStore): TTL 1h, localStorage as fallback between sessions
 ```
 
@@ -198,9 +201,10 @@ components/wallet/
   AccountFilterSelect.tsx Props: { options, value, onValueChange }             ← subaccount filter dropdown (positions, trades, spot)
 
 hooks/
-  useWalletData.ts     ← multi-subaccount fetch + 6s polling → WalletData
-  usePairs.ts          ← triggers pairsStore.init() on mount (via PairsInitializer)
-  useAccount.ts        ← wagmi useAccount wrapper (connected wallet)
+  useWalletData.ts        ← multi-subaccount fetch + 6s polling → WalletData
+  useAccountStream.ts     ← EventSource to /sse, exponential-backoff reconnect, fill → onFill callback
+  usePairs.ts             ← triggers pairsStore.init() on mount (via PairsInitializer)
+  useAccount.ts           ← wagmi useAccount wrapper (connected wallet)
 
 store/
   pairsStore.ts        ← Zustand + persist — V2 assets, byId Map, perp[], spot[]
@@ -285,12 +289,14 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
 |---|---|---|
 | Positions / Health | Polling `/api/wallet/[subaccount]` | 6s |
 | Isolated pocket discovery | `isolated_positions(parent)` every 6 poll ticks | ≈36s |
-| Avg entry (account_snapshots) | On fill detection only (prev amount changed) | On fill |
-| Trade history | Initial fetch + incremental on fill detection | On fill |
+| Fill detection (WS) | `useAccountStream` → `/sse` on nado-matches | Immediate (< 1s) |
+| Fill detection (fallback) | Poll: prev `amount_x18` changed between ticks | 0–6s |
+| Avg entry (account_snapshots) | On fill event (WS or poll fallback) | On fill |
+| Trade history | Initial fetch + incremental on fill event | On fill |
 | Equity curve | Recomputed when `trades` changes | On mount |
 | Assets (pairsStore) | Fetch + localStorage persist | TTL 1h |
 
-> Real-time positions would require the `position_change` stream (requires private key of the wallet) — impossible for a third-party wallet. 6s polling is the only option to observe any wallet.
+> WS fill stream (`useAccountStream`) connects to `GET /sse?subaccount=<bytes32>` on nado-matches (Fly.io fra, always-on). The `position_change` stream requires the wallet's private key — impossible for third-party wallet view. 6s polling remains the only source for position metrics.
 
 Why 6s?
 - Balances near-live feedback with API rate-limit headroom: `subaccount_info` weight 2 × N subaccounts every 6s stays well within the 2 400/min IP budget even with multiple concurrent users.
@@ -327,7 +333,7 @@ No known bugs at this time.
 
 ---
 
-*ARCHI.md v3.3 — NadoLens Wallet Explorer — updated 2026-04-08*
+*ARCHI.md v3.4 — NadoLens Wallet Explorer — updated 2026-04-21*
 
 ---
 

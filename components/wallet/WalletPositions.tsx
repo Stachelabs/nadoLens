@@ -14,6 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AccountFilterSelect } from "@/components/wallet/AccountFilterSelect";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { cn } from "@/lib/utils";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import {
@@ -76,6 +81,27 @@ function fmtFunding(value: number): string {
   const sign = value >= 0 ? "+" : "-";
   return sign + fmtUsd.format(Math.abs(value));
 }
+
+const COLUMN_DESCRIPTIONS: Record<string, string> = {
+  Pair: "Perp market and margin type (Cross or Isolated).",
+  Account: "Cross subaccount this position belongs to.",
+  Health:
+    "Position health as a percentage. 100% = safe, 0% = at liquidation threshold. Color transitions green → yellow → red.",
+  Size: "Base quantity held, with USD notional (size × oracle price) below.",
+  "Avg entry":
+    "Volume-weighted average entry price from all historical fills for this position.",
+  "Oracle Price":
+    "Current oracle/mark price used to compute unrealized PnL and liquidation estimates.",
+  "Liq Price":
+    "Estimated liquidation price. Highlighted in red when within 10% of the current oracle price.",
+  "Unrealized PnL":
+    "Open position gain/loss at the current oracle price. Not settled until the position is closed.",
+  "Realized PnL":
+    "Net P&L from closed fills minus trading fees plus funding received, for this position's current session.",
+  Funding:
+    "Cumulative funding payments. Positive = received (you are short in a positive-rate market), negative = paid.",
+  Fees: "Total trading fees paid across all fills (taker + maker). Already deducted in the Realized PnL net figure.",
+};
 
 /** "ETH-PERP" → "E", "BTC-PERP" → "B" */
 function assetInitial(pair: string): string {
@@ -272,21 +298,16 @@ export function WalletPositions({
                   "Realized PnL",
                   "Funding",
                   "Fees",
-                ].map((h) => (
-                  <TableHead
-                    key={h}
-                    className={cn(
-                      "font-normal text-muted-foreground/70 pb-2",
-                      h === "Health" || h === "Pair" || h === "Account"
-                        ? "text-center pr-2"
-                        : "text-right pr-4",
-                    )}
-                  >
-                    {h === "Realized PnL" &&
+                ].map((h) => {
+                  const centered =
+                    h === "Health" || h === "Pair" || h === "Account";
+                  const description = COLUMN_DESCRIPTIONS[h];
+                  const label =
+                    h === "Realized PnL" &&
                     positionMatchesComplete &&
                     !positionFundingComplete ? (
                       <div className="flex flex-col items-end gap-0.5 leading-tight">
-                        <span>Realized PnL</span>
+                        <span>{h}</span>
                         <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5 font-normal normal-case tracking-normal">
                           <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
                           Funding loading ...
@@ -294,9 +315,40 @@ export function WalletPositions({
                       </div>
                     ) : (
                       h
-                    )}
-                  </TableHead>
-                ))}
+                    );
+
+                  return (
+                    <TableHead
+                      key={h}
+                      className={cn(
+                        "font-normal text-muted-foreground/70 pb-2",
+                        centered ? "text-center pr-2" : "text-right pr-4",
+                      )}
+                    >
+                      {description ? (
+                        <HoverCard>
+                          <HoverCardTrigger className="cursor-help">
+                            {label}
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            side="top"
+                            align={centered ? "center" : "end"}
+                            className="w-52 text-xs"
+                          >
+                            <p className="font-medium text-foreground mb-1">
+                              {h}
+                            </p>
+                            <p className="text-muted-foreground leading-relaxed">
+                              {description}
+                            </p>
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        label
+                      )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             </TableHeader>
             <TableBody>

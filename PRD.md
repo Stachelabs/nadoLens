@@ -45,9 +45,10 @@ Next.js Backend (Vercel) — pnpm
   ├── /api/funding            → proxy archive interest_and_funding (Zod validation)
   └── /api/snapshots          → proxy archive account_snapshots (avg entry prices)
 
-WS Proxy (Railway) — Bun
-  ├── GET /health     →  monitoring
-  ├── GET /sse        →  SSE → browser (EventSource)
+nado-matches (Fly.io fra) — Bun  [min_machines_running=1]
+  ├── POST /matches   →  Archive proxy + Upstash Redis cache
+  ├── GET /health     →  monitoring (ws_connected, sse_clients, account_subs)
+  ├── GET /sse        →  SSE → browser (EventSource, per-subaccount fill routing)
   └── persistent WS   →  wss://gateway.prod.nado.xyz/v1/subscribe
 ```
 
@@ -98,6 +99,7 @@ components/wallet/
   WalletTradeHistory.tsx               ← last N trades
   WalletEquityCurve.tsx                ← TradingView equity curve
 hooks/useWalletData.ts                 ← fetch + 6s polling + fill detection + stats computation
+hooks/useAccountStream.ts              ← EventSource to /sse, fill events → immediate fetchIncrementalTrades + toast
 ```
 
 **Behavior:**
@@ -105,6 +107,7 @@ hooks/useWalletData.ts                 ← fetch + 6s polling + fill detection +
 - `isAddress(viem)` validation before navigation + `notFound()` if invalid
 - "My Wallet" link in Nav when wallet connected
 - Positions refresh every 6s via setInterval; isolated pocket discovery every ≈36s
+- Fill events received via WS stream (`useAccountStream`) trigger immediate `fetchIncrementalTrades` + toast; 6s poll remains as fallback
 - Public data — no auth required
 
 ---
@@ -114,9 +117,9 @@ hooks/useWalletData.ts                 ← fetch + 6s polling + fill detection +
 ```
 nadolens/
 ├── PRD.md · CLAUDE.md · ARCHI.md
-├── package.json                      ← pnpm, scripts: prisma generate && next build
+├── package.json                      ← pnpm, scripts: next build
 ├── next.config.ts                    ← turbopack: {} + webpack externals
-├── tsconfig.json                     ← ws-proxy/ excluded
+├── tsconfig.json                     ← ws-proxy/ and services/ excluded
 ├── app/
 │   ├── layout.tsx                    ← ThemeProvider (next-themes) + Providers + Nav
 │   ├── page.tsx                      ← redirect to /wallet
@@ -139,22 +142,20 @@ nadolens/
 │   └── ui/                           ← shadcn components (button, card, badge, input, table, separator, avatar)
 ├── hooks/
 │   ├── useWalletData.ts
+│   ├── useAccountStream.ts
+│   ├── usePairs.ts
 │   └── useAccount.ts
 ├── store/
 │   └── accountStore.ts
 ├── lib/
 │   ├── wagmi.ts                      ← inkL2 defineChain (id: 57073) + wagmiConfig
 │   ├── nado.ts                       ← NADO_GATEWAY / NADO_ARCHIVE constants
-│   ├── db.ts                         ← Prisma client singleton
 │   ├── utils.ts                      ← cn()
 │   └── schemas/nado.ts               ← Zod schemas (source of truth for types)
 ├── types/nado.ts                     ← interfaces + fromX18BigInt
-├── prisma/schema.prisma
-├── scripts/test-api-queries.ts
-└── ws-proxy/                         ← Bun, separate package (excluded from main tsconfig)
-    ├── index.ts
-    ├── package.json
-    └── tsconfig.json
+├── services/
+│   ├── nado-matches/                 ← Bun, Fly.io fra — /matches proxy + /sse WS relay
+│   └── nado-funding/                 ← Bun, Fly.io ams — /funding proxy
 ```
 
 ---
@@ -170,15 +171,22 @@ nadolens/
 
 ```bash
 # .env — never committed (see .env.example for template)
-DATABASE_URL=postgresql://...
 NADO_GATEWAY_REST=https://gateway.prod.nado.xyz/v1
 NADO_ARCHIVE_REST=https://archive.prod.nado.xyz/v1
 
-# WS Proxy Railway (server-side only)
-WS_PROXY_URL=https://nadolens-production.up.railway.app
+# Split-service proxies (Fly.io) — one IP per service = separate 429 buckets
+NADO_MATCHES_SERVICE_URL=https://nadolens-nado-matches.fly.dev
+NADO_FUNDING_SERVICE_URL=https://nadolens-nado-funding.fly.dev
+SERVICE_SECRET=<32-char random hex>
 
-# WS Proxy accessible from browser (NEXT_PUBLIC_ prefix required)
-NEXT_PUBLIC_WS_PROXY_URL=https://nadolens-production.up.railway.app
+# Upstash Redis
+UPSTASH_REDIS_REST_URL=https://...upstash.io
+UPSTASH_REDIS_REST_TOKEN=...
+
+# WS Proxy + Matches — co-located on nado-matches (Fly.io fra, min_machines_running=1)
+WS_PROXY_URL=https://nadolens-nado-matches.fly.dev
+NEXT_PUBLIC_WS_PROXY_URL=https://nadolens-nado-matches.fly.dev
+
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
 ```
 
@@ -187,7 +195,7 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
 ## 9. Development phases
 
 ### ✅ Phase Foundation
-Fresh install Next.js 16 + Turbopack + Tailwind v4 + shadcn/ui + wagmi v2 + RainbowKit v2 + viem v2 + Prisma 5 + Zustand 5 + WS Proxy Bun Railway
+Fresh install Next.js 16 + Turbopack + Tailwind v4 + shadcn/ui + wagmi v2 + RainbowKit v2 + viem v2 + Zustand 5 + WS Proxy Bun Fly.io fra
 
 ### ✅ Phase Wallet Explorer
 `useWalletData` · WalletHeader · WalletStats · WalletPositions · WalletTradeHistory · WalletEquityCurve · Nav + search + theme toggle
@@ -229,4 +237,4 @@ Opens modal: size/leverage params → wagmi signs → sends to Nado Gateway.
 
 ---
 
-*PRD v2.2 — NadoLens*
+*PRD v2.3 — NadoLens*

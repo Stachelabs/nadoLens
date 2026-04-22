@@ -18,8 +18,8 @@ Work in progress. Currently implemented: wallet explorer (`/wallet/[address]`) w
 | Trading charts | TradingView Lightweight Charts v5 |
 | Stats charts | Recharts |
 | Validation | Zod 4 |
-| Database | Prisma 5 + Neon (serverless PostgreSQL) |
-| WS Proxy | Bun (Railway — eu-west4) |
+| Toasts | sonner |
+| WS Proxy | Bun (Fly.io fra — co-located with nado-matches) |
 
 ---
 
@@ -36,7 +36,7 @@ Work in progress. Currently implemented: wallet explorer (`/wallet/[address]`) w
 ```bash
 pnpm install
 cp .env.example .env
-# Fill in DATABASE_URL, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, WS_PROXY_URL
+# Fill in NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, WS_PROXY_URL, Upstash Redis vars
 ```
 
 ---
@@ -47,9 +47,12 @@ Copy `.env.example` → `.env`:
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | ✅ | WalletConnect Cloud project ID |
-| `WS_PROXY_URL` + `NEXT_PUBLIC_WS_PROXY_URL` | ✅ | Public URL of the Railway WS Proxy |
+| `WS_PROXY_URL` + `NEXT_PUBLIC_WS_PROXY_URL` | ✅ | URL of nado-matches (Fly.io fra) — serves both `/matches` and `/sse` |
+| `NADO_MATCHES_SERVICE_URL` | ✅ | Same as above — server-side calls to `/matches` |
+| `NADO_FUNDING_SERVICE_URL` | ✅ | URL of nado-funding (Fly.io ams) — serves `/funding` |
+| `SERVICE_SECRET` | ✅ | 32-char hex shared secret between Vercel and Fly.io services |
+| `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | ✅ | Upstash Redis (matches cache) |
 | `NADO_GATEWAY_REST` | ✅ | `https://gateway.prod.nado.xyz/v1` |
 | `NADO_ARCHIVE_REST` | ✅ | `https://archive.prod.nado.xyz/v1` |
 | `OPENAI_API_KEY` | ✗ | Only if `NADO_DOCS_EMBED_PROVIDER=openai` in the RAG config |
@@ -65,7 +68,7 @@ Copy `.env.example` → `.env`:
 | Command | Description |
 |---|---|
 | `pnpm dev` | Development server at `http://localhost:3000` (Turbopack) |
-| `pnpm build` | Generate Prisma client then compile Next.js for production |
+| `pnpm build` | Compile Next.js for production |
 | `pnpm start` | Start Next.js in production mode (requires `pnpm build` first) |
 | `pnpm lint` | ESLint across the whole project |
 
@@ -291,8 +294,8 @@ app/                      # Next.js App Router (pages, layouts, API routes)
     matches/              # Archive proxy — trade history (5-subaccount chunks)
     funding/              # Archive proxy — interest & funding
 components/               # React components (wallet explorer…)
-hooks/                    # Hooks (useWalletData, useLiquidationStream, useOrderBook…)
-store/                    # Zustand stores (liquidation, pairs, wallet)
+hooks/                    # Hooks (useWalletData, useAccountStream, usePairs, useAccount)
+store/                    # Zustand stores (pairs, account)
 lib/
   docs-rag/               # Full RAG pipeline (crawler, chunker, embeddings, SQLite)
   schemas/                # Zod schemas — source of truth for Nado types
@@ -300,8 +303,9 @@ scripts/
   docs-rag/               # RAG pipeline CLI + committed config
     cli.ts                # Entry point for docs:* commands
     nado-docs.config.ts   # Non-secret config (base URL, concurrency, models…)
-prisma/                   # Prisma schema + migrations
-ws-proxy/                 # Bun WS Proxy (Railway) — Nado WebSocket relay
+services/
+  nado-matches/           # Bun, Fly.io fra — /matches (Redis cache) + /sse (WS relay, always-on)
+  nado-funding/           # Bun, Fly.io ams — /funding proxy
 .claude/
   docs/                   # Nado docs (.md) + RAG index (rag.sqlite)
   docs/rag/               # Generated artifacts: pages-md/, pages-json/, crawl-state

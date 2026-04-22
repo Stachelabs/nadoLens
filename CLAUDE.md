@@ -22,7 +22,7 @@
 Priority IDs:
 ```
 /vercel/next.js          /wevm/wagmi       /wevm/viem
-/pmndrs/zustand          /prisma/prisma    /tradingview/lightweight-charts
+/pmndrs/zustand          /tradingview/lightweight-charts
 /colinhacks/zod/v4.0.1   /rainbow-me/rainbowkit   /recharts/recharts
 ```
 
@@ -35,13 +35,14 @@ Priority IDs:
 | Scope | Manager |
 |---|---|
 | Next.js app | **pnpm** |
-| `ws-proxy/` | **Bun** |
+| `services/nado-matches/` | **Bun** |
+| `services/nado-funding/` | **Bun** |
 
 ---
 
 ## Stack
 
-Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zustand 5 · wagmi 2 · viem 2 · RainbowKit 2 · Zod 4 · Prisma 5 · Neon
+Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zustand 5 · wagmi 2 · viem 2 · RainbowKit 2 · Zod 4 · sonner
 
 ---
 
@@ -64,13 +65,17 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 
-**WS Proxy (Railway — Bun)**
-- **CRITICAL**: Region **eu-west4** (Netherlands) REQUIRED — US East IPs blocked by Nado
+**WS Proxy + nado-matches (Fly.io fra — Bun, co-located)**
+- Region **fra** (Frankfurt) — EU IPs required, Nado blocks US East
 - Use `ws` package (not native Bun WebSocket) — Nado requires `permessage-deflate`
 - Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
+- `min_machines_running = 1` — machine never sleeps, WS connection stays alive permanently
+- Exposes both `POST /matches` (Redis-cached Archive proxy) and `GET /sse` (SSE → browser)
+- SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount
+- Client-side: `hooks/useAccountStream.ts` — EventSource with exponential-backoff reconnect
 
 **Vercel build**
-- Build script: `"build": "prisma generate && next build"`
+- Build script: `"build": "next build"`
 - Turbopack by default: `turbopack: {}` in `next.config.ts`
 - Wallet SDK externals: `config.externals.push('pino-pretty', 'lokijs', 'encoding')`
 
@@ -192,4 +197,4 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
 ---
 
-_CLAUDE.md v3.0 — NadoLens_
+_CLAUDE.md v4.0 — NadoLens_
