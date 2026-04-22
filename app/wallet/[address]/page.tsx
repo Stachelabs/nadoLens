@@ -112,6 +112,7 @@ function WalletContent({ address }: { address: string }) {
             unrealizedRefreshing={unrealizedRefreshing}
             positionMatchesComplete={positionMatchesComplete}
             positionFundingComplete={positionFundingComplete}
+            loading={!positionMatchesComplete}
           />
           <WalletStats
             stats={stats}

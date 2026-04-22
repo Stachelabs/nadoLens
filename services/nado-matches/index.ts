@@ -38,6 +38,8 @@ type MatchesBody = {
   isolated: boolean | null;
   idx?: string;
   product_ids?: number[];
+  /** When true, skip the Redis cache read (always fetch fresh from Archive). Cache is still written after. */
+  no_cache?: boolean;
 };
 
 type SSEClient = {
@@ -219,8 +221,11 @@ function reconnect(attempt: number): void {
 // ─── Matches proxy helpers ─────────────────────────────────────────────────────
 
 function cacheKey(body: MatchesBody): string {
+  // Exclude no_cache from the hash so no_cache:true and no_cache:false/undefined
+  // share the same key — allowing cache bypass writes to benefit subsequent reads.
+  const { no_cache: _, ...hashBody } = body;
   const hash = createHash("sha256")
-    .update(JSON.stringify(body))
+    .update(JSON.stringify(hashBody))
     .digest("hex")
     .slice(0, 16);
   return `nado:matches:${hash}`;
@@ -373,13 +378,15 @@ const server = Bun.serve({
 
       const key = cacheKey(body);
 
-      try {
-        const cached = await redis.get<unknown>(key);
-        if (cached !== null) {
-          return Response.json(cached, { headers: { "X-Cache": "HIT" } });
+      if (!body.no_cache) {
+        try {
+          const cached = await redis.get<unknown>(key);
+          if (cached !== null) {
+            return Response.json(cached, { headers: { "X-Cache": "HIT" } });
+          }
+        } catch {
+          // Cache miss on error — proceed to Archive
         }
-      } catch {
-        // Cache miss on error — proceed to Archive
       }
 
       const archiveRes = await fetchWithRetry(body);
@@ -394,7 +401,11 @@ const server = Bun.serve({
       const data: unknown = await archiveRes.json();
 
       try {
-        await redis.set(key, data, { ex: 86_400 });
+        // First-page requests (no cursor) include the most recent fills — short TTL so
+        // fill-triggered refetches see fresh data. Paginated pages are historical and safe
+        // to cache for a full day.
+        const ttl = body.idx ? 86_400 : 15;
+        await redis.set(key, data, { ex: ttl });
       } catch {
         // Cache write failure is non-fatal
       }

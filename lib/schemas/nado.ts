@@ -242,6 +242,8 @@ export const MatchesQueryRequestSchema = z.object({
   isolated: z.boolean().nullable().optional().default(null),
   /** When set, Archive returns only fills for these perp product ids (Nado matches API). */
   product_ids: z.array(z.number().int().nonnegative()).min(1).optional(),
+  /** When true, skip the Redis cache read (always fetch fresh from Archive). Cache is still written after. */
+  no_cache: z.boolean().optional(),
 })
 
 export const FundingRateEntrySchema = z.object({

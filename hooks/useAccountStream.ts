@@ -34,65 +34,75 @@ function isFillEvent(data: unknown): data is FillEvent {
 }
 
 /**
- * Opens an SSE connection to the ws-proxy for a given subaccount (bytes32).
- * Fires onFill when a fill event arrives. Reconnects with exponential backoff.
- * The REST poll in useWalletData remains the fallback if SSE is unavailable.
+ * Opens one SSE connection per subaccount bytes32.
+ * Fires onFill when any fill event arrives. Each connection reconnects independently
+ * with exponential backoff. The REST poll in useWalletData remains the fallback.
  */
 export function useAccountStream(
-  subaccount: string | null,
+  subaccounts: string[] | null,
   { onFill }: UseAccountStreamOptions,
 ): void {
-  // Keep latest callback in a ref so the SSE handler always calls the current version
   const onFillRef = useRef(onFill);
   useEffect(() => {
     onFillRef.current = onFill;
   });
 
   useEffect(() => {
-    if (!subaccount || typeof window === "undefined") return;
+    if (!subaccounts || subaccounts.length === 0 || typeof window === "undefined") return;
 
     const wsProxyUrl = process.env.NEXT_PUBLIC_WS_PROXY_URL;
     if (!wsProxyUrl) return;
 
-    let es: EventSource | null = null;
-    let attempt = 0;
-    let cancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    // One cleanup per subaccount — collected for teardown
+    const cleanups: (() => void)[] = [];
 
-    function connect() {
-      if (cancelled) return;
-      const url = `${wsProxyUrl}/sse?subaccount=${encodeURIComponent(subaccount!)}`;
-      es = new EventSource(url);
+    for (const subaccount of subaccounts) {
+      let es: EventSource | null = null;
+      let attempt = 0;
+      let cancelled = false;
+      let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-      es.onmessage = (event: MessageEvent<string>) => {
-        attempt = 0; // reset backoff on successful message
-        try {
-          const data: unknown = JSON.parse(event.data);
-          if (isFillEvent(data)) {
-            onFillRef.current(data);
+      function connect() {
+        if (cancelled) return;
+        const url = `${wsProxyUrl}/sse?subaccount=${encodeURIComponent(subaccount)}`;
+        es = new EventSource(url);
+
+        es.onmessage = (event: MessageEvent<string>) => {
+          attempt = 0;
+          try {
+            const data: unknown = JSON.parse(event.data);
+            if (isFillEvent(data)) {
+              onFillRef.current(data);
+            }
+          } catch {
+            // ignore malformed events
           }
-        } catch {
-          // ignore malformed events
-        }
-      };
+        };
 
-      es.onerror = () => {
+        es.onerror = () => {
+          es?.close();
+          es = null;
+          if (cancelled) return;
+          const delay = Math.min(1000 * 2 ** attempt, 30_000);
+          attempt += 1;
+          reconnectTimer = setTimeout(connect, delay);
+        };
+      }
+
+      connect();
+
+      cleanups.push(() => {
+        cancelled = true;
+        if (reconnectTimer) clearTimeout(reconnectTimer);
         es?.close();
         es = null;
-        if (cancelled) return;
-        const delay = Math.min(1000 * 2 ** attempt, 30_000);
-        attempt += 1;
-        reconnectTimer = setTimeout(connect, delay);
-      };
+      });
     }
 
-    connect();
-
     return () => {
-      cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      es?.close();
-      es = null;
+      for (const cleanup of cleanups) cleanup();
     };
-  }, [subaccount]);
+  // Re-run only when the subaccounts array identity changes (derived from stable state).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subaccounts?.join(",")]);
 }

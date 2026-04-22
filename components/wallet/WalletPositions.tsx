@@ -120,6 +120,8 @@ type Props = {
   positionMatchesComplete?: boolean;
   /** True once position-scoped funding (Phase 2b) is done — enables Funding column. */
   positionFundingComplete?: boolean;
+  /** True while Gateway positions are being fetched (Phase 1 in progress). */
+  loading?: boolean;
 };
 
 export function WalletPositions({
@@ -130,6 +132,7 @@ export function WalletPositions({
   unrealizedRefreshing = false,
   positionMatchesComplete = true,
   positionFundingComplete = true,
+  loading = false,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
@@ -186,6 +189,29 @@ export function WalletPositions({
 
   const hasMultipleSubaccounts =
     new Set(filteredPositions.map((p) => p.subaccount.toLowerCase())).size > 1;
+
+  if (loading && positions.length === 0) {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="p-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
+            Open Positions
+          </div>
+          <div className="space-y-2 py-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-1">
+                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                <Skeleton className="h-4 flex-1 rounded-sm" />
+                <Skeleton className="h-4 w-16 rounded-sm" />
+                <Skeleton className="h-4 w-20 rounded-sm" />
+                <Skeleton className="h-4 w-20 rounded-sm" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (positions.length === 0) {
     return (

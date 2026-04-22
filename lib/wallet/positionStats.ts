@@ -94,6 +94,21 @@ export function buildPositionStatsMap(
       }
 
       if (sessionStartIdx !== -1) {
+        // Guard: simulate running balance from the session opener to newest.
+        // If the balance reaches zero mid-stream, the position was closed in Archive
+        // but the current re-opening trade hasn't been indexed yet — the opener we found
+        // belongs to the PREVIOUS (already-closed) session. Skip to avoid showing stale PnL.
+        let verifySize = 0
+        let hadFlatAfterOpen = false
+        for (let i = sessionStartIdx; i >= 0; i--) {
+          try { verifySize += fromX18BigInt(group[i].amount) } catch { /* skip */ }
+          if (i > 0 && Math.abs(verifySize) < DUST) {
+            hadFlatAfterOpen = true
+            break
+          }
+        }
+        if (hadFlatAfterOpen) continue
+
         // Pass 2: accumulate oldest → newest within session (reverse slice [sessionStartIdx..0])
         let feeAccum = 0
         let realizedAccum = 0

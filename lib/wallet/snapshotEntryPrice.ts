@@ -89,10 +89,18 @@ export function applySnapshotEntryPrices(
     const snapshot = map.get(key);
     if (snapshot != null && snapshot.entryPrice > 0) {
       const correctedPnl = (p.mark_price - snapshot.entryPrice) * p.amount;
+      // After a reduce (before Nado settlement): v_quote still carries the unsettled
+      // realized PnL from the reduce, so the Gateway value (p.unrealized_pnl) is larger.
+      // After a settlement: v_quote is partially reset and the snapshot value is larger.
+      // Picking the higher magnitude keeps us in sync with Nado's dashboard in both cases.
+      const unrealized_pnl =
+        Math.abs(p.unrealized_pnl) >= Math.abs(correctedPnl)
+          ? p.unrealized_pnl
+          : correctedPnl;
       return {
         ...p,
         entry_price: snapshot.entryPrice,
-        unrealized_pnl: correctedPnl,
+        unrealized_pnl,
         // funding_cumulative is computed live in parseSubaccountInfo from
         // last_cumulative_funding_x18 — do not override with snapshot's lifetime counter.
       };
