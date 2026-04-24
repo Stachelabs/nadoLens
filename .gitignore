@@ -53,6 +53,8 @@ About.md
 .obsidian/
 # Claude local agent output (plans, MCP config, etc.)
 .claude/
+# Agent skills (installed locally via npx skills — not project dependencies)
+.agents/
 
 # RAG pipeline — all generated artifacts (regenerate with pnpm docs:build:nado)
 nado-rag/
