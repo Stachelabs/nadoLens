@@ -9,6 +9,7 @@ export const NADO_ARCHIVE_V2 =
   process.env.NADO_ARCHIVE_V2 ?? "https://archive.prod.nado.xyz/v2";
 
 // ─── External microservice URLs (Fly.io — separate IP buckets from Vercel) ───
+// CRITICAL: Call validateEnv() at startup to ensure these are set (lib/validateEnv.ts)
 export const NADO_MATCHES_SERVICE_URL =
   process.env.NADO_MATCHES_SERVICE_URL ?? "";
 export const NADO_FUNDING_SERVICE_URL =

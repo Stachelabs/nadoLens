@@ -53,6 +53,8 @@ import { useAccountStream, type FillEvent } from "@/hooks/useAccountStream";
 // At 5s: 48 weight/min/user → safe for ~50 concurrent users within 2400/min IP limit.
 // Lower to 1_000 for personal/single-user deployments (10% of budget).
 const POSITIONS_POLL_MS = 6_000;
+const POLL_MAX_BACKOFF_MS = 60_000;
+const POLL_BACKOFF_THRESHOLD = 3;
 const MATCHES_LIMIT = 500;
 const MAX_PAGES = 50;
 /** Space out Archive `matches` calls to avoid saturating the service. */
@@ -327,7 +329,8 @@ export function useWalletData(rawAddress: string): WalletData {
     unrealizedRefreshing: false,
     spotBalancesRefreshing: false,
   });
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null>(null);
+  const pollErrorCountRef = useRef(0);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
   const isolatedParentNameRef = useRef<Map<string, string>>(new Map());
   const isolatedParentSubaccountRef = useRef<Map<string, string>>(new Map());
@@ -1666,157 +1669,173 @@ export function useWalletData(rawAddress: string): WalletData {
       // if any position's amount_x18 changed since the last tick, a fill happened and the
       // avg_entry must be refreshed. Otherwise we skip the Archive call entirely.
       const pollPositionsOnly = async () => {
-        if (cancelled) return;
-        let pd = await fetchAllPositions(
-          subaccountsRef.current,
-          isolatedParentNameRef.current,
-          isolatedParentSubaccountRef.current,
-        );
-        if (cancelled) return;
-
-        // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
-        // when a known pocket has no parent mapping.
-        // Calls isolated_positions on each cross subaccount — lightweight Gateway query.
-        // Rebuilds subaccountsRef with ONLY active pockets (prunes dead ones too).
-        pollCountRef.current += 1;
-        const hasUnmappedIsolated = pd.positions.some(
-          (p) => p.isolated && !isolatedParentNameRef.current.has(p.subaccount.toLowerCase()),
-        );
-        const shouldDiscover = hasUnmappedIsolated || pollCountRef.current % 6 === 0;
-
-        if (shouldDiscover) {
-          const freshMaps = await fetchIsolatedParentMaps(subaccountsRef.current);
+        try {
+          if (cancelled) return;
+          let pd = await fetchAllPositions(
+            subaccountsRef.current,
+            isolatedParentNameRef.current,
+            isolatedParentSubaccountRef.current,
+          );
           if (cancelled) return;
 
-          // Rebuild isolated entries: only pockets currently active in isolated_positions.
-          const activePockets = freshMaps.parentNameByIsolatedSubaccount; // key = pocket lower
-          const crossSubs = subaccountsRef.current.filter((s) => !s.isolated);
-          const isolatedEntries: SubaccountEntry[] = [];
-          for (const pocket of activePockets.keys()) {
-            const existing = subaccountsRef.current.find(
-              (s) => s.subaccount.toLowerCase() === pocket,
-            );
-            isolatedEntries.push(existing ?? { subaccount: pocket, isolated: true });
-          }
-          const newList = [...crossSubs, ...isolatedEntries];
+          // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
+          // when a known pocket has no parent mapping.
+          // Calls isolated_positions on each cross subaccount — lightweight Gateway query.
+          // Rebuilds subaccountsRef with ONLY active pockets (prunes dead ones too).
+          pollCountRef.current += 1;
+          const hasUnmappedIsolated = pd.positions.some(
+            (p) => p.isolated && !isolatedParentNameRef.current.has(p.subaccount.toLowerCase()),
+          );
+          const shouldDiscover = hasUnmappedIsolated || pollCountRef.current % 6 === 0;
 
-          const listChanged =
-            newList.length !== subaccountsRef.current.length ||
-            newList.some(
-              (s, i) =>
-                s.subaccount.toLowerCase() !==
-                subaccountsRef.current[i]?.subaccount.toLowerCase(),
-            );
-
-          subaccountsRef.current = newList;
-          isolatedParentNameRef.current = freshMaps.parentNameByIsolatedSubaccount;
-          isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
-
-          if (listChanged || hasUnmappedIsolated) {
-            pd = await fetchAllPositions(
-              subaccountsRef.current,
-              isolatedParentNameRef.current,
-              isolatedParentSubaccountRef.current,
-            );
+          if (shouldDiscover) {
+            const freshMaps = await fetchIsolatedParentMaps(subaccountsRef.current);
             if (cancelled) return;
-          }
-        }
 
-        // Detect fills: compare amount_x18 with previous poll.
-        // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
-        const prev = prevAmountsRef.current;
-        const newPositionKeys = new Set(
-          pd.positions.map((pos) => `${pos.subaccount}:${pos.product_id}`),
-        );
-        const fillDetected =
-          prev.size > 0 &&
-          (pd.positions.some((pos) => {
-            const key = `${pos.subaccount}:${pos.product_id}`;
-            const prevAmt = prev.get(key);
-            return prevAmt === undefined || prevAmt !== pos.amount_x18;
-          }) ||
-            // Position closed: a previously-tracked key is no longer in the poll.
-            [...prev.keys()].some((key) => !newPositionKeys.has(key)));
-        prevAmountsRef.current = new Map(
-          pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
-        );
+            // Rebuild isolated entries: only pockets currently active in isolated_positions.
+            const activePockets = freshMaps.parentNameByIsolatedSubaccount; // key = pocket lower
+            const crossSubs = subaccountsRef.current.filter((s) => !s.isolated);
+            const isolatedEntries: SubaccountEntry[] = [];
+            for (const pocket of activePockets.keys()) {
+              const existing = subaccountsRef.current.find(
+                (s) => s.subaccount.toLowerCase() === pocket,
+              );
+              isolatedEntries.push(existing ?? { subaccount: pocket, isolated: true });
+            }
+            const newList = [...crossSubs, ...isolatedEntries];
 
-        let tradeHistoryUpdated = false;
-        if (fillDetected) {
-          // Refresh snapshot entry prices for avg entry accuracy
-          const crossSubs = subaccountsRef.current.filter(s => !s.isolated).map(s => s.subaccount);
-          entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubs);
-          if (cancelled) return;
-          // Re-fetch position-scoped matches from the session opener (pre_balance=0 boundary).
-          // This is the authoritative source for per-position fees and realized PnL.
-          // Avoids the Archive-lag race where global trades find a stale prior-session boundary.
-          positionTradesRef.current = [];
-          positionSeenTradeIdsRef.current = new Set();
-          positionOpenTimeMapRef.current = {};
-          await fetchPositionScopedMatches(pd.positions, true);
-          if (cancelled) return;
-          positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+            const listChanged =
+              newList.length !== subaccountsRef.current.length ||
+              newList.some(
+                (s, i) =>
+                  s.subaccount.toLowerCase() !==
+                  subaccountsRef.current[i]?.subaccount.toLowerCase(),
+              );
 
-          // Also pull new fills into the global trade history (WalletTradeHistory).
-          // Redis TTL for first-page is 15s, so this sees fresh data after the fill.
-          if (latestKnownIdxRef.current) {
-            const newTrades = await fetchIncrementalTrades(
-              subaccountChunks,
-              latestKnownIdxRef.current,
-            );
-            if (!cancelled && newTrades.length > 0) {
-              const merged = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
-              tradesRef.current = merged;
-              latestKnownIdxRef.current = merged[0]?.submission_idx ?? latestKnownIdxRef.current;
-              tradeHistoryUpdated = true;
+            subaccountsRef.current = newList;
+            isolatedParentNameRef.current = freshMaps.parentNameByIsolatedSubaccount;
+            isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
+
+            if (listChanged || hasUnmappedIsolated) {
+              pd = await fetchAllPositions(
+                subaccountsRef.current,
+                isolatedParentNameRef.current,
+                isolatedParentSubaccountRef.current,
+              );
+              if (cancelled) return;
             }
           }
-        }
-        if (cancelled) return;
-        // Use global funding if loaded (CTA clicked), otherwise fall back to position-scoped funding.
-        const effectiveFunding = fundingPaymentsRef.current.length > 0
-          ? fundingPaymentsRef.current
-          : positionFundingPaymentsRef.current;
-        const pollPositions = applySessionFunding(
-          applyPositionStats(
-            applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
-            positionStatsMapRef.current,
-          ),
-          positionStatsMapRef.current,
-          effectiveFunding,
-        );
-        const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
-        // Rebuild global PnL stats (win_rate, net_pnl_usd, total_fees_usd, volume, etc.)
-        // when new trades were detected so WalletStats and WalletSummary update immediately.
-        const tradeStats = tradeHistoryUpdated
-          ? buildPnlStats(tradesRef.current, fundingPaidUsdRef.current)
-          : {};
-        setData((prev) => ({
-          ...prev,
-          ...(tradeHistoryUpdated ? { trades: tradesRef.current } : {}),
-          stats: prev.stats
-            ? {
-                ...prev.stats,
-                positions: pollPositions,
-                health_score: pd.healthScore,
-                subaccount_healths: pd.subaccountHealths,
-                total_equity_usd: pollTotals.equityUsd,
-                available_margin: pd.availableMargin,
-                maintenance_margin: pd.maintenanceMargin,
-                spot_balances: pd.spotBalances,
-                spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
-                cross_subaccounts: pd.crossSubaccounts,
-                unrealized_pnl_usd: pollTotals.unrealizedTotal,
-                ...(tradeHistoryUpdated ? { trades: tradesRef.current } : {}),
-                ...tradeStats,
+
+          // Detect fills: compare amount_x18 with previous poll.
+          // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
+          const prev = prevAmountsRef.current;
+          const newPositionKeys = new Set(
+            pd.positions.map((pos) => `${pos.subaccount}:${pos.product_id}`),
+          );
+          const fillDetected =
+            prev.size > 0 &&
+            (pd.positions.some((pos) => {
+              const key = `${pos.subaccount}:${pos.product_id}`;
+              const prevAmt = prev.get(key);
+              return prevAmt === undefined || prevAmt !== pos.amount_x18;
+            }) ||
+              // Position closed: a previously-tracked key is no longer in the poll.
+              [...prev.keys()].some((key) => !newPositionKeys.has(key)));
+          prevAmountsRef.current = new Map(
+            pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
+          );
+
+          let tradeHistoryUpdated = false;
+          if (fillDetected) {
+            // Refresh snapshot entry prices for avg entry accuracy
+            const crossSubs = subaccountsRef.current.filter(s => !s.isolated).map(s => s.subaccount);
+            entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubs);
+            if (cancelled) return;
+            // Re-fetch position-scoped matches from the session opener (pre_balance=0 boundary).
+            // This is the authoritative source for per-position fees and realized PnL.
+            // Avoids the Archive-lag race where global trades find a stale prior-session boundary.
+            positionTradesRef.current = [];
+            positionSeenTradeIdsRef.current = new Set();
+            positionOpenTimeMapRef.current = {};
+            await fetchPositionScopedMatches(pd.positions, true);
+            if (cancelled) return;
+            positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+
+            // Also pull new fills into the global trade history (WalletTradeHistory).
+            // Redis TTL for first-page is 15s, so this sees fresh data after the fill.
+            if (latestKnownIdxRef.current) {
+              const newTrades = await fetchIncrementalTrades(
+                subaccountChunks,
+                latestKnownIdxRef.current,
+              );
+              if (!cancelled && newTrades.length > 0) {
+                const merged = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+                tradesRef.current = merged;
+                latestKnownIdxRef.current = merged[0]?.submission_idx ?? latestKnownIdxRef.current;
+                tradeHistoryUpdated = true;
               }
-            : null,
-        }));
+            }
+          }
+          if (cancelled) return;
+          // Use global funding if loaded (CTA clicked), otherwise fall back to position-scoped funding.
+          const effectiveFunding = fundingPaymentsRef.current.length > 0
+            ? fundingPaymentsRef.current
+            : positionFundingPaymentsRef.current;
+          const pollPositions = applySessionFunding(
+            applyPositionStats(
+              applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
+              positionStatsMapRef.current,
+            ),
+            positionStatsMapRef.current,
+            effectiveFunding,
+          );
+          const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
+          // Rebuild global PnL stats (win_rate, net_pnl_usd, total_fees_usd, volume, etc.)
+          // when new trades were detected so WalletStats and WalletSummary update immediately.
+          const tradeStats = tradeHistoryUpdated
+            ? buildPnlStats(tradesRef.current, fundingPaidUsdRef.current)
+            : {};
+          setData((prev) => ({
+            ...prev,
+            ...(tradeHistoryUpdated ? { trades: tradesRef.current } : {}),
+            stats: prev.stats
+              ? {
+                  ...prev.stats,
+                  positions: pollPositions,
+                  health_score: pd.healthScore,
+                  subaccount_healths: pd.subaccountHealths,
+                  total_equity_usd: pollTotals.equityUsd,
+                  available_margin: pd.availableMargin,
+                  maintenance_margin: pd.maintenanceMargin,
+                  spot_balances: pd.spotBalances,
+                  spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
+                  cross_subaccounts: pd.crossSubaccounts,
+                  unrealized_pnl_usd: pollTotals.unrealizedTotal,
+                  ...(tradeHistoryUpdated ? { trades: tradesRef.current } : {}),
+                  ...tradeStats,
+                }
+              : null,
+          }));
+          // Poll succeeded — reset error counter
+          pollErrorCountRef.current = 0;
+        } catch (e) {
+          console.error('[useWalletData] pollPositionsOnly error:', e);
+          pollErrorCountRef.current += 1;
+        }
       };
 
-      intervalRef.current = setInterval(() => {
-        void pollPositionsOnly();
-      }, POSITIONS_POLL_MS);
+      const schedulePoll = () => {
+        const errors = pollErrorCountRef.current;
+        const delay = errors >= POLL_BACKOFF_THRESHOLD
+          ? Math.min(POSITIONS_POLL_MS * (2 ** (errors - POLL_BACKOFF_THRESHOLD + 1)), POLL_MAX_BACKOFF_MS)
+          : POSITIONS_POLL_MS;
+        intervalRef.current = setTimeout(() => {
+          void pollPositionsOnly().finally(() => {
+            if (!cancelled) schedulePoll();
+          });
+        }, delay) as unknown as ReturnType<typeof setInterval>;
+      };
+      schedulePoll();
 
       refreshUnrealizedImplRef.current = async () => {
         if (cancelled) return;

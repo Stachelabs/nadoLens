@@ -197,8 +197,11 @@ components/wallet/
   WalletSummary.tsx       Props: { stats, tradesComplete, fundingComplete, onRefresh, refreshing, ... }
                                                                                 ← global PnL summary (trading + funding + fees)
   WalletTradeHistory.tsx  Props: { trades: TradeMatch[] }                      ← last N trades history
-  WalletEquityCurve.tsx   Props: { trades, fundingPayments, tradesComplete }   ← Recharts equity curve
-  AccountFilterSelect.tsx Props: { options, value, onValueChange }             ← subaccount filter dropdown (positions, trades, spot)
+  WalletEquityCurve.tsx          Props: { trades, fundingPayments, tradesComplete }   ← Recharts equity curve
+  WalletFeesByProductChart.tsx   Props: { trades }                                    ← Recharts fee breakdown by product (Analytics tab)
+  WalletFundingByProductChart.tsx Props: { fundingPayments }                          ← Recharts funding breakdown by product (Analytics tab)
+  WalletTabNav.tsx               Props: { activeTab, onTabChange }                   ← tab navigation (Positions / History / Analytics)
+  AccountFilterSelect.tsx        Props: { options, value, onValueChange }             ← subaccount filter dropdown (positions, trades, spot)
 
 hooks/
   useWalletData.ts        ← multi-subaccount fetch + 6s polling → WalletData
@@ -228,7 +231,7 @@ app/providers.tsx      ← PairsInitializer (headless) → usePairs() on app sta
 | Size | `abs(fromX18BigInt(amount))` |
 | Avg Entry | `account_snapshots[].net_entry_unrealized` (x18) — fetched on fill detection |
 | Mark Price | `fromX18BigInt(oracle_price_x18)` |
-| Unrealized PnL | `fromX18BigInt(v_quote_balance) + amount × markPrice` |
+| Unrealized PnL | `(mark_price − avg_entry) × amount` where `avg_entry = \|net_entry_unrealized / amount\|` from `account_snapshots` — see `lib/wallet/snapshotEntryPrice.ts`. Fallback to Gateway `v_quote + amount × oracle` when no snapshot available. |
 | Liq Price | estimated: `markPrice × (1 ± 1/leverage + maintMarginRate)` |
 | Realized | cumulative realized PnL for the open session (from positionStats via matches) |
 | Funding | cumulative funding paid/received (from interest_and_funding) |
@@ -333,7 +336,7 @@ No known bugs at this time.
 
 ---
 
-*ARCHI.md v3.4 — NadoLens Wallet Explorer — updated 2026-04-21*
+*ARCHI.md v3.5 — NadoLens Wallet Explorer — updated 2026-04-24*
 
 ---
 

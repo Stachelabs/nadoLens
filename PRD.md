@@ -138,7 +138,7 @@ nadolens/
 ├── components/
 │   ├── Nav.tsx                       ← sticky nav, connect button, theme toggle
 │   ├── ThemeToggle.tsx               ← next-themes toggle
-│   ├── wallet/                       ← 7 wallet components
+│   ├── wallet/                       ← 11 wallet components
 │   └── ui/                           ← shadcn components (button, card, badge, input, table, separator, avatar)
 ├── hooks/
 │   ├── useWalletData.ts
