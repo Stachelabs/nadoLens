@@ -200,6 +200,58 @@ describe('applySnapshotEntryPrices', () => {
     expect(result).toEqual(positions)
   })
 
+  // ── unrealized_pnl correctness ───────────────────────────────────────────
+
+  it('computes pure unrealized_pnl ignoring Gateway p.unrealized_pnl', () => {
+    // amount=2, oracle=3000, net_entry_unrealized=5600 → correctedPnl = 400
+    // p.unrealized_pnl (Gateway) = 1200 (inflated by realized from partial close)
+    // Correct answer: 400, NOT 1200
+    const netEntryX18 = '5600000000000000000000'  // 5600 × 10^18
+    const amountX18   = '2000000000000000000'     // 2 × 10^18
+    const avgEntry    = 2800  // 5600 / 2
+
+    const positions = [
+      makePos({
+        product_id: 99,
+        subaccount: CROSS_PARENT,
+        isolated: false,
+        amount: 2,
+        mark_price: 3000,
+        unrealized_pnl: 1200, // Gateway's inflated value — must NOT be used
+      }),
+    ]
+    const map = buildEntryPriceMap({
+      [CROSS_PARENT]: {
+        '123': [makeEvent(99, false, amountX18, netEntryX18)],
+      },
+    })
+    const result = applySnapshotEntryPrices(positions, map)
+    expect(result[0]!.entry_price).toBeCloseTo(avgEntry, 4)
+    expect(result[0]!.unrealized_pnl).toBeCloseTo(400, 4)
+  })
+
+  it('computes correct unrealized_pnl for a short position', () => {
+    // Short: amount=-1, oracle=3000, avg_entry=3200 → PnL = (3000-3200)*(-1) = 200
+    const netEntryX18 = '-3200000000000000000000'  // -3200 × 10^18
+    const amountX18   = '-1000000000000000000'     // -1 × 10^18
+
+    const positions = [
+      makePos({
+        product_id: 99,
+        subaccount: CROSS_PARENT,
+        isolated: false,
+        amount: -1,
+        mark_price: 3000,
+        unrealized_pnl: -999, // Gateway's wrong value — must NOT be used
+      }),
+    ]
+    const map = buildEntryPriceMap({
+      [CROSS_PARENT]: { '123': [makeEvent(99, false, amountX18, netEntryX18)] },
+    })
+    const result = applySnapshotEntryPrices(positions, map)
+    expect(result[0]!.unrealized_pnl).toBeCloseTo(200, 4)
+  })
+
   it('does not mix cross and isolated for the same product_id', () => {
     const crossPos = makePos({ product_id: 2, subaccount: CROSS_PARENT, isolated: false })
     const isoPos = makePos({

@@ -1,5 +1,6 @@
 import type { AccountSnapshotEvent } from "@/lib/schemas/nado";
 import type { Position } from "@/types/nado";
+import { fromX18BigInt } from "@/types/nado";
 
 /**
  * key = `${subaccount_lower}:${product_id}:${isolated}`
@@ -8,20 +9,6 @@ import type { Position } from "@/types/nado";
  * fundingCumulative = net_funding_cumulative in USD (signed: positive = received)
  */
 export type EntryPriceMap = Map<string, { entryPrice: number; fundingCumulative: number | null }>;
-
-function parseX18(s: string): number {
-  try {
-    const n = BigInt(s);
-    const PREC = BigInt(10) ** BigInt(18);
-    const sign = n < BigInt(0) ? -1 : 1;
-    const abs = n < BigInt(0) ? -n : n;
-    const whole = abs / PREC;
-    const frac = abs % PREC;
-    return sign * (Number(whole) + Number(frac) / 1e18);
-  } catch {
-    return parseFloat(s) / 1e18;
-  }
-}
 
 /**
  * Build an EntryPriceMap from raw snapshot events.
@@ -43,17 +30,17 @@ export function buildEntryPriceMap(
         const netEntryStr = event.net_entry_unrealized;
         if (!netEntryStr) continue;
 
-        const amount = parseX18(perpAmount);
+        const amount = fromX18BigInt(perpAmount);
         if (!isFinite(amount) || amount === 0) continue;
 
-        const netEntry = parseX18(netEntryStr);
+        const netEntry = fromX18BigInt(netEntryStr);
         if (!isFinite(netEntry)) continue;
 
         const entryPrice = Math.abs(netEntry / amount);
         if (!isFinite(entryPrice) || entryPrice <= 0) continue;
 
         const fundingCumulative = event.net_funding_cumulative != null
-          ? parseX18(event.net_funding_cumulative)
+          ? fromX18BigInt(event.net_funding_cumulative)
           : null;
 
         const key = `${sub}:${event.product_id}:${event.isolated}`;
@@ -66,14 +53,12 @@ export function buildEntryPriceMap(
 }
 
 /**
- * Override position entry prices using snapshot-derived values, and correct
- * unrealized PnL accordingly.
+ * Override position entry prices and unrealized PnL using snapshot-derived values.
  *
- * WHY: Nado periodically settles v_quote_balance into the spot USDT0 balance.
- * After settlement, v_quote_balance no longer equals -(entry × amount), so
- * the formula "v_quote + amount × oracle" only shows PnL since last settlement.
- * The true unrealized PnL from entry = (mark_price - avg_entry) × amount,
- * where avg_entry = |net_entry_unrealized / amount| from account_snapshots.
+ * WHY: Nado's Gateway field (v_quote + amount × oracle) resets only on settlement,
+ * so after a partial close it still carries the realized portion until the next
+ * settlement. account_snapshots.net_entry_unrealized tracks only the open cost
+ * basis and resets proportionally on every partial close — giving pure unrealized PnL.
  */
 export function applySnapshotEntryPrices(
   positions: Position[],
@@ -88,15 +73,15 @@ export function applySnapshotEntryPrices(
     const key = `${querySub}:${p.product_id}:${p.isolated}`;
     const snapshot = map.get(key);
     if (snapshot != null && snapshot.entryPrice > 0) {
-      const correctedPnl = (p.mark_price - snapshot.entryPrice) * p.amount;
-      // After a reduce (before Nado settlement): v_quote still carries the unsettled
-      // realized PnL from the reduce, so the Gateway value (p.unrealized_pnl) is larger.
-      // After a settlement: v_quote is partially reset and the snapshot value is larger.
-      // Picking the higher magnitude keeps us in sync with Nado's dashboard in both cases.
-      const unrealized_pnl =
-        Math.abs(p.unrealized_pnl) >= Math.abs(correctedPnl)
-          ? p.unrealized_pnl
-          : correctedPnl;
+      // Pure unrealized PnL from original entry:
+      //   (oracle_price × amount) − net_entry_unrealized
+      // Equivalent form used here: (mark_price − avg_entry) × amount
+      // where avg_entry = |net_entry_unrealized / amount| from account_snapshots.
+      // net_entry_unrealized resets proportionally on partial close, so this
+      // value never includes already-realized gains/losses.
+      // We intentionally ignore p.unrealized_pnl (Gateway's v_quote-based field),
+      // which blends realized PnL from partial closes until Nado settles them.
+      const unrealized_pnl = (p.mark_price - snapshot.entryPrice) * p.amount;
       return {
         ...p,
         entry_price: snapshot.entryPrice,
