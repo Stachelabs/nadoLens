@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest): Promise<NextResponse<MarketSnapshot[] | { error: string }>> {
   const params = request.nextUrl.searchParams
-  const count = Math.min(Math.max(1, Number(params.get('count') ?? 31)), 90)
+  const count = Math.min(Math.max(1, Number(params.get('count') ?? 31)), 100)
   const granularity = Number(params.get('granularity') ?? 86400)
 
   if (!Number.isInteger(count) || !Number.isInteger(granularity)) {

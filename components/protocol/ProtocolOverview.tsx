@@ -19,7 +19,7 @@ import {
   type OverviewTimeframe,
 } from "@/store/protocolStore";
 import { fromX18BigInt } from "@/types/nado";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Area,
   AreaChart,
@@ -151,12 +151,17 @@ function StatItem({
 
 const CardDivider = () => <div className="my-4 border-t border-border/40" />;
 
-
 export function ProtocolOverview() {
   const timeframe = useProtocolStore((s) => s.overviewTimeframe);
   const setTimeframe = useProtocolStore((s) => s.setOverviewTimeframe);
+  const [allTimeEnabled, setAllTimeEnabled] = useState(false);
+
+  useEffect(() => {
+    if (timeframe === "All Time") setAllTimeEnabled(true);
+  }, [timeframe]);
+
   const { snapshots, loading } = useProtocolMarketSnapshots(90);
-  const { snapshots: weeklySnapshots } = useProtocolMarketSnapshots(24, 604800);
+  const { snapshots: weeklySnapshots, loading: weeklyLoading } = useProtocolMarketSnapshots(24, 604800, allTimeEnabled);
 
   const latest = snapshots[0];
   const prev = snapshots[1];
@@ -206,8 +211,12 @@ export function ProtocolOverview() {
   const chartData = useMemo(() => buildChartData(snapshots), [snapshots]);
   const n = TIMEFRAME_SLICE[timeframe];
   const sliced = n !== null ? chartData.slice(-n) : chartData;
-  const weeklyChartData = useMemo(() => buildChartData(weeklySnapshots), [weeklySnapshots]);
-  const volumeChartData = timeframe === "All Time" ? weeklyChartData : sliced;
+  const weeklyChartData = useMemo(
+    () => buildChartData(weeklySnapshots),
+    [weeklySnapshots],
+  );
+  const allTimeReady = timeframe === "All Time" && !weeklyLoading && weeklyChartData.length > 0;
+  const volumeChartData = allTimeReady ? weeklyChartData : sliced;
 
   return (
     <div className="space-y-6">
@@ -263,7 +272,9 @@ export function ProtocolOverview() {
             <CardDivider />
             <p className="mb-0.5 text-sm font-medium">Trading Volume</p>
             <p className="mb-3 text-xs text-muted-foreground">
-              {timeframe === "All Time" ? "The weekly trading volume and the cumulative volume." : "The daily trading volume and the cumulative volume."}
+              {timeframe === "All Time"
+                ? "The weekly trading volume and the cumulative volume."
+                : "The daily trading volume and the cumulative volume."}
             </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
@@ -310,6 +321,7 @@ export function ProtocolOverview() {
                     axisLine={false}
                     tickLine={false}
                     width={56}
+                    domain={["auto", "auto"]}
                   />
                   <Tooltip
                     {...tooltipStyle}
@@ -358,13 +370,15 @@ export function ProtocolOverview() {
             </div>
             <CardDivider />
             <p className="mb-0.5 text-sm font-medium">Open Interest</p>
-            <p className="mb-3 text-xs text-muted-foreground">The open interest over time.</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              The open interest over time.
+            </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
-                  data={sliced}
+                  data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
                 >
                   <defs>
@@ -432,7 +446,7 @@ export function ProtocolOverview() {
               </StatItem>
               <StatItem label="24h Flows" loading={isLoading} skeletonW="w-40">
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-bold">
+                  <span className="text-2xl font-bold">
                     {fmtCompact.format(Math.abs(inflows24h))}
                   </span>
                   <Badge
@@ -441,7 +455,7 @@ export function ProtocolOverview() {
                   >
                     Deposited
                   </Badge>
-                  <span className="text-sm font-bold text-destructive">
+                  <span className="text-2xl font-bold text-destructive">
                     {outflows24h < 0 ? "–" : ""}
                     {fmtCompact.format(Math.abs(outflows24h))}
                   </span>
@@ -456,7 +470,9 @@ export function ProtocolOverview() {
             </div>
             <CardDivider />
             <p className="mb-0.5 text-sm font-medium">TVL</p>
-            <p className="mb-3 text-xs text-muted-foreground">The total value locked over time.</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              The total value locked over time.
+            </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
             ) : (
@@ -520,7 +536,11 @@ export function ProtocolOverview() {
         <Card className="border-border bg-card p-0">
           <CardContent className="p-5">
             <div className="flex flex-wrap items-center gap-x-10 gap-y-3">
-              <StatItem label="24h Traders" loading={isLoading} skeletonW="w-16">
+              <StatItem
+                label="24h Traders"
+                loading={isLoading}
+                skeletonW="w-16"
+              >
                 <p className="text-2xl font-bold">
                   {dau.toLocaleString("en-US")}
                 </p>
@@ -537,13 +557,15 @@ export function ProtocolOverview() {
             </div>
             <CardDivider />
             <p className="mb-0.5 text-sm font-medium">Daily Active Users</p>
-            <p className="mb-3 text-xs text-muted-foreground">The daily active traders.</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              The daily active traders.
+            </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart
-                  data={sliced}
+                  data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
                 >
                   <CartesianGrid
@@ -574,7 +596,7 @@ export function ProtocolOverview() {
                   <Line
                     type="linear"
                     dataKey="dau"
-                    stroke="rgba(255,255,255,0.65)"
+                    stroke={PURPLE}
                     strokeWidth={1.5}
                     dot={false}
                     activeDot={{ r: 3 }}

@@ -36,7 +36,7 @@ export function WalletTabNav({ activeTab, onTabChange }: Props) {
             </button>
           ))}
         </div>
-        <div className="flex-shrink-0 pb-px pr-0.5">
+        <div className="flex shrink-0 pb-px pr-0.5">
           <TradeOnNadoButton />
         </div>
       </div>

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 
-export type ChartPoint = { date: string; volume: number; cumVol: number }
+export type ChartPoint = { date: string; volume: number; cumVol: number; cumPerpVol: number; cumSpotVol: number; perpVol: number; spotVol: number }
 export type MarketSlice = { productId: string; volume: number }
 
 export type ProtocolVolumesData = {
@@ -16,10 +16,12 @@ export type ProtocolVolumesData = {
   donut24h: MarketSlice[]
   donut7d: MarketSlice[]
   donut30d: MarketSlice[]
+  donut60d: MarketSlice[]
   donut90d: MarketSlice[]
   donutAllTime: MarketSlice[]
   productNames: Record<string, string>
   loading: boolean
+  backgroundLoading: boolean
   error: string | null
 }
 
@@ -40,13 +42,36 @@ function fmtDate(ts: number): string {
   }).format(new Date(ts * 1000))
 }
 
-function buildChartPoints(snapshots: MarketSnapshotType[]): ChartPoint[] {
+function buildChartPoints(
+  snapshots: MarketSnapshotType[],
+  spotIds: Set<string> = new Set(),
+): ChartPoint[] {
   const ordered = [...snapshots].reverse()
   return ordered.map((snap, i) => {
     const cumVol = sumRecord(snap.cumulative_volumes)
     const prevVol = i > 0 ? sumRecord(ordered[i - 1]!.cumulative_volumes) : cumVol
     const volume = i > 0 ? cumVol - prevVol : 0
-    return { date: fmtDate(snap.timestamp), volume, cumVol }
+    let cumPerpVol = 0
+    let cumSpotVol = 0
+    for (const [id, val] of Object.entries(snap.cumulative_volumes)) {
+      const v = fromX18BigInt(val)
+      if (spotIds.has(id)) cumSpotVol += v
+      else cumPerpVol += v
+    }
+    let prevCumPerpVol = cumPerpVol
+    let prevCumSpotVol = cumSpotVol
+    if (i > 0) {
+      prevCumPerpVol = 0
+      prevCumSpotVol = 0
+      for (const [id, val] of Object.entries(ordered[i - 1]!.cumulative_volumes)) {
+        const v = fromX18BigInt(val)
+        if (spotIds.has(id)) prevCumSpotVol += v
+        else prevCumPerpVol += v
+      }
+    }
+    const perpVol = i > 0 ? cumPerpVol - prevCumPerpVol : 0
+    const spotVol = i > 0 ? cumSpotVol - prevCumSpotVol : 0
+    return { date: fmtDate(snap.timestamp), volume, cumVol, cumPerpVol, cumSpotVol, perpVol, spotVol }
   })
 }
 
@@ -85,10 +110,12 @@ const INITIAL: ProtocolVolumesData = {
   donut24h: [],
   donut7d: [],
   donut30d: [],
+  donut60d: [],
   donut90d: [],
   donutAllTime: [],
   productNames: {},
   loading: true,
+  backgroundLoading: true,
   error: null,
 }
 
@@ -101,51 +128,51 @@ export function useProtocolVolumes(): ProtocolVolumesData {
 
     const fetchAll = async () => {
       try {
-        const [r24h, r7d, r30d, rAllTime, r90d, rTickers] = await Promise.all([
-          fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal }),
-          fetch('/api/protocol/market-snapshots?count=2&granularity=604800', { signal }),
-          fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal }),
-          fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal }),
-          fetch('/api/protocol/market-snapshots?count=2&granularity=7776000', { signal }),
-          fetch('/api/protocol/tickers', { signal }),
-        ])
+        // Start ALL fetches simultaneously — priority and background fire at the same time.
+        const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
+        const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
+        const fTickers = fetch('/api/protocol/tickers', { signal })
+        const fProducts = fetch('/api/protocol/products', { signal })
+        const f7d = fetch('/api/protocol/market-snapshots?count=2&granularity=604800', { signal })
+        const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
+        const fAllTime = fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal })
+        const f90d = fetch('/api/protocol/market-snapshots?count=2&granularity=7776000', { signal })
+        // Side-chain error handlers to prevent unhandled rejection during Wave 1
+        f7d.catch(() => {}); f91d.catch(() => {}); fAllTime.catch(() => {}); f90d.catch(() => {})
 
-        if (!r24h.ok || !r7d.ok || !r30d.ok || !rAllTime.ok || !r90d.ok || !rTickers.ok) {
-          setData((prev) => ({ ...prev, loading: false, error: 'Failed to load volumes data' }))
+        // Wave 1 — render 30d view as soon as priority group resolves
+        const [r24h, r30d, rTickers, rProducts] = await Promise.all([f24h, f30d, fTickers, fProducts])
+
+        if (!r24h.ok || !r30d.ok || !rTickers.ok || !rProducts.ok) {
+          setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
           return
         }
 
-        const [raw24h, raw7d, raw30d, rawAllTime, raw90d, rawTickers] = await Promise.all([
+        const [raw24h, raw30d, rawTickers, rawProducts] = await Promise.all([
           r24h.json() as Promise<unknown>,
-          r7d.json() as Promise<unknown>,
           r30d.json() as Promise<unknown>,
-          rAllTime.json() as Promise<unknown>,
-          r90d.json() as Promise<unknown>,
           rTickers.json() as Promise<unknown>,
+          rProducts.json() as Promise<unknown>,
         ])
 
         const p24h = MarketSnapshotsArraySchema.safeParse(raw24h)
-        const p7d = MarketSnapshotsArraySchema.safeParse(raw7d)
         const p30d = MarketSnapshotsArraySchema.safeParse(raw30d)
-        const pAllTime = MarketSnapshotsArraySchema.safeParse(rawAllTime)
-        const p90d = MarketSnapshotsArraySchema.safeParse(raw90d)
         const pTickers = EnrichedTickersArraySchema.safeParse(rawTickers)
 
-        if (!p24h.success || !p7d.success || !p30d.success || !pAllTime.success || !p90d.success || !pTickers.success) {
-          setData((prev) => ({ ...prev, loading: false, error: 'Invalid volumes data' }))
+        if (!p24h.success || !p30d.success || !pTickers.success) {
+          setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Invalid volumes data' }))
           return
         }
 
         const snap24h = p24h.data
-        const snap7d = p7d.data
         const snap30d = p30d.data
-        const snapAllTime = pAllTime.data
-        const snap90d = p90d.data
 
         const productNames: Record<string, string> = {}
         for (const t of pTickers.data) {
           productNames[String(t.product_id)] = t.symbol
         }
+        const productsData = rawProducts as { spot_ids?: number[]; perp_ids?: number[] }
+        const spotIds = new Set((productsData.spot_ids ?? []).map(String))
 
         const volume24h =
           snap24h.length >= 2
@@ -154,8 +181,8 @@ export function useProtocolVolumes(): ProtocolVolumesData {
               ? sumRecord(snap24h[0]!.cumulative_volumes)
               : 0
 
-        const allTimeVol =
-          snapAllTime.length > 0 ? sumRecord(snapAllTime[0]!.cumulative_volumes) : 0
+        // Use most recent daily snapshot for allTimeVol (background wave will refine with weekly)
+        const allTimeVol = snap30d.length > 0 ? sumRecord(snap30d[0]!.cumulative_volumes) : 0
 
         const donut24h =
           snap24h.length >= 2
@@ -163,6 +190,49 @@ export function useProtocolVolumes(): ProtocolVolumesData {
             : snap24h.length === 1
               ? buildAllTimeSlices(snap24h[0]!)
               : []
+
+        setData((prev) => ({
+          ...prev,
+          volume24h,
+          allTimeVol,
+          dailyChartData: buildChartPoints(snap30d, spotIds),
+          donut24h,
+          donut30d: build30dSlices(snap30d.slice(0, 31)),
+          productNames,
+          loading: false,
+          backgroundLoading: true,
+          error: null,
+        }))
+
+        // Wave 2 — extend with remaining timeframes
+        const [r7d, r91d, rAllTime, r90d] = await Promise.all([f7d, f91d, fAllTime, f90d])
+
+        if (!r7d.ok || !r91d.ok || !rAllTime.ok || !r90d.ok) {
+          setData((prev) => ({ ...prev, backgroundLoading: false }))
+          return
+        }
+
+        const [raw7d, raw91d, rawAllTime, raw90d] = await Promise.all([
+          r7d.json() as Promise<unknown>,
+          r91d.json() as Promise<unknown>,
+          rAllTime.json() as Promise<unknown>,
+          r90d.json() as Promise<unknown>,
+        ])
+
+        const p7d = MarketSnapshotsArraySchema.safeParse(raw7d)
+        const p91d = MarketSnapshotsArraySchema.safeParse(raw91d)
+        const pAllTime = MarketSnapshotsArraySchema.safeParse(rawAllTime)
+        const p90d = MarketSnapshotsArraySchema.safeParse(raw90d)
+
+        if (!p7d.success || !p91d.success || !pAllTime.success || !p90d.success) {
+          setData((prev) => ({ ...prev, backgroundLoading: false }))
+          return
+        }
+
+        const snap7d = p7d.data
+        const snap91d = p91d.data
+        const snapAllTime = pAllTime.data
+        const snap90d = p90d.data
 
         const donut7d =
           snap7d.length >= 2
@@ -178,23 +248,20 @@ export function useProtocolVolumes(): ProtocolVolumesData {
               ? buildAllTimeSlices(snap90d[0]!)
               : []
 
-        setData({
-          volume24h,
-          allTimeVol,
-          dailyChartData: buildChartPoints(snap30d),
-          weeklyChartData: buildChartPoints(snapAllTime),
-          donut24h,
+        setData((prev) => ({
+          ...prev,
+          allTimeVol: snapAllTime.length > 0 ? sumRecord(snapAllTime[0]!.cumulative_volumes) : prev.allTimeVol,
+          dailyChartData: buildChartPoints(snap91d, spotIds),
+          weeklyChartData: buildChartPoints(snapAllTime, spotIds),
           donut7d,
-          donut30d: build30dSlices(snap30d),
+          donut60d: build30dSlices(snap91d.slice(0, 61)),
           donut90d,
           donutAllTime: snapAllTime.length > 0 ? buildAllTimeSlices(snapAllTime[0]!) : [],
-          productNames,
-          loading: false,
-          error: null,
-        })
+          backgroundLoading: false,
+        }))
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
-          setData((prev) => ({ ...prev, loading: false, error: 'Failed to load volumes data' }))
+          setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
         }
       }
     }

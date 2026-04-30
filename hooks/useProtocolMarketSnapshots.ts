@@ -6,13 +6,18 @@ import { MarketSnapshotSchema, type MarketSnapshot } from '@/lib/schemas/nado'
 
 const MarketSnapshotsArraySchema = z.array(MarketSnapshotSchema)
 
-export function useProtocolMarketSnapshots(count = 31, granularity = 86400) {
+export function useProtocolMarketSnapshots(count = 31, granularity = 86400, enabled = true) {
   const [snapshots, setSnapshots] = useState<MarketSnapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const cacheRef = useRef<MarketSnapshot[] | null>(null)
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return
+    }
+
     if (cacheRef.current) {
       setSnapshots(cacheRef.current)
       setLoading(false)
@@ -53,7 +58,7 @@ export function useProtocolMarketSnapshots(count = 31, granularity = 86400) {
 
     void fetchSnapshots()
     return () => controller.abort()
-  }, [count, granularity])
+  }, [count, granularity, enabled])
 
   return { snapshots, loading, error }
 }

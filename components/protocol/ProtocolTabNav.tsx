@@ -1,10 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import {
-  useProtocolStore,
-  type ProtocolTab,
-} from "@/store/protocolStore";
+import { useProtocolStore, type ProtocolTab } from "@/store/protocolStore";
 import { TradeOnNadoButton } from "@/components/TradeOnNadoButton";
 
 const TABS: { value: ProtocolTab; label: string }[] = [
@@ -39,7 +36,7 @@ export function ProtocolTabNav() {
             </button>
           ))}
         </div>
-        <div className="flex-shrink-0 pb-px pr-0.5">
+        <div className="flex shrink-0 pb-px pr-0.5">
           <TradeOnNadoButton />
         </div>
       </div>
