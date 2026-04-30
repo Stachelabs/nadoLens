@@ -120,6 +120,8 @@ type Props = {
   positionMatchesComplete?: boolean;
   /** True once position-scoped funding (Phase 2b) is done — enables Funding column. */
   positionFundingComplete?: boolean;
+  /** True once snapshot entry prices are applied — gates Unrealized PnL column. */
+  snapshotReady?: boolean;
   /** True while Gateway positions are being fetched (Phase 1 in progress). */
   loading?: boolean;
 };
@@ -132,6 +134,7 @@ export function WalletPositions({
   unrealizedRefreshing = false,
   positionMatchesComplete = true,
   positionFundingComplete = true,
+  snapshotReady = true,
   loading = false,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
@@ -503,11 +506,17 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        pnlColor,
+                        snapshotReady ? pnlColor : "text-muted-foreground/40",
                       )}
                     >
-                      {pos.unrealized_pnl >= 0 ? "+" : ""}
-                      {fmtUsd.format(pos.unrealized_pnl)}
+                      {!snapshotReady ? (
+                        <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
+                      ) : (
+                        <>
+                          {pos.unrealized_pnl >= 0 ? "+" : ""}
+                          {fmtUsd.format(pos.unrealized_pnl)}
+                        </>
+                      )}
                     </TableCell>
                     <TableCell
                       className={cn(

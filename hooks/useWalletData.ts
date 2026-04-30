@@ -256,6 +256,8 @@ export type WalletData = {
   loading: boolean;
   /** True once Gateway positions are loaded (before any Archive fetch). */
   phase1Ready: boolean;
+  /** True once snapshot entry prices have been applied to positions (pure unrealized PnL). */
+  snapshotReady: boolean;
   /** Trades scoped to currently open positions (Phase 2). */
   positionTrades: TradeMatch[];
   /** True once all position-scoped matches have been fetched (Phase 2). */
@@ -312,6 +314,7 @@ export function useWalletData(rawAddress: string): WalletData {
     fundingPayments: [],
     loading: true,
     phase1Ready: false,
+    snapshotReady: false,
     positionTrades: [],
     positionMatchesComplete: false,
     positionFunding: [],
@@ -1439,6 +1442,7 @@ export function useWalletData(rawAddress: string): WalletData {
         fundingPayments: [],
         loading: false,
         phase1Ready: true,
+        snapshotReady: false,
         positionTrades: [],
         positionMatchesComplete: false,
         positionFunding: [],
@@ -1481,6 +1485,29 @@ export function useWalletData(rawAddress: string): WalletData {
       const snapshotsTask = (async () => {
         const crossSubaccounts = subs.filter((s) => !s.isolated).map((s) => s.subaccount);
         entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubaccounts);
+        if (cancelled) return;
+        setData((prev) => {
+          if (!prev.stats) return { ...prev, snapshotReady: true };
+          const corrected = applySessionFunding(
+            applyPositionStats(
+              applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
+              positionStatsMapRef.current,
+            ),
+            positionStatsMapRef.current,
+            fundingPaymentsRef.current,
+          );
+          const totals = recomputeUnrealizedTotals(corrected, prev.stats.total_equity_usd, prev.stats.unrealized_pnl_usd);
+          return {
+            ...prev,
+            snapshotReady: true,
+            stats: {
+              ...prev.stats,
+              positions: corrected,
+              unrealized_pnl_usd: totals.unrealizedTotal,
+              total_equity_usd: totals.equityUsd,
+            },
+          };
+        });
       })();
 
       // Phase 3a: global background pagination loop (first page + remaining pages)

@@ -15,6 +15,17 @@
 
 ---
 
+## Branch Workflow — STRICT
+
+**NEVER** commit directly to `main`. Always:
+1. Create `feat/` or `fix/` branch
+2. Push branch → open PR with `gh pr create`
+3. **STOP** — do not merge to main without explicit user approval
+
+Violations: direct commits to main, pushing merges without PR review = always wrong.
+
+---
+
 ## Context7 — live library docs
 
 **ALWAYS use Context7 — NEVER rely on memory for libraries.**
