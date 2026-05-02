@@ -73,7 +73,8 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - SSE via `EventSource` to WS Proxy (`NEXT_PUBLIC_WS_PROXY_URL`)
 
 **Next.js server (Vercel)**
-- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots`
+- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]`
+- Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/liquidations` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 
 **WS Proxy + nado-matches (Fly.io fra — Bun, co-located)**
@@ -81,8 +82,10 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Use `ws` package (not native Bun WebSocket) — Nado requires `permessage-deflate`
 - Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
 - `min_machines_running = 1` — machine never sleeps, WS connection stays alive permanently
-- Exposes both `POST /matches` (Redis-cached Archive proxy) and `GET /sse` (SSE → browser)
-- SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount
+- Exposes `POST /matches` (Archive proxy, Upstash Redis cache with TTL) · `GET /sse` (SSE → browser) · `GET /health`
+- Redis cache: Archive `/matches` responses cached by request hash — `no_cache` flag bypasses TTL
+- Static market subscriptions on startup: `liquidation` stream + `book_depth` for all products
+- SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount; subscriptions re-registered on WS reconnect
 - Client-side: `hooks/useAccountStream.ts` — EventSource with exponential-backoff reconnect
 
 **Vercel build**
@@ -128,6 +131,8 @@ Rebuild index: `pnpm docs:build:nado`
 - **ALWAYS**: x18 via `BigInt`, never `parseFloat` on large numbers
 - Fetch ALL subaccounts (default + isolated) before fetching matches
 - Matches pagination: `idx = page[page.length - 1].submission_idx`, stop if `page.length < 500`
+- Safety cap: `MAX_PAGES = 50` — never paginate beyond 25 000 matches per load
+- Burst delay: `MATCHES_BURST_MS = 220` between consecutive Archive calls — prevents 429s
 
 ### Isolated margin — parent vs pocket
 
@@ -199,13 +204,14 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 ## MVP priorities
 
 1. ✅ WS Proxy Bun + `/health`
-2. ✅ `useLiquidationStream` SSE → Zustand
-3. ✅ Heatmap layer 1 + layer 2
-4. ✅ Survival Cockpit
+2. ❌ `useLiquidationStream` SSE → Zustand — **removed** (liquidations served via REST polling in Protocol tab instead)
+3. ❌ Heatmap layer 1 + layer 2 — **removed** (see PRD.md § 10 roadmap)
+4. ❌ Survival Cockpit — **removed** (see PRD.md § 10 roadmap)
 5. ✅ Wallet Explorer
-6. **→ Deploy & Polish** (README, GIF, GitHub public, email Frank)
-7. Orderbook depth (post-polish)
+6. ✅ Protocol Analytics Dashboard — 5 tabs: Overview · Volumes · OI & Funding · Revenue · TVL
+7. **→ Deploy & Polish** (README, GIF, GitHub public, email Frank)
+8. Orderbook depth (post-polish)
 
 ---
 
-_CLAUDE.md v4.0 — NadoLens_
+_CLAUDE.md v4.1 — NadoLens_

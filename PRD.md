@@ -33,17 +33,24 @@
 
 ```
 Browser (React)
-  └── /wallet/[addr]  → Wallet Explorer (any address)
-        │
-        │ useWalletData hook (fetch + 6s polling)
+  ├── /wallet/[addr]   → Wallet Explorer (any address)
+  │     │ useWalletData hook (fetch + 6s polling)
+  └── /protocol        → Protocol Analytics Dashboard (5 tabs)
+        │ useProtocolVolumes + useProtocolMarketSnapshots + useProtocolData
         ▼
 Next.js Backend (Vercel) — pnpm
-  ├── /api/pairs              → proxy Nado pairs list
-  ├── /api/wallet/[address]   → proxy Nado Gateway queries (avoids CORS)
-  ├── /api/subaccounts/[addr] → resolve all subaccounts (Archive)
-  ├── /api/matches            → proxy archive matches (Zod validation)
-  ├── /api/funding            → proxy archive interest_and_funding (Zod validation)
-  └── /api/snapshots          → proxy archive account_snapshots (avg entry prices)
+  ├── /api/pairs                          → proxy Nado pairs list
+  ├── /api/wallet/[address]               → proxy Nado Gateway queries (avoids CORS)
+  ├── /api/subaccounts/[addr]             → resolve all subaccounts (Archive)
+  ├── /api/matches                        → proxy archive matches (Zod validation)
+  ├── /api/funding                        → proxy archive interest_and_funding (Zod validation)
+  ├── /api/snapshots                      → proxy archive account_snapshots (avg entry prices)
+  ├── /api/protocol/tickers               → enriched ticker list (Gateway v2)
+  ├── /api/protocol/market-snapshots      → edge_market_snapshots (count + granularity)
+  ├── /api/protocol/products              → spot_ids + perp_ids from edge_all_products
+  ├── /api/protocol/liquidations          → liquidation feed (Archive)
+  ├── /api/protocol/candlesticks          → OHLCV candlesticks per product
+  └── /api/protocol/funding-rates         → funding rate history per product
 
 nado-matches (Fly.io fra) — Bun  [min_machines_running=1]
   ├── POST /matches   →  Archive proxy + Upstash Redis cache
@@ -128,25 +135,41 @@ nadolens/
 │   ├── wallet/
 │   │   ├── page.tsx                  ← wallet search
 │   │   └── [address]/page.tsx        ← wallet detail (client component)
+│   ├── protocol/
+│   │   └── page.tsx                  ← Protocol Analytics Dashboard (5 tabs)
 │   └── api/
-│       ├── pairs/route.ts                    ← Nado pairs list
-│       ├── wallet/[address]/route.ts         ← Gateway proxy (subaccount_info, etc.)
-│       ├── subaccounts/[address]/route.ts    ← address → bytes32 resolution (Archive)
-│       ├── matches/route.ts                  ← Archive matches proxy (Zod validation)
-│       ├── funding/route.ts                  ← Archive interest_and_funding proxy (Zod validation)
-│       └── snapshots/route.ts               ← Archive account_snapshots proxy (avg entry prices)
+│       ├── pairs/route.ts                          ← Nado pairs list
+│       ├── wallet/[address]/route.ts               ← Gateway proxy (subaccount_info, etc.)
+│       ├── subaccounts/[address]/route.ts          ← address → bytes32 resolution (Archive)
+│       ├── matches/route.ts                        ← Archive matches proxy (Zod validation)
+│       ├── funding/route.ts                        ← Archive interest_and_funding proxy
+│       ├── snapshots/route.ts                      ← Archive account_snapshots proxy
+│       └── protocol/
+│           ├── tickers/route.ts                    ← enriched ticker list
+│           ├── market-snapshots/route.ts           ← edge_market_snapshots (count + granularity)
+│           ├── products/route.ts                   ← spot_ids + perp_ids
+│           ├── liquidations/route.ts               ← liquidation feed
+│           ├── candlesticks/route.ts               ← OHLCV per product
+│           └── funding-rates/route.ts              ← funding rate history
 ├── components/
 │   ├── Nav.tsx                       ← sticky nav, connect button, theme toggle
 │   ├── ThemeToggle.tsx               ← next-themes toggle
 │   ├── wallet/                       ← 11 wallet components
+│   ├── protocol/                     ← 6 protocol components (ProtocolOverview, ProtocolVolumes, ProtocolOIFunding, ProtocolRevenue, ProtocolTVL, ProtocolTabNav)
 │   └── ui/                           ← shadcn components (button, card, badge, input, table, separator, avatar)
 ├── hooks/
 │   ├── useWalletData.ts
 │   ├── useAccountStream.ts
 │   ├── usePairs.ts
-│   └── useAccount.ts
+│   ├── useAccount.ts
+│   ├── useProtocolData.ts            ← tickers + liquidations (REST polling, 30s)
+│   ├── useProtocolVolumes.ts         ← two-wave parallel fetch (30d immediate, rest background)
+│   ├── useProtocolMarketSnapshots.ts ← market snapshots with optional lazy fetch
+│   ├── useProtocolCandlesticks.ts
+│   └── useProtocolFundingRates.ts
 ├── store/
-│   └── accountStore.ts
+│   ├── accountStore.ts
+│   └── protocolStore.ts              ← tickers + liquidations Zustand store
 ├── lib/
 │   ├── wagmi.ts                      ← inkL2 defineChain (id: 57073) + wagmiConfig
 │   ├── nado.ts                       ← NADO_GATEWAY / NADO_ARCHIVE constants
@@ -199,6 +222,18 @@ Fresh install Next.js 16 + Turbopack + Tailwind v4 + shadcn/ui + wagmi v2 + Rain
 
 ### ✅ Phase Wallet Explorer
 `useWalletData` · WalletHeader · WalletStats · WalletPositions · WalletTradeHistory · WalletEquityCurve · Nav + search + theme toggle
+
+### ✅ Phase Protocol Analytics Dashboard
+5-tab analytics at `/protocol`:
+- **Overview** — 24h volume, all-time vol, Open Interest, Daily Active Users, cumulative charts (daily + weekly)
+- **Volumes** — trading volume bar chart (daily/weekly) + donut by market (7d/30d/60d/90d/All Time), unified timeframe selector
+- **OI & Funding** — Open Interest + funding rate history per market
+- **Revenue** — protocol fee revenue over time
+- **TVL** — total value locked trend
+
+Key files: `components/protocol/` (6 components) · `hooks/useProtocolVolumes.ts` · `hooks/useProtocolMarketSnapshots.ts` · `hooks/useProtocolData.ts` · `store/protocolStore.ts` · `app/api/protocol/` (6 routes)
+
+Progressive fetch strategy: 30d view renders immediately (Wave 1), other timeframes load in background (Wave 2). `backgroundLoading` flag gates non-30d skeletons.
 
 ### → Phase Deploy & Polish
 - [ ] README + screenshots + demo GIF
