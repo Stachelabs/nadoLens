@@ -783,7 +783,14 @@ export const MarketSnapshotsResponseSchema = z.object({
 // ─── Archive: Events (envelope — typed data varies by event_type) ─────────────
 
 export const ArchiveEventsResponseSchema = z.object({
-  events: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  events: z.array(z.discriminatedUnion('type', [
+    TradeEventSchema,
+    FillEventSchema,
+    PositionChangeEventSchema,
+    OrderUpdateEventSchema,
+    FundingRateEventSchema,
+    FundingPaymentEventSchema,
+  ])).optional().default([]),
   txs: z.array(z.object({
     submission_idx: z.string(),
     timestamp: z.string().optional(),
