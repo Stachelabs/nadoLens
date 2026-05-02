@@ -1,10 +1,16 @@
+import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { NADO_GATEWAY_REST } from '@/lib/nado'
+import { AllProductsDataSchema } from '@/lib/schemas/nado'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 3600
 
-type ProductEntry = { product_id: number }
+const EdgeAllProductsResponseSchema = z.object({
+  data: z.object({
+    edge_all_products: z.record(z.string(), AllProductsDataSchema).optional(),
+  }).optional(),
+})
 
 export async function GET(): Promise<NextResponse<{ spot_ids: number[]; perp_ids: number[] } | { error: string }>> {
   try {
@@ -19,9 +25,14 @@ export async function GET(): Promise<NextResponse<{ spot_ids: number[]; perp_ids
       return NextResponse.json({ error: 'Failed to fetch products' }, { status: 502 })
     }
 
-    const raw = await res.json() as { data?: { edge_all_products?: { '57073'?: { spot_products?: ProductEntry[]; perp_products?: ProductEntry[] } } } }
-    const chain = raw?.data?.edge_all_products?.['57073']
+    const raw: unknown = await res.json()
+    const parsed = EdgeAllProductsResponseSchema.safeParse(raw)
 
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid products response' }, { status: 502 })
+    }
+
+    const chain = parsed.data?.data?.edge_all_products?.['57073']
     const spot_ids = (chain?.spot_products ?? []).map((p) => p.product_id)
     const perp_ids = (chain?.perp_products ?? []).map((p) => p.product_id)
 

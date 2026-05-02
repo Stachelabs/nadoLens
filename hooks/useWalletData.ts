@@ -1364,7 +1364,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
     const loadWallet = async (mode: "initial" | "refresh") => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
 
@@ -1860,7 +1860,7 @@ export function useWalletData(rawAddress: string): WalletData {
           void pollPositionsOnly().finally(() => {
             if (!cancelled) schedulePoll();
           });
-        }, delay) as unknown as ReturnType<typeof setInterval>;
+        }, delay);
       };
       schedulePoll();
 
@@ -2068,7 +2068,7 @@ export function useWalletData(rawAddress: string): WalletData {
       fundingSubaccountCursorsRef.current = new Map();
       fundingLoadedSinceRef.current = Infinity;
       fundingPeriodActiveRef.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) clearTimeout(intervalRef.current);
     };
   }, [rawAddress]);
 

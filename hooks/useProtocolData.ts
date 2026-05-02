@@ -49,9 +49,8 @@ export function useProtocolData(): void {
         const parsed = LiquidationFeedResponseSchema.safeParse({ liquidation_feed: raw })
         if (parsed.success) {
           setLiquidations(parsed.data.liquidation_feed)
-        } else {
-          setLiquidationsLoading(false)
         }
+        setLiquidationsLoading(false)
       } catch {
         setLiquidationsLoading(false)
       }
