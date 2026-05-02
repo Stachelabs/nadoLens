@@ -8,7 +8,10 @@ import { useAccount } from "wagmi";
 import { ThemeToggle } from "./ThemeToggle";
 import { WalletButton } from "./WalletButton";
 
-const navLinks = [{ href: "/wallet", label: "Wallet Explorer" }];
+const navLinks = [
+  { href: "/protocol", label: "Protocol" },
+  { href: "/wallet", label: "Wallet Explorer" },
+];
 
 export function Nav() {
   const pathname = usePathname();
@@ -19,7 +22,7 @@ export function Nav() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
         {/* Logo */}
         <Link
-          href="/wallet"
+          href="/protocol"
           className="font-bold leading-none tracking-tight text-foreground uppercase"
         >
           NadoLens

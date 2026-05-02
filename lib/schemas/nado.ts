@@ -252,6 +252,8 @@ export const FundingRateEntrySchema = z.object({
   update_time: z.union([z.string(), z.number()]),
 })
 
+export type FundingRateEntry = z.infer<typeof FundingRateEntrySchema>
+
 export const FundingRatesResponseSchema = z.record(
   z.string(),
   FundingRateEntrySchema,
@@ -348,15 +350,40 @@ export const ArchiveSubaccountsResponseSchema = z.object({
     .default([]),
 })
 
-// ─── Archive: Tickers ────────────────────────────────────────────────────────
+// ─── Archive V2 — /v2/contracts (normal decimals, NOT x18) ──────────────────
+// Endpoint: archive.prod.nado.xyz/v2/contracts — dict keyed by ticker_id
 
 export const TickerDataSchema = z.object({
   product_id: z.number(),
-  last_price: z.union([z.string(), z.number()]),  // V2 returns decimal number, not x18 string
+  ticker_id: z.string(),
+  last_price: z.union([z.string(), z.number()]),
+  mark_price: z.union([z.string(), z.number()]).optional(),
+  index_price: z.union([z.string(), z.number()]).optional(),
+  contract_price: z.union([z.string(), z.number()]).optional(),
+  base_volume: z.union([z.string(), z.number()]).optional(),
+  quote_volume: z.union([z.string(), z.number()]).optional(),     // 24h USD volume
+  open_interest: z.union([z.string(), z.number()]).optional(),
+  open_interest_usd: z.union([z.string(), z.number()]).optional(), // 24h OI in USD
+  funding_rate: z.union([z.string(), z.number()]).optional(),      // 8h rate, normal decimals
+  next_funding_rate_timestamp: z.union([z.string(), z.number()]).optional(),
+  price_change_percent_24h: z.union([z.string(), z.number()]).optional(),
+  product_type: z.string().optional(),
+  base_currency: z.string().optional(),
+  quote_currency: z.string().optional(),
 })
 export type TickerData = z.infer<typeof TickerDataSchema>
 
 export const TickersResponseSchema = z.record(z.string(), TickerDataSchema)
+
+export const EnrichedTickerSchema = TickerDataSchema.extend({
+  symbol: z.string(),
+  maker_fee: z.number().nullable(),
+  taker_fee: z.number().nullable(),
+  market_type: z.string().nullable(),
+})
+export type EnrichedTicker = z.infer<typeof EnrichedTickerSchema>
+
+export const EnrichedTickersResponseSchema = z.array(EnrichedTickerSchema)
 
 // ─── Archive: Products (maint weight) ────────────────────────────────────────
 
@@ -731,6 +758,26 @@ export type LiquidationFeedEntry = z.infer<typeof LiquidationFeedEntrySchema>
 
 export const LiquidationFeedResponseSchema = z.object({
   liquidation_feed: z.array(LiquidationFeedEntrySchema).optional().default([]),
+})
+
+// ─── Archive: edge_market_snapshots ──────────────────────────────────────────
+
+export const MarketSnapshotSchema = z.object({
+  timestamp: z.number(),
+  cumulative_users: z.number(),
+  daily_active_users: z.number(),
+  cumulative_volumes: z.record(z.string(), z.string()),
+  open_interests: z.record(z.string(), z.string()),
+  tvl: z.string(),
+  cumulative_inflows: z.record(z.string(), z.string()),
+  cumulative_outflows: z.record(z.string(), z.string()),
+  cumulative_trades: z.record(z.string(), z.number()).optional(),
+  cumulative_taker_fees: z.record(z.string(), z.string()).optional(),
+}).passthrough()
+export type MarketSnapshot = z.infer<typeof MarketSnapshotSchema>
+
+export const MarketSnapshotsResponseSchema = z.object({
+  snapshots: z.record(z.string(), z.array(MarketSnapshotSchema)),
 })
 
 // ─── Archive: Events (envelope — typed data varies by event_type) ─────────────

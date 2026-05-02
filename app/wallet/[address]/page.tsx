@@ -45,6 +45,7 @@ function WalletContent({ address }: { address: string }) {
     spotBalancesRefreshing,
     positionMatchesComplete,
     positionFundingComplete,
+    snapshotReady,
   } = useWalletData(address);
 
   const { activeTab, setActiveTab } = useWalletAnalyticsStore();
@@ -112,6 +113,7 @@ function WalletContent({ address }: { address: string }) {
             unrealizedRefreshing={unrealizedRefreshing}
             positionMatchesComplete={positionMatchesComplete}
             positionFundingComplete={positionFundingComplete}
+            snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
           />
           <WalletStats

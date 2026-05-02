@@ -97,7 +97,7 @@ export function WalletFundingByProductChart({
         <Select value={period} onValueChange={(v) => handlePeriodChange(v as EquityPeriod)}>
             <SelectTrigger
               size="sm"
-              className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40 px-2 text-[11px] font-medium text-muted-foreground"
+              className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
             >
               <SelectValue />
             </SelectTrigger>
@@ -117,7 +117,7 @@ export function WalletFundingByProductChart({
       {!periodLoaded ? (
         <LoadingShimmer text="Loading funding..." />
       ) : data.length === 0 ? (
-        <div className="flex h-80 items-center justify-center text-xs text-muted-foreground">
+        <div className="flex h-80 items-center justify-center text-xs text-foreground">
           No funding data for this period
         </div>
       ) : (
@@ -176,7 +176,7 @@ export function WalletFundingByProductChart({
       )}
 
       <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs">
-        <span className="text-muted-foreground">Total Funding</span>
+        <span className="text-foreground">Total Funding</span>
         {!periodLoaded ? (
           <Skeleton className="h-3.5 w-20 rounded-sm" />
         ) : (

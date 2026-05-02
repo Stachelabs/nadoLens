@@ -160,7 +160,7 @@ export function WalletEquityCurve({
             >
               <SelectTrigger
                 size="sm"
-                className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40  px-2 text-[11px] font-medium text-muted-foreground"
+                className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40  px-2 text-[11px] font-medium text-foreground"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -266,7 +266,7 @@ export function WalletEquityCurve({
         )}
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
-            <span className="text-muted-foreground">PnL</span>
+            <span className="text-foreground">PnL</span>
             {chartLoading ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
@@ -284,7 +284,7 @@ export function WalletEquityCurve({
             )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
-            <span className="text-muted-foreground">Fees</span>
+            <span className="text-foreground">Fees</span>
             {chartLoading ? (
               <Skeleton className="h-3.5 w-20 rounded-sm" />
             ) : (
@@ -294,7 +294,7 @@ export function WalletEquityCurve({
             )}
           </div>
           <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
-            <span className="text-muted-foreground">Funding</span>
+            <span className="text-foreground">Funding</span>
             {fundingReadyForPeriod ? (
               <span
                 className={cn(
