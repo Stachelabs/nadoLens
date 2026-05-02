@@ -1,36 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { FillEventSchema, type FillEvent } from "@/lib/schemas/nado";
 
-export type FillEvent = {
-  subaccount: string;
-  product_id: number;
-  filled_qty: string;
-  price: string;
-  is_bid: boolean;
-  is_taker: boolean;
-  fee: string;
-  submission_idx: string;
-  order_digest: string;
-};
+export type { FillEvent } from "@/lib/schemas/nado";
 
 type UseAccountStreamOptions = {
   onFill: (event: FillEvent) => void;
 };
 
 function isFillEvent(data: unknown): data is FillEvent {
-  if (data === null || typeof data !== "object") return false;
-  const d = data as Record<string, unknown>;
-  return (
-    typeof d.subaccount === "string" &&
-    typeof d.product_id === "number" &&
-    typeof d.filled_qty === "string" &&
-    typeof d.price === "string" &&
-    typeof d.is_bid === "boolean" &&
-    typeof d.is_taker === "boolean" &&
-    typeof d.fee === "string" &&
-    typeof d.submission_idx === "string"
-  );
+  return FillEventSchema.safeParse(data).success;
 }
 
 /**
