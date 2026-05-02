@@ -1232,71 +1232,76 @@ export function useWalletData(rawAddress: string): WalletData {
         return;
       }
 
-      const existingKeys = new Set(
-        fundingPaymentsRef.current.map(p => `${p.subaccount}:${p.idx}`),
-      );
-      const newPayments: FundingPaymentEntry[] = [];
-      let rateLimited = false;
-
-      for (let i = 0; i < subAddrs.length; i++) {
-        if (cancelled) break;
-        const subaccount = subAddrs[i]!;
-        const cursor = fundingSubaccountCursorsRef.current.get(subaccount);
-
-        const result = await fetchFundingPaidBySubaccount(subaccount, productIds, {
-          stopBeforeMs,
-          resumeFromIdx: cursor,
-        });
-
-        // Update per-subaccount cursor
-        if (result.nextMaxIdx !== undefined) {
-          fundingSubaccountCursorsRef.current.set(subaccount, result.nextMaxIdx);
-        }
-
-        for (const p of result.payments) {
-          const key = `${p.subaccount}:${p.idx}`;
-          if (!existingKeys.has(key)) {
-            existingKeys.add(key);
-            newPayments.push(p);
-          }
-        }
-
-        if (result.rateLimited) {
-          rateLimited = true;
-          break;
-        }
-
-        if (i < subAddrs.length - 1) await sleep(FUNDING_BURST_MS);
-      }
-
-      if (cancelled) {
-        fundingPeriodActiveRef.current = false;
-        return;
-      }
-
-      fundingPaymentsRef.current = [...fundingPaymentsRef.current, ...newPayments];
-
-      if (!rateLimited) {
-        const allExhausted = subAddrs.every(
-          s => fundingSubaccountCursorsRef.current.get(s) === null,
+      try {
+        const existingKeys = new Set(
+          fundingPaymentsRef.current.map(p => `${p.subaccount}:${p.idx}`),
         );
-        fundingLoadedSinceRef.current = allExhausted ? 0 : (stopBeforeMs ?? 0);
+        const newPayments: FundingPaymentEntry[] = [];
+        let rateLimited = false;
+
+        for (let i = 0; i < subAddrs.length; i++) {
+          if (cancelled) break;
+          const subaccount = subAddrs[i]!;
+          const cursor = fundingSubaccountCursorsRef.current.get(subaccount);
+
+          const result = await fetchFundingPaidBySubaccount(subaccount, productIds, {
+            stopBeforeMs,
+            resumeFromIdx: cursor,
+          });
+
+          // Update per-subaccount cursor
+          if (result.nextMaxIdx !== undefined) {
+            fundingSubaccountCursorsRef.current.set(subaccount, result.nextMaxIdx);
+          }
+
+          for (const p of result.payments) {
+            const key = `${p.subaccount}:${p.idx}`;
+            if (!existingKeys.has(key)) {
+              existingKeys.add(key);
+              newPayments.push(p);
+            }
+          }
+
+          if (result.rateLimited) {
+            rateLimited = true;
+            break;
+          }
+
+          if (i < subAddrs.length - 1) await sleep(FUNDING_BURST_MS);
+        }
+
+        if (cancelled) {
+          fundingPeriodActiveRef.current = false;
+          return;
+        }
+
+        fundingPaymentsRef.current = [...fundingPaymentsRef.current, ...newPayments];
+
+        if (!rateLimited) {
+          const allExhausted = subAddrs.every(
+            s => fundingSubaccountCursorsRef.current.get(s) === null,
+          );
+          fundingLoadedSinceRef.current = allExhausted ? 0 : (stopBeforeMs ?? 0);
+        }
+
+        fundingPeriodActiveRef.current = false;
+        const loadedSince = fundingLoadedSinceRef.current;
+
+        setData(prev => ({
+          ...prev,
+          fundingPayments: fundingPaymentsRef.current,
+          fundingPeriodLoading: false,
+          fundingLoadedSince: loadedSince,
+          globalFundingComplete: loadedSince === 0,
+          fundingComplete: loadedSince !== Infinity,
+          error: rateLimited
+            ? "Archive rate limit while loading funding — retry by switching tabs."
+            : prev.error,
+        }));
+      } catch {
+        fundingPeriodActiveRef.current = false;
+        setData(prev => ({ ...prev, fundingPeriodLoading: false }));
       }
-
-      fundingPeriodActiveRef.current = false;
-      const loadedSince = fundingLoadedSinceRef.current;
-
-      setData(prev => ({
-        ...prev,
-        fundingPayments: fundingPaymentsRef.current,
-        fundingPeriodLoading: false,
-        fundingLoadedSince: loadedSince,
-        globalFundingComplete: loadedSince === 0,
-        fundingComplete: loadedSince !== Infinity,
-        error: rateLimited
-          ? "Archive rate limit while loading funding — retry by switching tabs."
-          : prev.error,
-      }));
     }
 
     async function loadFundingForProductsImpl(
