@@ -20,8 +20,7 @@ export type ParsedSubaccountInfo = {
 export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubaccountInfo | null {
   if (!raw || typeof raw !== 'object') return null
 
-  const r = raw as Record<string, unknown>
-  const inner = r.data ?? raw
+  const inner = 'data' in raw ? (raw as { data: unknown }).data : raw
 
   const result = NadoSubaccountDataSchema.safeParse(inner)
   if (!result.success) return null
