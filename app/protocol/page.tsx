@@ -30,13 +30,7 @@ export default function ProtocolPage() {
       <div className="mt-6">
         {activeTab === "overview" && <ProtocolOverview />}
         {activeTab === "volumes" && <ProtocolVolumes />}
-        {activeTab === "oi-funding" && (
-          <ProtocolOIFunding
-            tickers={tickers}
-            liquidations={liquidations}
-            perpAssets={perpAssets}
-          />
-        )}
+        {activeTab === "oi-funding" && <ProtocolOIFunding />}
         {activeTab === "revenue" && (
           <ProtocolRevenue tickers={tickers} perpAssets={perpAssets} />
         )}
