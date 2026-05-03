@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
 import { MarketSnapshotsResponseSchema, type MarketSnapshot } from '@/lib/schemas/nado'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 export async function GET(request: NextRequest): Promise<NextResponse<MarketSnapshot[] | { error: string }>> {
   const params = request.nextUrl.searchParams

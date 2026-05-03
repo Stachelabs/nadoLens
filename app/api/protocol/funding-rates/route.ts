@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
 import { FundingRatesResponseSchema, type FundingRateEntry } from '@/lib/schemas/nado'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export async function GET(
   request: NextRequest,
