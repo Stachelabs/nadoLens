@@ -21,9 +21,9 @@ export type OIDataState = {
   setSelectedFundingSymbol: (symbol: string) => void
   // Liquidations section
   liqHistory: { timestamp: number; daily: number; cumulative: number }[]
-  liq24h: number
-  liqTotal: number
-  insuranceFundTotal: number  // mock: 1_334_835 (dollars)
+  liq24h: number | null
+  liqTotal: number | null
+  insuranceFundTotal: number | null  // mock: 1_334_835 (dollars)
   // Loading / error
   oiLoading: boolean
   fundingLoading: boolean
@@ -323,8 +323,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
   const { liq24h, liqTotal } = useMemo(() => {
     if (liqHistory.length === 0) {
-      // Mock values when cumulative_liquidation_amounts is not in snapshots
-      return { liq24h: 130_000, liqTotal: 117_000_000 }
+      return { liq24h: null, liqTotal: null }
     }
     const last = liqHistory[liqHistory.length - 1]!
     return { liq24h: last.daily, liqTotal: last.cumulative }
@@ -355,7 +354,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     liq24h,
     liqTotal,
     // TODO: proxy POST gateway.prod.nado.xyz/v1/query {type:"insurance"} when route is added
-    insuranceFundTotal: 1_334_835,
+    insuranceFundTotal: null,
     // Loading / error
     oiLoading,
     fundingLoading,

@@ -20,6 +20,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Label,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -52,29 +53,6 @@ const tooltipStyle = {
   itemStyle: { color: "var(--foreground)" },
   labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
 }
-
-const MOCK_LIQ_DATA = [
-  { timestamp: 1743638400, daily: 75_000,    cumulative: 102_000_000 },
-  { timestamp: 1743724800, daily: 450_000,   cumulative: 102_450_000 },
-  { timestamp: 1743811200, daily: 1_200_000, cumulative: 103_650_000 },
-  { timestamp: 1743897600, daily: 320_000,   cumulative: 103_970_000 },
-  { timestamp: 1743984000, daily: 88_000,    cumulative: 104_058_000 },
-  { timestamp: 1744070400, daily: 640_000,   cumulative: 104_698_000 },
-  { timestamp: 1744156800, daily: 1_750_000, cumulative: 106_448_000 },
-  { timestamp: 1744243200, daily: 920_000,   cumulative: 107_368_000 },
-  { timestamp: 1744329600, daily: 210_000,   cumulative: 107_578_000 },
-  { timestamp: 1744416000, daily: 560_000,   cumulative: 108_138_000 },
-  { timestamp: 1744502400, daily: 130_000,   cumulative: 108_268_000 },
-  { timestamp: 1744588800, daily: 980_000,   cumulative: 109_248_000 },
-  { timestamp: 1744675200, daily: 50_000,    cumulative: 109_298_000 },
-  { timestamp: 1744761600, daily: 1_100_000, cumulative: 110_398_000 },
-  { timestamp: 1744848000, daily: 430_000,   cumulative: 110_828_000 },
-  { timestamp: 1744934400, daily: 770_000,   cumulative: 111_598_000 },
-  { timestamp: 1745020800, daily: 1_450_000, cumulative: 113_048_000 },
-  { timestamp: 1745107200, daily: 680_000,   cumulative: 113_728_000 },
-  { timestamp: 1745193600, daily: 1_970_000, cumulative: 115_698_000 },  // note: allow up to ~2M daily
-  { timestamp: 1745884800, daily: 300_000,   cumulative: 117_000_000 },
-]
 
 type Timeframe = "24h" | "7d" | "30d" | "90d"
 
@@ -239,8 +217,6 @@ export function ProtocolOIFunding() {
     liqLoading,
     error,
   } = useOIData(timeframe)
-
-  const chartLiqData = liqHistory.length > 0 ? liqHistory : MOCK_LIQ_DATA
 
   // Top 16 funding rates (8 per column)
   const topFunding = fundingRates.slice(0, 16)
@@ -571,7 +547,7 @@ export function ProtocolOIFunding() {
               {liqLoading ? (
                 <Skeleton className="mt-1 h-8 w-28" />
               ) : (
-                <p className="text-2xl font-bold">{formatUSD(liq24h)}</p>
+                <p className="text-2xl font-bold">{liq24h != null ? formatUSD(liq24h) : '—'}</p>
               )}
             </div>
             <div>
@@ -579,7 +555,7 @@ export function ProtocolOIFunding() {
               {liqLoading ? (
                 <Skeleton className="mt-1 h-8 w-28" />
               ) : (
-                <p className="text-2xl font-bold">{formatUSD(liqTotal)}</p>
+                <p className="text-2xl font-bold">{liqTotal != null ? formatUSD(liqTotal) : '—'}</p>
               )}
             </div>
           </div>
@@ -597,10 +573,14 @@ export function ProtocolOIFunding() {
             </div>
             {liqLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
+            ) : liqHistory.length === 0 ? (
+              <div className="flex h-[300px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/50">
+                <p className="text-sm text-muted-foreground">Liquidation history unavailable for this timeframe</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart
-                  data={chartLiqData}
+                  data={liqHistory}
                   margin={{ top: 4, right: 56, left: 0, bottom: 8 }}
                 >
                   <CartesianGrid
@@ -667,39 +647,38 @@ export function ProtocolOIFunding() {
                 Breakdown of the insurance funds.
               </p>
             </div>
-            <div className="flex items-center justify-center">
-              <PieChart width={220} height={220}>
-                <Pie
-                  data={[{ name: "Insurance", value: insuranceFundTotal }]}
-                  cx={110}
-                  cy={110}
-                  innerRadius={60}
-                  outerRadius={90}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  <Cell fill={PURPLE} />
-                </Pie>
-                <text
-                  x="50%"
-                  y="45%"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  style={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                >
-                  Total
-                </text>
-                <text
-                  x="50%"
-                  y="58%"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  style={{ fontSize: 15, fontWeight: 700, fill: "var(--foreground)" }}
-                >
-                  {formatUSD(insuranceFundTotal)}
-                </text>
-              </PieChart>
-            </div>
+            {insuranceFundTotal != null ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={[{ name: "Insurance", value: insuranceFundTotal }]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    <Cell fill={PURPLE} />
+                    <Label
+                      content={({ viewBox }) => {
+                        if (!viewBox || !('cx' in viewBox) || !('cy' in viewBox)) return null
+                        return (
+                          <text textAnchor="middle">
+                            <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) - 8} className="fill-muted-foreground text-xs">Total</tspan>
+                            <tspan x={viewBox.cx} y={(viewBox.cy ?? 0) + 14} className="fill-foreground text-base font-bold">{formatUSD(insuranceFundTotal)}</tspan>
+                          </text>
+                        )
+                      }}
+                    />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[220px] flex-col items-center justify-center gap-2">
+                <p className="text-sm text-muted-foreground">Insurance fund data unavailable</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
