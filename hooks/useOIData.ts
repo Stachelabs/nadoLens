@@ -23,7 +23,7 @@ export type OIDataState = {
   liqHistory: { timestamp: number; daily: number; cumulative: number }[]
   liq24h: number | null
   liqTotal: number | null
-  insuranceFundTotal: number | null  // mock: 1_334_835 (dollars)
+  insuranceFundTotal: number | null
   // Loading / error
   oiLoading: boolean
   fundingLoading: boolean
@@ -35,6 +35,7 @@ export type OIDataState = {
 
 const MarketSnapshotsArraySchema = z.array(MarketSnapshotSchema)
 const EnrichedTickersArraySchema = z.array(EnrichedTickerSchema)
+const InsuranceFundRouteResponseSchema = z.object({ total: z.number() })
 
 // ─── Timeframe → fetch params ─────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ type FundingData = {
 export function useOIData(timeframe: Timeframe): OIDataState {
   const [snapshotData, setSnapshotData] = useState<SnapshotData | null>(null)
   const [fundingData, setFundingData] = useState<FundingData | null>(null)
+  const [insuranceFundTotal, setInsuranceFundTotal] = useState<number | null>(null)
   const [oiLoading, setOiLoading] = useState(true)
   const [fundingLoading, setFundingLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -140,6 +142,27 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     void load()
     return () => controller.abort()
   }, [timeframe])
+
+  // ─── Fetch insurance fund (independent of snapshot data) ────────────────────
+  useEffect(() => {
+    const controller = new AbortController()
+    const { signal } = controller
+
+    const load = async () => {
+      try {
+        const res = await fetch('/api/protocol/insurance-fund', { signal })
+        if (!res.ok) return
+        const raw: unknown = await res.json()
+        const parsed = InsuranceFundRouteResponseSchema.safeParse(raw)
+        if (parsed.success) setInsuranceFundTotal(parsed.data.total)
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return
+      }
+    }
+
+    void load()
+    return () => controller.abort()
+  }, [])
 
   // ─── Fetch current funding rates (needs product_ids from tickers) ───────────
   useEffect(() => {
@@ -319,7 +342,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
     return cumulatives.map((point, i) => {
       // i=0: no prior snapshot in window, daily unknown — use 0 to avoid inflating the first bar
-      const daily = i === 0 ? 0 : point.cumulative - cumulatives[i - 1]!.cumulative
+      const daily = i === 0 ? 0 : Math.max(0, point.cumulative - cumulatives[i - 1]!.cumulative)
       return { timestamp: point.timestamp, daily, cumulative: point.cumulative }
     })
   }, [snapshotData])
@@ -358,8 +381,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     liqHistory,
     liq24h,
     liqTotal,
-    // TODO: proxy POST gateway.prod.nado.xyz/v1/query {type:"insurance"} when route is added
-    insuranceFundTotal: null,
+    insuranceFundTotal,
     // Loading / error
     oiLoading,
     fundingLoading,

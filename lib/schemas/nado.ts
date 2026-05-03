@@ -760,6 +760,17 @@ export const LiquidationFeedResponseSchema = z.object({
   liquidation_feed: z.array(LiquidationFeedEntrySchema).optional().default([]),
 })
 
+// ─── Gateway: Insurance Fund ──────────────────────────────────────────────────
+
+export const InsuranceFundResponseSchema = z.object({
+  status: z.string(),
+  data: z.object({
+    insurance: z.string(),
+  }),
+  request_type: z.string(),
+})
+export type InsuranceFundResponse = z.infer<typeof InsuranceFundResponseSchema>
+
 // ─── Archive: edge_market_snapshots ──────────────────────────────────────────
 
 export const MarketSnapshotSchema = z.object({
