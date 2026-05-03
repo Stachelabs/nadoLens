@@ -119,8 +119,11 @@ export function useOIData(timeframe: Timeframe): OIDataState {
           if (ticker.symbol === 'ETH-PERP') ethProductId = ticker.product_id
         }
 
+        // Sort ascending so oldest snapshot is first — downstream diffs and chart axes are correct
+        const sortedSnapshots = [...parsedSnapshots.data].sort((a, b) => a.timestamp - b.timestamp)
+
         setSnapshotData({
-          snapshots: parsedSnapshots.data,
+          snapshots: sortedSnapshots,
           tickers: parsedTickers.data,
           productIdToSymbol,
           btcProductId,
@@ -249,7 +252,8 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
     for (const entry of Object.values(fundingData.rates)) {
       const symbol = snapshotData.productIdToSymbol.get(entry.product_id) ?? String(entry.product_id)
-      const annualizedRate = fromX18BigInt(entry.funding_rate_x18) * 365 * 24 * 100
+      // funding_rate_x18 is the 24h (daily) rate — annualize by multiplying by 365
+      const annualizedRate = fromX18BigInt(entry.funding_rate_x18) * 365 * 100
       result.push({ symbol, productId: entry.product_id, annualizedRate })
     }
 
@@ -280,7 +284,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
         const rawRate = snap.funding_rates[String(productId)]
         if (!rawRate) continue
 
-        const rate = fromX18BigInt(rawRate) * 365 * 24 * 100
+        const rate = fromX18BigInt(rawRate) * 365 * 100
 
         if (!history[symbol]) history[symbol] = []
         history[symbol]!.push({ timestamp: snap.timestamp, rate })
@@ -314,7 +318,8 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     })
 
     return cumulatives.map((point, i) => {
-      const daily = i === 0 ? point.cumulative : point.cumulative - cumulatives[i - 1]!.cumulative
+      // i=0: no prior snapshot in window, daily unknown — use 0 to avoid inflating the first bar
+      const daily = i === 0 ? 0 : point.cumulative - cumulatives[i - 1]!.cumulative
       return { timestamp: point.timestamp, daily, cumulative: point.cumulative }
     })
   }, [snapshotData])
