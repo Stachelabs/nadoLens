@@ -28,7 +28,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function fetchWithRetry(body: FundingBody): Promise<Response> {
-  const maxAttempts = 10;
+  const maxAttempts = 4;
   const baseDelayMs = 350;
   const maxDelayMs = 8_000;
   let last!: Response;
@@ -36,6 +36,7 @@ async function fetchWithRetry(body: FundingBody): Promise<Response> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await fetch(ARCHIVE_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(8_000),
       headers: {
         "Content-Type": "application/json",
         "Accept-Encoding": "gzip, br, deflate",
