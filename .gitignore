@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# git worktrees
+.worktrees/
+
 # dependencies
 /node_modules
 # local pnpm store (e.g. store-dir in project or tooling fallback)
