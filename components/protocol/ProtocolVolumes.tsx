@@ -85,6 +85,17 @@ const tooltipStyle = {
   labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
 };
 
+function fmtDateShort(ts: number): string {
+  return new Date(ts * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function weekLabel(ts: number): string {
+  return `${fmtDateShort(ts - 7 * 86400)} – ${fmtDateShort(ts)}`;
+}
+
 function DonutTooltip({
   active,
   payload,
@@ -126,27 +137,26 @@ function DonutTooltip({
   );
 }
 
+type CumulativePayload = { ts: number; cumVol: number; cumPerpVol: number; cumSpotVol: number };
+
 function CumulativeTooltip({
   active,
   payload,
   label,
+  weekly = false,
 }: {
   active?: boolean;
-  payload?: {
-    payload: { cumVol: number; cumPerpVol: number; cumSpotVol: number };
-  }[];
+  payload?: { payload: CumulativePayload }[];
   label?: string;
+  weekly?: boolean;
 }) {
   if (!active || !payload?.length) return null;
-  const { cumVol, cumPerpVol, cumSpotVol } = payload[0]!.payload;
+  const { ts, cumVol, cumPerpVol, cumSpotVol } = payload[0]!.payload;
+  const header = weekly ? weekLabel(ts) : label;
   const rows = [
     { label: "Cum. Perp Vol.", value: cumPerpVol, color: PURPLE },
     { label: "Cum. Spot Vol.", value: cumSpotVol, color: "#d4a843" },
-    {
-      label: "Cum. Total Vol.",
-      value: cumVol,
-      color: "rgba(255,255,255,0.75)",
-    },
+    { label: "Cum. Total Vol.", value: cumVol, color: "rgba(255,255,255,0.75)" },
   ];
   return (
     <div
@@ -160,58 +170,38 @@ function CumulativeTooltip({
         minWidth: 210,
       }}
     >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>
-        {label}
-      </p>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{header}</p>
       {rows.map((row) => (
-        <div
-          key={row.label}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 3,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: row.color,
-              flexShrink: 0,
-              display: "inline-block",
-            }}
-          />
+        <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.color, flexShrink: 0, display: "inline-block" }} />
           <span style={{ flex: 1 }}>{row.label}</span>
-          <span style={{ fontWeight: 600 }}>
-            {fmtCompact.format(row.value)}
-          </span>
+          <span style={{ fontWeight: 600 }}>{fmtCompact.format(row.value)}</span>
         </div>
       ))}
     </div>
   );
 }
 
+type DailyPayload = { ts: number; volume: number; perpVol: number; spotVol: number };
+
 function DailyTooltip({
   active,
   payload,
   label,
+  weekly = false,
 }: {
   active?: boolean;
-  payload?: { payload: { volume: number; perpVol: number; spotVol: number } }[];
+  payload?: { payload: DailyPayload }[];
   label?: string;
+  weekly?: boolean;
 }) {
   if (!active || !payload?.length) return null;
-  const { volume, perpVol, spotVol } = payload[0]!.payload;
+  const { ts, volume, perpVol, spotVol } = payload[0]!.payload;
+  const header = weekly ? weekLabel(ts) : label;
   const rows = [
     { label: "Daily Perp Vol.", value: perpVol, color: PURPLE },
     { label: "Daily Spot Vol.", value: spotVol, color: "#d4a843" },
-    {
-      label: "Daily Total Vol.",
-      value: volume,
-      color: "rgba(255,255,255,0.75)",
-    },
+    { label: "Daily Total Vol.", value: volume, color: "rgba(255,255,255,0.75)" },
   ];
   return (
     <div
@@ -225,35 +215,55 @@ function DailyTooltip({
         minWidth: 200,
       }}
     >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>
-        {label}
-      </p>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{header}</p>
       {rows.map((row) => (
-        <div
-          key={row.label}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 3,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: row.color,
-              flexShrink: 0,
-              display: "inline-block",
-            }}
-          />
+        <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.color, flexShrink: 0, display: "inline-block" }} />
           <span style={{ flex: 1 }}>{row.label}</span>
-          <span style={{ fontWeight: 600 }}>
-            {fmtCompact.format(row.value)}
-          </span>
+          <span style={{ fontWeight: 600 }}>{fmtCompact.format(row.value)}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+type TradingVolumePayload = { ts: number; volume: number; cumVol: number };
+
+function TradingVolumeTooltip({
+  active,
+  payload,
+  label,
+  weekly = false,
+}: {
+  active?: boolean;
+  payload?: { payload: TradingVolumePayload }[];
+  label?: string;
+  weekly?: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const { ts, volume, cumVol } = payload[0]!.payload;
+  const header = weekly ? weekLabel(ts) : label;
+  return (
+    <div
+      style={{
+        backgroundColor: "var(--popover)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "8px 12px",
+        fontSize: 12,
+        color: "var(--foreground)",
+        minWidth: 220,
+      }}
+    >
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{header}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
+        <span>Cumulative</span>
+        <span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <span>Daily Volume</span>
+        <span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
+      </div>
     </div>
   );
 }
@@ -487,15 +497,7 @@ export function ProtocolVolumes() {
                   width={56}
                   domain={["auto", "auto"]}
                 />
-                <Tooltip
-                  {...tooltipStyle}
-                  formatter={(value, name) => [
-                    typeof value === "number"
-                      ? fmtUsd.format(value)
-                      : String(value ?? ""),
-                    name === "volume" ? "Daily Volume" : "Cumulative",
-                  ]}
-                />
+                <Tooltip content={<TradingVolumeTooltip weekly={timeframe === "All Time"} />} />
                 <Bar
                   yAxisId="left"
                   dataKey="volume"
@@ -652,7 +654,7 @@ export function ProtocolVolumes() {
                     tickLine={false}
                     width={52}
                   />
-                  <Tooltip cursor={false} content={<DailyTooltip />} />
+                  <Tooltip cursor={false} content={<DailyTooltip weekly={timeframe === "All Time"} />} />
                   <Bar
                     dataKey="volume"
                     fill="url(#dailyGrad)"
@@ -721,7 +723,7 @@ export function ProtocolVolumes() {
                     width={52}
                     domain={[0, "auto"]}
                   />
-                  <Tooltip content={<CumulativeTooltip />} />
+                  <Tooltip content={<CumulativeTooltip weekly={timeframe === "All Time"} />} />
                   <Area
                     type="monotone"
                     dataKey="cumVol"

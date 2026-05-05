@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 
-export type ChartPoint = { date: string; volume: number; cumVol: number; cumPerpVol: number; cumSpotVol: number; perpVol: number; spotVol: number }
+export type ChartPoint = { ts: number; date: string; volume: number; cumVol: number; cumPerpVol: number; cumSpotVol: number; perpVol: number; spotVol: number }
 export type MarketSlice = { productId: string; volume: number }
 
 export type ProtocolVolumesData = {
@@ -71,7 +71,7 @@ function buildChartPoints(
     }
     const perpVol = i > 0 ? cumPerpVol - prevCumPerpVol : 0
     const spotVol = i > 0 ? cumSpotVol - prevCumSpotVol : 0
-    return { date: fmtDate(snap.timestamp), volume, cumVol, cumPerpVol, cumSpotVol, perpVol, spotVol }
+    return { ts: snap.timestamp, date: fmtDate(snap.timestamp), volume, cumVol, cumPerpVol, cumSpotVol, perpVol, spotVol }
   })
 }
 

@@ -39,14 +39,22 @@ const InsuranceFundRouteResponseSchema = z.object({ total: z.number() })
 
 // ─── Timeframe → fetch params ─────────────────────────────────────────────────
 
-type Timeframe = '24h' | '7d' | '30d' | '90d'
+export type Timeframe =
+  | '24 Hours'
+  | '7 Days'
+  | '30 Days'
+  | '60 Days'
+  | '90 Days'
+  | 'All Time'
 
 function timeframeToParams(timeframe: Timeframe): { count: number; granularity: number } {
   switch (timeframe) {
-    case '24h': return { count: 24, granularity: 3600 }
-    case '7d':  return { count: 7,  granularity: 86400 }
-    case '30d': return { count: 31, granularity: 86400 }
-    case '90d': return { count: 91, granularity: 86400 }
+    case '24 Hours': return { count: 24, granularity: 3600 }
+    case '7 Days':   return { count: 7,  granularity: 86400 }
+    case '30 Days':  return { count: 31, granularity: 86400 }
+    case '60 Days':  return { count: 61, granularity: 86400 }
+    case '90 Days':  return { count: 91, granularity: 86400 }
+    case 'All Time': return { count: 100, granularity: 604800 }
   }
 }
 
@@ -81,6 +89,8 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     const { signal } = controller
 
     setOiLoading(true)
+    setFundingLoading(true)
+    setError(null)
 
     const load = async () => {
       try {
@@ -271,9 +281,17 @@ export function useOIData(timeframe: Timeframe): OIDataState {
   const fundingRates = useMemo(() => {
     if (!fundingData || !snapshotData) return []
 
+    // Only keep assets with active markets (OI > 0)
+    const activeProductIds = new Set(
+      snapshotData.tickers
+        .filter((t) => t.open_interest_usd != null && Number(t.open_interest_usd) > 0)
+        .map((t) => t.product_id),
+    )
+
     const result: { symbol: string; productId: number; annualizedRate: number }[] = []
 
     for (const entry of Object.values(fundingData.rates)) {
+      if (!activeProductIds.has(entry.product_id)) continue
       const symbol = snapshotData.productIdToSymbol.get(entry.product_id) ?? String(entry.product_id)
       // funding_rate_x18 is the 24h (daily) rate — annualize by multiplying by 365
       const annualizedRate = fromX18BigInt(entry.funding_rate_x18) * 365 * 100
@@ -361,7 +379,8 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
   useEffect(() => {
     if (fundingRates.length > 0 && selectedFundingSymbol === '') {
-      setSelectedFundingSymbol(fundingRates[0]!.symbol)
+      const btc = fundingRates.find((r) => r.symbol === 'BTC-PERP')
+      setSelectedFundingSymbol(btc?.symbol ?? fundingRates[0]!.symbol)
     }
   }, [fundingRates, selectedFundingSymbol])
 

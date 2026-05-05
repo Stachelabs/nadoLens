@@ -16,7 +16,6 @@ export default function ProtocolPage() {
   const activeTab = useProtocolStore((s) => s.activeTab);
   const tickers = useProtocolStore((s) => s.tickers);
   const tickersLoading = useProtocolStore((s) => s.tickersLoading);
-  const liquidations = useProtocolStore((s) => s.liquidations);
   const perpAssets = usePairsStore((s) => s.perp);
 
   return (

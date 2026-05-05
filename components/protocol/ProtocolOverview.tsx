@@ -91,19 +91,9 @@ function sumRecord(rec: Record<string, string>): number {
   return Object.values(rec).reduce((s, v) => s + fromX18BigInt(v), 0);
 }
 
-const tooltipStyle = {
-  contentStyle: {
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-    color: "var(--foreground)",
-  },
-  itemStyle: { color: "var(--foreground)" },
-  labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
-};
 
 interface ChartPoint {
+  ts: number;
   date: string;
   volume: number;
   cumVol: number;
@@ -120,6 +110,7 @@ function buildChartData(snapshots: MarketSnapshot[]): ChartPoint[] {
       i > 0 ? sumRecord(reversed[i - 1].cumulative_volumes) : cumVol;
     const volume = i > 0 ? cumVol - prevVol : 0;
     return {
+      ts: snap.timestamp,
       date: fmtDate(snap.timestamp),
       volume,
       cumVol,
@@ -128,6 +119,68 @@ function buildChartData(snapshots: MarketSnapshot[]): ChartPoint[] {
       dau: snap.daily_active_users,
     };
   });
+}
+
+function fmtDateShort(ts: number): string {
+  return new Date(ts * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function weekLabel(ts: number): string {
+  return `${fmtDateShort(ts - 7 * 86400)} – ${fmtDateShort(ts)}`;
+}
+
+type OverviewPayload = ChartPoint;
+
+function TradingVolumeTooltip({ active, payload, label, weekly = false }: { active?: boolean; payload?: { payload: OverviewPayload }[]; label?: string; weekly?: boolean }) {
+  if (!active || !payload?.length) return null;
+  const { ts, volume, cumVol } = payload[0]!.payload;
+  return (
+    <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)", minWidth: 220 }}>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{weekly ? weekLabel(ts) : label}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
+        <span>Cumulative</span><span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <span>Daily Volume</span><span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
+      </div>
+    </div>
+  );
+}
+
+function OITooltip({ active, payload, label, weekly = false }: { active?: boolean; payload?: { payload: OverviewPayload }[]; label?: string; weekly?: boolean }) {
+  if (!active || !payload?.length) return null;
+  const { ts, oi } = payload[0]!.payload;
+  return (
+    <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
+      <p style={{ fontWeight: 600 }}>Open Interest : {fmtUsd.format(oi)}</p>
+    </div>
+  );
+}
+
+function TVLTooltip({ active, payload, label, weekly = false }: { active?: boolean; payload?: { payload: OverviewPayload }[]; label?: string; weekly?: boolean }) {
+  if (!active || !payload?.length) return null;
+  const { ts, tvl } = payload[0]!.payload;
+  return (
+    <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
+      <p style={{ fontWeight: 600 }}>TVL : {fmtUsd.format(tvl)}</p>
+    </div>
+  );
+}
+
+function DAUTooltip({ active, payload, label, weekly = false }: { active?: boolean; payload?: { payload: OverviewPayload }[]; label?: string; weekly?: boolean }) {
+  if (!active || !payload?.length) return null;
+  const { ts, dau } = payload[0]!.payload;
+  return (
+    <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
+      <p style={{ fontWeight: 600 }}>Daily Active Users : {dau.toLocaleString("en-US")}</p>
+    </div>
+  );
 }
 
 function StatItem({
@@ -323,15 +376,7 @@ export function ProtocolOverview() {
                     width={56}
                     domain={["auto", "auto"]}
                   />
-                  <Tooltip
-                    {...tooltipStyle}
-                    formatter={(value, name) => [
-                      typeof value === "number"
-                        ? fmtUsd.format(value)
-                        : String(value),
-                      name === "volume" ? "Daily Volume" : "Cumulative",
-                    ]}
-                  />
+                  <Tooltip content={<TradingVolumeTooltip weekly={timeframe === "All Time"} />} />
                   <Bar
                     yAxisId="left"
                     dataKey="volume"
@@ -409,15 +454,7 @@ export function ProtocolOverview() {
                     tickLine={false}
                     width={52}
                   />
-                  <Tooltip
-                    {...tooltipStyle}
-                    formatter={(value) => [
-                      typeof value === "number"
-                        ? fmtUsd.format(value)
-                        : String(value),
-                      "Open Interest",
-                    ]}
-                  />
+                  <Tooltip content={<OITooltip weekly={timeframe === "All Time"} />} />
                   <Area
                     type="monotone"
                     dataKey="oi"
@@ -509,15 +546,7 @@ export function ProtocolOverview() {
                     tickLine={false}
                     width={52}
                   />
-                  <Tooltip
-                    {...tooltipStyle}
-                    formatter={(value) => [
-                      typeof value === "number"
-                        ? fmtUsd.format(value)
-                        : String(value),
-                      "TVL",
-                    ]}
-                  />
+                  <Tooltip content={<TVLTooltip weekly={timeframe === "All Time"} />} />
                   <Area
                     type="monotone"
                     dataKey="tvl"
@@ -589,10 +618,7 @@ export function ProtocolOverview() {
                     tickLine={false}
                     width={44}
                   />
-                  <Tooltip
-                    {...tooltipStyle}
-                    formatter={(value) => [value, "Daily Active Users"]}
-                  />
+                  <Tooltip content={<DAUTooltip weekly={timeframe === "All Time"} />} />
                   <Line
                     type="linear"
                     dataKey="dau"
