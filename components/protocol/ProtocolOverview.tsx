@@ -515,7 +515,7 @@ export function ProtocolOverview() {
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
-                  data={sliced}
+                  data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
                 >
                   <defs>
