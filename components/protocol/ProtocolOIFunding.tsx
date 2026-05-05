@@ -694,7 +694,7 @@ export function ProtocolOIFunding() {
                     )}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="max-h-[320px]" position="popper">
+                <SelectContent className="max-h-[320px]" alignItemWithTrigger={false}>
                   {fundingByProductId.map((item) => (
                     <SelectItem key={item.symbol} value={item.symbol}>
                       <span className="flex items-center gap-2">
