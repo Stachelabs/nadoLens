@@ -7,16 +7,12 @@ import { ProtocolTabNav } from "@/components/protocol/ProtocolTabNav";
 import { ProtocolTVL } from "@/components/protocol/ProtocolTVL";
 import { ProtocolVolumes } from "@/components/protocol/ProtocolVolumes";
 import { useProtocolData } from "@/hooks/useProtocolData";
-import { usePairsStore } from "@/store/pairsStore";
 import { useProtocolStore } from "@/store/protocolStore";
 
 export default function ProtocolPage() {
   useProtocolData();
 
   const activeTab = useProtocolStore((s) => s.activeTab);
-  const tickers = useProtocolStore((s) => s.tickers);
-  const tickersLoading = useProtocolStore((s) => s.tickersLoading);
-  const perpAssets = usePairsStore((s) => s.perp);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -31,9 +27,7 @@ export default function ProtocolPage() {
         {activeTab === "volumes" && <ProtocolVolumes />}
         {activeTab === "oi-funding" && <ProtocolOIFunding />}
         {activeTab === "revenue" && <ProtocolRevenue />}
-        {activeTab === "tvl" && (
-          <ProtocolTVL tickers={tickers} perpAssets={perpAssets} />
-        )}
+        {activeTab === "tvl" && <ProtocolTVL />}
       </div>
     </div>
   );

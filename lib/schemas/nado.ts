@@ -789,6 +789,10 @@ export const MarketSnapshotSchema = z.object({
   cumulative_liquidation_amounts: z.record(z.string(), z.string()).optional(),
   funding_rates: z.record(z.string(), z.string()).optional(),
   oracle_prices: z.record(z.string(), z.string()).optional(),
+  total_deposits: z.record(z.string(), z.string()).optional(),
+  total_borrows: z.record(z.string(), z.string()).optional(),
+  deposit_rates: z.record(z.string(), z.string()).optional(),
+  borrow_rates: z.record(z.string(), z.string()).optional(),
 }).passthrough()
 export type MarketSnapshot = z.infer<typeof MarketSnapshotSchema>
 

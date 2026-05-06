@@ -193,6 +193,24 @@ RainbowKit: accent `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard i
 
 ---
 
+## Scripts
+
+### `pnpm run icons:sync-nado-perps`
+
+Scrapes SVG icons from app.nado.xyz via Playwright CDP.
+
+**Requires** a dedicated Brave profile at `~/brave-nado-playwright` (has Rabby Wallet + burner account with app access).
+
+Launch before running:
+```bash
+"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+  --remote-debugging-port=9222 --no-first-run --no-default-browser-check \
+  --user-data-dir=$HOME/brave-nado-playwright
+```
+Then run: `pnpm run icons:sync-nado-perps`
+
+---
+
 ## Git
 
 Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
