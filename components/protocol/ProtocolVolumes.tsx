@@ -290,6 +290,7 @@ function StatItem({
 const CardDivider = () => <div className="my-4 border-t border-border/40" />;
 
 type VolumeTimeframe =
+  | "24 Hours"
   | "7 Days"
   | "30 Days"
   | "60 Days"
@@ -297,6 +298,7 @@ type VolumeTimeframe =
   | "All Time";
 
 const TIMEFRAME_OPTIONS: { value: VolumeTimeframe; label: string }[] = [
+  { value: "24 Hours", label: "Past 24 Hours" },
   { value: "7 Days", label: "Past 7 Days" },
   { value: "30 Days", label: "Past 30 Days" },
   { value: "60 Days", label: "Past 60 Days" },
@@ -337,6 +339,7 @@ export function ProtocolVolumes() {
     allTimeVol,
     dailyChartData,
     weeklyChartData,
+    donut24h,
     donut7d,
     donut30d,
     donut60d,
@@ -349,30 +352,33 @@ export function ProtocolVolumes() {
 
   const [timeframe, setTimeframe] = useState<VolumeTimeframe>("30 Days");
 
-  // Show skeleton for non-30d views until background fetches complete
-  const chartLoading = loading || (backgroundLoading && timeframe !== "30 Days");
+  const chartLoading = loading || (backgroundLoading && timeframe !== "30 Days" && timeframe !== "24 Hours" && timeframe !== "7 Days");
 
   const chartData =
     timeframe === "All Time"
       ? weeklyChartData
-      : timeframe === "7 Days"
-        ? dailyChartData.slice(-7)
-        : timeframe === "60 Days"
-          ? dailyChartData.slice(-60)
-          : timeframe === "90 Days"
-            ? dailyChartData.slice(1)
-            : dailyChartData.slice(-30);
+      : timeframe === "24 Hours"
+        ? dailyChartData.slice(-2)
+        : timeframe === "7 Days"
+          ? dailyChartData.slice(-7)
+          : timeframe === "60 Days"
+            ? dailyChartData.slice(-60)
+            : timeframe === "90 Days"
+              ? dailyChartData.slice(1)
+              : dailyChartData.slice(-30);
 
   const activeDonutRaw =
-    timeframe === "7 Days"
-      ? donut7d
-      : timeframe === "30 Days"
-        ? donut30d
-        : timeframe === "60 Days"
-          ? donut60d
-          : timeframe === "90 Days"
-            ? donut90d
-            : donutAllTime;
+    timeframe === "24 Hours"
+      ? donut24h
+      : timeframe === "7 Days"
+        ? donut7d
+        : timeframe === "30 Days"
+          ? donut30d
+          : timeframe === "60 Days"
+            ? donut60d
+            : timeframe === "90 Days"
+              ? donut90d
+              : donutAllTime;
 
   const cumBaseline = chartData[0] ?? { cumVol: 0, cumPerpVol: 0, cumSpotVol: 0 };
   const cumChartData = chartData.map((p) => ({

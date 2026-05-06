@@ -784,6 +784,8 @@ export const MarketSnapshotSchema = z.object({
   cumulative_outflows: z.record(z.string(), z.string()),
   cumulative_trades: z.record(z.string(), z.number()).optional(),
   cumulative_taker_fees: z.record(z.string(), z.string()).optional(),
+  cumulative_maker_fees: z.record(z.string(), z.string()).optional(),
+  cumulative_sequencer_fees: z.record(z.string(), z.string()).optional(),
   cumulative_liquidation_amounts: z.record(z.string(), z.string()).optional(),
   funding_rates: z.record(z.string(), z.string()).optional(),
   oracle_prices: z.record(z.string(), z.string()).optional(),

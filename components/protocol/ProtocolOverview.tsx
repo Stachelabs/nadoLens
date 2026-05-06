@@ -35,6 +35,7 @@ import {
 } from "recharts";
 
 const TIMEFRAME_OPTIONS: { value: OverviewTimeframe; label: string }[] = [
+  { value: "24 Hours", label: "Past 24 Hours" },
   { value: "7 Days", label: "Past 7 Days" },
   { value: "30 Days", label: "Past 30 Days" },
   { value: "60 Days", label: "Past 60 Days" },
@@ -43,6 +44,7 @@ const TIMEFRAME_OPTIONS: { value: OverviewTimeframe; label: string }[] = [
 ];
 
 const TIMEFRAME_SLICE: Record<OverviewTimeframe, number | null> = {
+  "24 Hours": 2,
   "7 Days": 7,
   "30 Days": 30,
   "60 Days": 60,

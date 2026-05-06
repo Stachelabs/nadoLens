@@ -30,9 +30,7 @@ export default function ProtocolPage() {
         {activeTab === "overview" && <ProtocolOverview />}
         {activeTab === "volumes" && <ProtocolVolumes />}
         {activeTab === "oi-funding" && <ProtocolOIFunding />}
-        {activeTab === "revenue" && (
-          <ProtocolRevenue tickers={tickers} perpAssets={perpAssets} />
-        )}
+        {activeTab === "revenue" && <ProtocolRevenue />}
         {activeTab === "tvl" && (
           <ProtocolTVL tickers={tickers} perpAssets={perpAssets} />
         )}

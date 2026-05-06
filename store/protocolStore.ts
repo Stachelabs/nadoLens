@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { EnrichedTicker, LiquidationFeedEntry } from '@/lib/schemas/nado'
 
 export type ProtocolTab = 'overview' | 'volumes' | 'oi-funding' | 'revenue' | 'tvl'
-export type OverviewTimeframe = '7 Days' | '30 Days' | '60 Days' | '90 Days' | 'All Time'
+export type OverviewTimeframe = '24 Hours' | '7 Days' | '30 Days' | '60 Days' | '90 Days' | 'All Time'
 
 type ProtocolStore = {
   activeTab: ProtocolTab
