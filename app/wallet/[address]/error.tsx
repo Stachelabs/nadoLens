@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
 export default function Error({
@@ -31,10 +33,8 @@ export default function Error({
           <Button onClick={reset} className="flex-1">
             Retry
           </Button>
-          <Link href="/wallet" className="flex-1">
-            <Button variant="outline" className="w-full">
-              Go back
-            </Button>
+          <Link href="/wallet" className={cn(buttonVariants({ variant: "outline" }), "w-full flex-1")}>
+            Go back
           </Link>
         </div>
       </div>

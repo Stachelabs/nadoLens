@@ -403,6 +403,8 @@ export function useWalletData(rawAddress: string): WalletData {
     if (!rawAddress) return;
 
     let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     fundingPaidUsdRef.current = 0;
     fundingPaymentsRef.current = [];
     positionFundingPaymentsRef.current = [];
@@ -419,6 +421,7 @@ export function useWalletData(rawAddress: string): WalletData {
       try {
         const res = await fetch(`/api/subaccounts/${rawAddress}`, {
           cache: "no-store",
+          signal,
         });
         if (!res.ok) return fallback;
         const raw: unknown = await res.json();
@@ -448,7 +451,7 @@ export function useWalletData(rawAddress: string): WalletData {
         try {
           const res = await fetch(
             `/api/wallet/${c.subaccount}?query=isolated_positions`,
-            { cache: "no-store" },
+            { cache: "no-store", signal },
           );
           if (!res.ok) continue;
           const raw: unknown = await res.json();
@@ -490,6 +493,7 @@ export function useWalletData(rawAddress: string): WalletData {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ subaccounts: crossSubaccounts }),
           cache: "no-store",
+          signal,
         });
         if (!res.ok) return new Map();
         const raw: unknown = await res.json();
@@ -517,6 +521,7 @@ export function useWalletData(rawAddress: string): WalletData {
       try {
         const res = await fetch(`/api/wallet/${sub}?query=subaccount_info`, {
           cache: "no-store",
+          signal,
         });
         if (!res.ok) return PARSE_FALLBACK;
         const raw: unknown = await res.json();
@@ -681,6 +686,7 @@ export function useWalletData(rawAddress: string): WalletData {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
           cache: "no-store",
+          signal,
         });
 
         if (res.status === 429) {
@@ -736,6 +742,7 @@ export function useWalletData(rawAddress: string): WalletData {
       let nextMaxIdx: string | null = null;
 
       while (page < FUNDING_MAX_PAGES) {
+        if (cancelled) break;
         page += 1;
         const body: Record<string, unknown> = {
           subaccount,
@@ -749,6 +756,7 @@ export function useWalletData(rawAddress: string): WalletData {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
           cache: "no-store",
+          signal,
         });
         if (res.status === 429) {
           return { totalFundingUsd, payments, complete: false, rateLimited: true, nextMaxIdx: maxIdx ?? null };
@@ -826,6 +834,7 @@ export function useWalletData(rawAddress: string): WalletData {
       const payments: FundingPaymentEntry[] = [];
       let complete = true;
       for (let i = 0; i < subs.length; i++) {
+        if (cancelled) break;
         const subaccount = subs[i]!;
         const result = await fetchFundingPaidBySubaccount(subaccount, productIds);
         totalFundingUsd += result.totalFundingUsd;
@@ -951,7 +960,9 @@ export function useWalletData(rawAddress: string): WalletData {
 
       let iteration = 0;
       while (completedProducts.size < pairs.length && iteration < MAX_POSITION_SCOPED_PAGES) {
+        if (cancelled) break;
         for (const pair of pairs) {
+          if (cancelled) break;
           const pairKey = `${pair.pocketSubaccount}:${pair.productId}`;
           if (completedProducts.has(pairKey)) continue;
 
@@ -1059,10 +1070,12 @@ export function useWalletData(rawAddress: string): WalletData {
       const accumulated: FundingPaymentEntry[] = [];
 
       for (const subaccount of subaccountsWithPerps) {
+        if (cancelled) break;
         const completedProducts = new Set<number>();
         let nextIdx: string | undefined = undefined;
 
         for (let page = 0; page < 100; page++) {
+          if (cancelled) break;
           if (completedProducts.size >= openPerpProductIds.length) break;
 
           const activeProductIds = openPerpProductIds.filter(id => !completedProducts.has(id));
@@ -1078,6 +1091,7 @@ export function useWalletData(rawAddress: string): WalletData {
               ...(nextIdx !== undefined ? { max_idx: nextIdx } : {}),
             }),
             cache: "no-store",
+            signal,
           });
 
           if (!res || !res.ok) break;
@@ -2057,6 +2071,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
     return () => {
       cancelled = true;
+      controller.abort();
       tradesRef.current = [];
       entryPriceMapRef.current = new Map();
       positionStatsMapRef.current = new Map();

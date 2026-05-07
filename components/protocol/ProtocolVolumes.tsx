@@ -337,6 +337,7 @@ export function ProtocolVolumes() {
   const {
     volume24h,
     allTimeVol,
+    hourlyChartData,
     dailyChartData,
     weeklyChartData,
     donut24h,
@@ -353,12 +354,11 @@ export function ProtocolVolumes() {
   const [timeframe, setTimeframe] = useState<VolumeTimeframe>("30 Days");
 
   const chartLoading = loading || (backgroundLoading && timeframe !== "30 Days" && timeframe !== "24 Hours" && timeframe !== "7 Days");
-
   const chartData =
     timeframe === "All Time"
       ? weeklyChartData
       : timeframe === "24 Hours"
-        ? dailyChartData.slice(-2)
+        ? hourlyChartData
         : timeframe === "7 Days"
           ? dailyChartData.slice(-7)
           : timeframe === "60 Days"
@@ -392,6 +392,7 @@ export function ProtocolVolumes() {
   const donutTotal = donutSlices.reduce((s, d) => s + d.value, 0);
   const donutLabel =
     timeframe === "All Time" ? "All Time Vol." : `${timeframe} Vol.`;
+
 
   return (
     <div className="space-y-6">

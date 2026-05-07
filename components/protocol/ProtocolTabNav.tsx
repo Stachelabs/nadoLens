@@ -19,11 +19,13 @@ export function ProtocolTabNav() {
   return (
     <div className="border-b border-border">
       <div className="flex items-center gap-2">
-        <div className="flex flex-1">
+        <div className="flex flex-1" role="tablist">
           {TABS.map((tab) => (
             <button
               key={tab.value}
               type="button"
+              role="tab"
+              aria-selected={activeTab === tab.value}
               onClick={() => setActiveTab(tab.value)}
               className={cn(
                 "whitespace-nowrap px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { NADO_ARCHIVE_V2 } from '@/lib/nado'
 import { CandlesticksResponseSchema, type Candlestick } from '@/lib/schemas/nado'
+import { withArchiveRetry } from '@/lib/archiveRetry'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,9 +23,11 @@ export async function GET(
   }
 
   try {
-    const res = await fetch(
-      `${NADO_ARCHIVE_V2}/candlesticks?product_id=${productId}&granularity=86400&limit=${limit}`,
-      { headers: { 'Accept-Encoding': 'gzip' } },
+    const res = await withArchiveRetry(() =>
+      fetch(
+        `${NADO_ARCHIVE_V2}/candlesticks?product_id=${productId}&granularity=86400&limit=${limit}`,
+        { headers: { 'Accept-Encoding': 'gzip' } },
+      ),
     )
 
     if (!res.ok) {

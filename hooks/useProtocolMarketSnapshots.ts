@@ -48,7 +48,7 @@ export function useProtocolMarketSnapshots(count = 31, granularity = 86400, enab
         setSnapshots(parsed.data)
         setError(null)
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
+        if (!(e instanceof Error) || e.name !== 'AbortError') {
           setError('Failed to load market snapshots')
         }
       } finally {

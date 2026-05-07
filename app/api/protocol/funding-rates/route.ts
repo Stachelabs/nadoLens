@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
 import { FundingRatesResponseSchema, type FundingRateEntry } from '@/lib/schemas/nado'
+import { withArchiveRetry } from '@/lib/archiveRetry'
 
 export const revalidate = 60
 
@@ -21,14 +22,16 @@ export async function GET(
   }
 
   try {
-    const res = await fetch(NADO_ARCHIVE_REST, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'gzip',
-      },
-      body: JSON.stringify({ funding_rates: { product_ids: productIds } }),
-    })
+    const res = await withArchiveRetry(() =>
+      fetch(NADO_ARCHIVE_REST, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Encoding': 'gzip',
+        },
+        body: JSON.stringify({ funding_rates: { product_ids: productIds } }),
+      }),
+    )
 
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to fetch funding rates' }, { status: 502 })

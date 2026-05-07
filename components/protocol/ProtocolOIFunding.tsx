@@ -71,7 +71,8 @@ const tooltipStyle = {
 
 function TokenIcon({ symbol, size = 16 }: { symbol: string; size?: number }) {
   const [failed, setFailed] = useState(false)
-  if (failed) {
+  const iconSrc = perpIconSrcFromPair(symbol)
+  if (failed || !iconSrc) {
     return (
       <div
         style={{ width: size, height: size, borderRadius: "50%", backgroundColor: PURPLE, flexShrink: 0 }}
@@ -80,7 +81,7 @@ function TokenIcon({ symbol, size = 16 }: { symbol: string; size?: number }) {
   }
   return (
     <img
-      src={perpIconSrcFromPair(symbol)}
+      src={iconSrc}
       alt={symbol.replace("-PERP", "")}
       width={size}
       height={size}
@@ -790,9 +791,9 @@ export function ProtocolOIFunding() {
       </Card>
 
       {/* Liquidations bottom row */}
-      <div className="flex gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
         {/* Left — Liquidations dual-axis chart */}
-        <Card className="border-border bg-card p-0 flex-1">
+        <Card className="border-border bg-card p-0">
           <CardContent className="p-5">
             <div className="mb-3">
               <p className="text-sm font-medium">Liquidations</p>
@@ -870,10 +871,7 @@ export function ProtocolOIFunding() {
         </Card>
 
         {/* Right — Insurance Funds donut */}
-        <Card
-          className="border-border bg-card p-0 flex flex-col"
-          style={{ width: 280, flexShrink: 0 }}
-        >
+        <Card className="border-border bg-card p-0 flex flex-col">
           <CardContent className="p-5 flex flex-col flex-1">
             <div className="mb-3">
               <p className="text-sm font-medium">Insurance Funds</p>

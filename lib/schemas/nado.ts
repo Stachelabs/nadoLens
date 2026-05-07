@@ -334,6 +334,14 @@ export const OIBucketPostBodySchema = z.object({
   buckets: z.array(OIBucketSchema),
 })
 
+// ─── Gateway: Products IDs ───────────────────────────────────────────────────
+
+export const ProductsIdsResponseSchema = z.object({
+  spot_ids: z.array(z.number()).optional(),
+  perp_ids: z.array(z.number()).optional(),
+})
+export type ProductsIdsResponse = z.infer<typeof ProductsIdsResponseSchema>
+
 // ─── Archive: Subaccounts ─────────────────────────────────────────────────────
 
 export const ArchiveSubaccountsResponseSchema = z.object({
@@ -518,6 +526,14 @@ export const ProductOrdersDataSchema = z.object({
 export const AllProductsDataSchema = z.object({
   perp_products: z.array(NadoPerpProductSchema).optional().default([]),
   spot_products: z.array(NadoSpotProductSchema).optional().default([]),
+})
+
+// ─── Gateway v1 — edge_all_products response envelope ────────────────────────
+
+export const EdgeAllProductsResponseSchema = z.object({
+  data: z.object({
+    edge_all_products: z.record(z.string(), AllProductsDataSchema).optional(),
+  }).optional(),
 })
 
 // ─── Gateway V2 REST — /v2/assets ────────────────────────────────────────────

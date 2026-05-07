@@ -1,16 +1,9 @@
-import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { NADO_GATEWAY_REST } from '@/lib/nado'
-import { AllProductsDataSchema } from '@/lib/schemas/nado'
+import { EdgeAllProductsResponseSchema } from '@/lib/schemas/nado'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 3600
-
-const EdgeAllProductsResponseSchema = z.object({
-  data: z.object({
-    edge_all_products: z.record(z.string(), AllProductsDataSchema).optional(),
-  }).optional(),
-})
 
 export async function GET(): Promise<NextResponse<{ spot_ids: number[]; perp_ids: number[] } | { error: string }>> {
   try {

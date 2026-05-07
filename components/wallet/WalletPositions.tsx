@@ -422,7 +422,7 @@ export function WalletPositions({
                         <div className="flex shrink-0 items-center justify-center pr-1.25">
                           <Avatar size="sm">
                             <AvatarImage
-                              src={perpIconSrcFromPair(pos.pair)}
+                              src={perpIconSrcFromPair(pos.pair) ?? undefined}
                               alt=""
                             />
                             <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">

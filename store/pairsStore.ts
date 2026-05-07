@@ -12,6 +12,7 @@ type PairsState = {
   spot: V2Asset[]               // not persisted — market_type === 'spot' | null
   lastFetched: number | null    // persisted — timestamp ms for TTL
   initialized: boolean          // not persisted
+  error: string | null          // not persisted — fetch error message
   init: () => Promise<void>
 }
 
@@ -32,6 +33,7 @@ export const usePairsStore = create<PairsState>()(
       spot: [],
       lastFetched: null,
       initialized: false,
+      error: null,
 
       init: async () => {
         const { assets, lastFetched } = get()
@@ -57,8 +59,8 @@ export const usePairsStore = create<PairsState>()(
             lastFetched: Date.now(),
             initialized: true,
           })
-        } catch {
-          // Silently fail — assets from localStorage serve as fallback
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : 'Failed to fetch pairs' })
         }
       },
     }),

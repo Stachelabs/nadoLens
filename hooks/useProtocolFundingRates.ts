@@ -16,7 +16,7 @@ export function useProtocolFundingRates(productIds: number[]): State {
     error: null,
   })
 
-  const key = productIds.sort((a, b) => a - b).join(',')
+  const key = [...productIds].sort((a, b) => a - b).join(',')
 
   useEffect(() => {
     if (productIds.length === 0) return

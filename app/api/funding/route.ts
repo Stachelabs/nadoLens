@@ -16,44 +16,52 @@ export async function POST(
 ): Promise<
   NextResponse<z.infer<typeof InterestAndFundingPaymentsResponseSchema> | ErrResponse>
 > {
-  const rawBody: unknown = await request.json().catch(() => null);
-  const bodyResult = InterestAndFundingRequestSchema.safeParse(rawBody);
-  if (!bodyResult.success) {
-    return NextResponse.json({ error: "Invalid funding request body" }, { status: 400 });
+  try {
+    if (!process.env.SERVICE_SECRET) {
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+
+    const rawBody: unknown = await request.json().catch(() => null);
+    const bodyResult = InterestAndFundingRequestSchema.safeParse(rawBody);
+    if (!bodyResult.success) {
+      return NextResponse.json({ error: "Invalid funding request body" }, { status: 400 });
+    }
+
+    if (!NADO_FUNDING_SERVICE_URL) {
+      return NextResponse.json(
+        { error: "Funding service not configured" },
+        { status: 503 },
+      );
+    }
+
+    const response = await fetch(`${NADO_FUNDING_SERVICE_URL}/funding`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Service-Secret": process.env.SERVICE_SECRET,
+      },
+      body: JSON.stringify(bodyResult.data),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Funding service request failed" },
+        { status: response.status },
+      );
+    }
+
+    const raw: unknown = await response.json();
+    const parsed = parseArchiveJson(InterestAndFundingPaymentsResponseSchema, raw);
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: "Invalid funding response from service" },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json(parsed.data);
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  if (!NADO_FUNDING_SERVICE_URL) {
-    return NextResponse.json(
-      { error: "Funding service not configured" },
-      { status: 503 },
-    );
-  }
-
-  const response = await fetch(`${NADO_FUNDING_SERVICE_URL}/funding`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Service-Secret": process.env.SERVICE_SECRET ?? "",
-    },
-    body: JSON.stringify(bodyResult.data),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: "Funding service request failed" },
-      { status: response.status },
-    );
-  }
-
-  const raw: unknown = await response.json();
-  const parsed = parseArchiveJson(InterestAndFundingPaymentsResponseSchema, raw);
-  if (!parsed.ok) {
-    return NextResponse.json(
-      { error: "Invalid funding response from service" },
-      { status: 502 },
-    );
-  }
-
-  return NextResponse.json(parsed.data);
 }

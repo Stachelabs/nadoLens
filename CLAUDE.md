@@ -76,6 +76,9 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]`
 - Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/liquidations` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
+- **ALWAYS** wrap API route handlers in `try/catch` → `{ error: "Internal server error" }` with 500
+- **ALWAYS** use `withArchiveRetry()` for direct Archive fetches (handles 429 + backoff)
+- **ALWAYS** fail-fast if required env vars are missing (`SERVICE_SECRET`, etc.) — never `?? ""`
 
 **WS Proxy + nado-matches (Fly.io fra — Bun, co-located)**
 - Region **fra** (Frankfurt) — EU IPs required, Nado blocks US East
@@ -174,6 +177,10 @@ Archive:   https://archive.prod.nado.xyz/v1 (v2) — POST JSON
 - **ALWAYS** use shadcn/ui for basic UI — exceptions: `<canvas>`, layout divs, stateless semantic wrappers
 - **CRITICAL**: `Button` uses `@base-ui/react/button` → **no `asChild` prop**
   For link-as-button: `<Link className={cn(buttonVariants({ variant, size }))}>`
+- **ALWAYS** use `role="tablist"` + `role="tab"` + `aria-selected` on custom tab navigation
+- **ALWAYS** use AbortController in hooks that fetch — pass `signal` to every `fetch()`, abort in cleanup
+- **NEVER** mutate input arrays (`.sort()`) — always spread first: `[...arr].sort()`
+- **NEVER** use `(e as Error)` in catch blocks — use `e instanceof Error` guard instead
 
 ---
 
@@ -232,4 +239,4 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
 ---
 
-_CLAUDE.md v4.1 — NadoLens_
+_CLAUDE.md v4.2 — NadoLens — updated 2026-05-07 (codebase audit)_

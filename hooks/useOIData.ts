@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { z } from 'zod'
 import { MarketSnapshotSchema, FundingRatesResponseSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { useProtocolStore } from '@/store/protocolStore'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -96,12 +97,14 @@ export function useOIData(timeframe: Timeframe): OIDataState {
       try {
         const { count, granularity } = timeframeToParams(timeframe)
 
+        const storeTickers = useProtocolStore.getState().tickers
+        const tickersReq = storeTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
         const [snapshotsRes, tickersRes] = await Promise.all([
           fetch(`/api/protocol/market-snapshots?count=${count}&granularity=${granularity}`, { signal }),
-          fetch('/api/protocol/tickers', { signal }),
+          tickersReq ?? Promise.resolve(null),
         ])
 
-        if (!snapshotsRes.ok || !tickersRes.ok) {
+        if (!snapshotsRes.ok || (tickersRes && !tickersRes.ok)) {
           setError('Failed to load OI data')
           setOiLoading(false)
           return
@@ -109,7 +112,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
         const [rawSnapshots, rawTickers] = await Promise.all([
           snapshotsRes.json() as Promise<unknown>,
-          tickersRes.json() as Promise<unknown>,
+          tickersRes ? (tickersRes.json() as Promise<unknown>) : Promise.resolve(storeTickers as unknown),
         ])
 
         const parsedSnapshots = MarketSnapshotsArraySchema.safeParse(rawSnapshots)

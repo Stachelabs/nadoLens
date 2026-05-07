@@ -81,6 +81,13 @@ function fmtDate(ts: number): string {
   }).format(new Date(ts * 1000));
 }
 
+function fmtHour(ts: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(ts * 1000));
+}
+
 function fmtAxis(v: number): string {
   const abs = Math.abs(v);
   if (abs >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
@@ -104,7 +111,7 @@ interface ChartPoint {
   dau: number;
 }
 
-function buildChartData(snapshots: MarketSnapshot[]): ChartPoint[] {
+function buildChartData(snapshots: MarketSnapshot[], dateFn = fmtDate): ChartPoint[] {
   const reversed = [...snapshots].reverse();
   return reversed.map((snap, i) => {
     const cumVol = sumRecord(snap.cumulative_volumes);
@@ -113,7 +120,7 @@ function buildChartData(snapshots: MarketSnapshot[]): ChartPoint[] {
     const volume = i > 0 ? cumVol - prevVol : 0;
     return {
       ts: snap.timestamp,
-      date: fmtDate(snap.timestamp),
+      date: dateFn(snap.timestamp),
       volume,
       cumVol,
       oi: sumRecord(snap.open_interests),
@@ -216,6 +223,7 @@ export function ProtocolOverview() {
   }, [timeframe]);
 
   const { snapshots, loading } = useProtocolMarketSnapshots(90);
+  const { snapshots: hourlySnapshots, loading: hourlyLoading } = useProtocolMarketSnapshots(25, 3600);
   const { snapshots: weeklySnapshots, loading: weeklyLoading } = useProtocolMarketSnapshots(24, 604800, allTimeEnabled);
 
   const latest = snapshots[0];
@@ -262,8 +270,8 @@ export function ProtocolOverview() {
   }, [latest, prev]);
 
   const isLoading = loading || !latest;
-
   const chartData = useMemo(() => buildChartData(snapshots), [snapshots]);
+  const hourlyChartData = useMemo(() => buildChartData(hourlySnapshots, fmtHour), [hourlySnapshots]);
   const n = TIMEFRAME_SLICE[timeframe];
   const sliced = n !== null ? chartData.slice(-n) : chartData;
   const weeklyChartData = useMemo(
@@ -271,7 +279,8 @@ export function ProtocolOverview() {
     [weeklySnapshots],
   );
   const allTimeReady = timeframe === "All Time" && !weeklyLoading && weeklyChartData.length > 0;
-  const volumeChartData = allTimeReady ? weeklyChartData : sliced;
+  const is24h = timeframe === "24 Hours";
+  const volumeChartData = allTimeReady ? weeklyChartData : is24h ? hourlyChartData : sliced;
 
   return (
     <div className="space-y-6">

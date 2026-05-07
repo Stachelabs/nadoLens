@@ -236,6 +236,7 @@ Key files: `components/protocol/` (6 components) · `hooks/useProtocolVolumes.ts
 Progressive fetch strategy: 30d view renders immediately (Wave 1), other timeframes load in background (Wave 2). `backgroundLoading` flag gates non-30d skeletons.
 
 ### → Phase Deploy & Polish
+- [x] Codebase audit: API error handling, Zod coverage, UI/UX patterns, React/Next.js best practices (2026-05-07)
 - [ ] README + screenshots + demo GIF
 - [ ] Prod tests (wallet connection, address search, live positions)
 - [ ] Push public GitHub + email Frank
