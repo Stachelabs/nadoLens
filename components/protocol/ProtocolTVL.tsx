@@ -722,7 +722,7 @@ export function ProtocolTVL() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.3} vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} tickMargin={8} />
                   <YAxis tickFormatter={fmtAPRAxis} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} width={52} />
-                  <Tooltip content={<APRTooltip />} />
+                  <Tooltip content={<APRTooltip weekly={isAllTime} />} />
                   <Line type="linear" dataKey="rate" stroke={PURPLE} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -773,7 +773,7 @@ export function ProtocolTVL() {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.3} vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} tickMargin={8} />
                   <YAxis tickFormatter={fmtAPRAxis} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} width={52} />
-                  <Tooltip content={<APRTooltip />} />
+                  <Tooltip content={<APRTooltip weekly={isAllTime} />} />
                   <Line type="linear" dataKey="rate" stroke={PURPLE} strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
