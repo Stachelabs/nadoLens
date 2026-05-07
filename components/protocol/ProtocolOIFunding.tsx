@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -10,26 +8,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
-  ComposedChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  Label,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOIData, type Timeframe } from "@/hooks/useOIData";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
+import { useState } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Label,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -66,28 +66,34 @@ const tooltipStyle = {
   labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
 };
 
-
 // ─── Token icon with fallback ─────────────────────────────────────────────────
 
 function TokenIcon({ symbol, size = 16 }: { symbol: string; size?: number }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) {
+  const [failed, setFailed] = useState(false);
+  const iconSrc = perpIconSrcFromPair(symbol);
+  if (failed || !iconSrc) {
     return (
       <div
-        style={{ width: size, height: size, borderRadius: "50%", backgroundColor: PURPLE, flexShrink: 0 }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          backgroundColor: PURPLE,
+          flexShrink: 0,
+        }}
       />
-    )
+    );
   }
   return (
     <img
-      src={perpIconSrcFromPair(symbol)}
+      src={iconSrc}
       alt={symbol.replace("-PERP", "")}
       width={size}
       height={size}
       style={{ borderRadius: "50%", flexShrink: 0 }}
       onError={() => setFailed(true)}
     />
-  )
+  );
 }
 
 // ─── Formatting utilities ─────────────────────────────────────────────────────
@@ -110,7 +116,6 @@ function formatPct(n: number): string {
   const sign = n >= 0 ? "+" : "-";
   return `${sign}${Math.abs(n).toFixed(4)}%`;
 }
-
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleDateString("en-US", {
@@ -260,7 +265,15 @@ function OIDonutTooltip({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: item.payload.color, flexShrink: 0 }} />
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            backgroundColor: item.payload.color,
+            flexShrink: 0,
+          }}
+        />
         <span>{item.name}</span>
       </div>
       <span style={{ fontWeight: 600 }}>{formatUSD(item.value)}</span>
@@ -291,7 +304,12 @@ function FundingWeeklyTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {formatDateShort(timestamp - 7 * 86400)} – {formatDateShort(timestamp)}
       </p>
-      <p style={{ fontWeight: 600, color: rate >= 0 ? "var(--bull)" : "var(--bear)" }}>
+      <p
+        style={{
+          fontWeight: 600,
+          color: rate >= 0 ? "var(--bull)" : "var(--bear)",
+        }}
+      >
         {formatPct(rate)}
       </p>
     </div>
@@ -368,11 +386,15 @@ function LiqWeeklyTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {weekStart} – {weekEnd}
       </p>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+      >
         <span>Liquidations</span>
         <span style={{ fontWeight: 600 }}>{formatUSD(daily)}</span>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <div
+        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+      >
         <span>Cumulative</span>
         <span style={{ fontWeight: 600 }}>{formatUSD(cumulative)}</span>
       </div>
@@ -411,11 +433,13 @@ export function ProtocolOIFunding() {
   const fundingCol2 = topFunding.slice(8, 16);
 
   // Selector list — sorted by productId ascending (BTC first, natural DEX order)
-  const fundingByProductId = [...fundingRates].sort((a, b) => a.productId - b.productId);
+  const fundingByProductId = [...fundingRates].sort(
+    (a, b) => a.productId - b.productId,
+  );
 
   // All Time uses granularity=604800 so the API already returns weekly snapshots — display directly
-  const isAllTime = timeframe === 'All Time'
-  const chartLiqHistory = liqHistory
+  const isAllTime = timeframe === "All Time";
+  const chartLiqHistory = liqHistory;
 
   // OI by market donut — colour each slice
   const oiDonutSlices = oiByMarket.map((item, i) => ({
@@ -515,7 +539,9 @@ export function ProtocolOIFunding() {
                     tickLine={false}
                     width={65}
                   />
-                  <Tooltip content={isAllTime ? <OIWeeklyTooltip /> : <OITooltip />} />
+                  <Tooltip
+                    content={isAllTime ? <OIWeeklyTooltip /> : <OITooltip />}
+                  />
                   <Area
                     type="monotone"
                     dataKey="totalOI"
@@ -617,50 +643,50 @@ export function ProtocolOIFunding() {
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : (
               <div className="flex-1 flex items-center">
-              <div className="grid grid-cols-2 gap-x-6 w-full">
-                <div className="space-y-2">
-                  {fundingCol1.map((item) => (
-                    <div
-                      key={item.symbol}
-                      className="flex justify-between text-[13px]"
-                    >
-                      <span className="text-foreground font-medium">
-                        {item.symbol.replace("-PERP", "")}
-                      </span>
-                      <span
-                        className={
-                          item.annualizedRate >= 0
-                            ? "text-[var(--bull)] font-mono"
-                            : "text-[var(--bear)] font-mono"
-                        }
+                <div className="grid grid-cols-2 gap-x-6 w-full">
+                  <div className="space-y-2">
+                    {fundingCol1.map((item) => (
+                      <div
+                        key={item.symbol}
+                        className="flex justify-between text-[13px]"
                       >
-                        {formatPct(item.annualizedRate)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  {fundingCol2.map((item) => (
-                    <div
-                      key={item.symbol}
-                      className="flex justify-between text-[13px]"
-                    >
-                      <span className="text-foreground font-medium">
-                        {item.symbol.replace("-PERP", "")}
-                      </span>
-                      <span
-                        className={
-                          item.annualizedRate >= 0
-                            ? "text-[var(--bull)] font-mono"
-                            : "text-[var(--bear)] font-mono"
-                        }
+                        <span className="text-foreground font-medium">
+                          {item.symbol.replace("-PERP", "")}
+                        </span>
+                        <span
+                          className={
+                            item.annualizedRate >= 0
+                              ? "text-[var(--bull)] font-mono"
+                              : "text-[var(--bear)] font-mono"
+                          }
+                        >
+                          {formatPct(item.annualizedRate)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    {fundingCol2.map((item) => (
+                      <div
+                        key={item.symbol}
+                        className="flex justify-between text-[13px]"
                       >
-                        {formatPct(item.annualizedRate)}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="text-foreground font-medium">
+                          {item.symbol.replace("-PERP", "")}
+                        </span>
+                        <span
+                          className={
+                            item.annualizedRate >= 0
+                              ? "text-[var(--bull)] font-mono"
+                              : "text-[var(--bear)] font-mono"
+                          }
+                        >
+                          {formatPct(item.annualizedRate)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
               </div>
             )}
           </CardContent>
@@ -679,7 +705,9 @@ export function ProtocolOIFunding() {
             <div className="mb-3">
               <Select
                 value={selectedFundingSymbol}
-                onValueChange={(v) => { if (v !== null) setSelectedFundingSymbol(v); }}
+                onValueChange={(v) => {
+                  if (v !== null) setSelectedFundingSymbol(v);
+                }}
               >
                 <SelectTrigger
                   size="sm"
@@ -689,12 +717,17 @@ export function ProtocolOIFunding() {
                     {selectedFundingSymbol && (
                       <span className="flex items-center gap-2">
                         <TokenIcon symbol={selectedFundingSymbol} size={16} />
-                        <span>{selectedFundingSymbol.replace("-PERP", "")}</span>
+                        <span>
+                          {selectedFundingSymbol.replace("-PERP", "")}
+                        </span>
                       </span>
                     )}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="max-h-[320px]" alignItemWithTrigger={false}>
+                <SelectContent
+                  className="max-h-[320px]"
+                  alignItemWithTrigger={false}
+                >
                   {fundingByProductId.map((item) => (
                     <SelectItem key={item.symbol} value={item.symbol}>
                       <span className="flex items-center gap-2">
@@ -737,7 +770,11 @@ export function ProtocolOIFunding() {
                     tickLine={false}
                     width={50}
                   />
-                  <Tooltip content={isAllTime ? <FundingWeeklyTooltip /> : <FundingTooltip />} />
+                  <Tooltip
+                    content={
+                      isAllTime ? <FundingWeeklyTooltip /> : <FundingTooltip />
+                    }
+                  />
                   <ReferenceLine
                     y={0}
                     stroke="var(--border)"
@@ -790,14 +827,16 @@ export function ProtocolOIFunding() {
       </Card>
 
       {/* Liquidations bottom row */}
-      <div className="flex gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
         {/* Left — Liquidations dual-axis chart */}
-        <Card className="border-border bg-card p-0 flex-1">
+        <Card className="border-border bg-card p-0">
           <CardContent className="p-5">
             <div className="mb-3">
               <p className="text-sm font-medium">Liquidations</p>
               <p className="text-xs text-muted-foreground">
-                {isAllTime ? "The weekly liquidations." : "The daily liquidations."}
+                {isAllTime
+                  ? "The weekly liquidations."
+                  : "The daily liquidations."}
               </p>
             </div>
             {liqLoading ? (
@@ -847,7 +886,9 @@ export function ProtocolOIFunding() {
                     tickLine={false}
                     width={60}
                   />
-                  <Tooltip content={isAllTime ? <LiqWeeklyTooltip /> : <LiqTooltip />} />
+                  <Tooltip
+                    content={isAllTime ? <LiqWeeklyTooltip /> : <LiqTooltip />}
+                  />
                   <Bar
                     yAxisId="left"
                     dataKey="daily"
@@ -870,10 +911,7 @@ export function ProtocolOIFunding() {
         </Card>
 
         {/* Right — Insurance Funds donut */}
-        <Card
-          className="border-border bg-card p-0 flex flex-col"
-          style={{ width: 280, flexShrink: 0 }}
-        >
+        <Card className="border-border bg-card p-0 flex flex-col">
           <CardContent className="p-5 flex flex-col flex-1">
             <div className="mb-3">
               <p className="text-sm font-medium">Insurance Funds</p>
@@ -883,49 +921,49 @@ export function ProtocolOIFunding() {
             </div>
             {insuranceFundTotal != null ? (
               <div className="flex-1 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={[{ name: "Insurance", value: insuranceFundTotal }]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    <Cell fill={PURPLE} />
-                    <Label
-                      content={({ viewBox }) => {
-                        if (
-                          !viewBox ||
-                          !("cx" in viewBox) ||
-                          !("cy" in viewBox)
-                        )
-                          return null;
-                        return (
-                          <text textAnchor="middle">
-                            <tspan
-                              x={viewBox.cx}
-                              y={(viewBox.cy ?? 0) - 8}
-                              className="fill-muted-foreground text-xs"
-                            >
-                              Total
-                            </tspan>
-                            <tspan
-                              x={viewBox.cx}
-                              y={(viewBox.cy ?? 0) + 14}
-                              className="fill-foreground text-base font-bold"
-                            >
-                              {formatUSDFull(insuranceFundTotal)}
-                            </tspan>
-                          </text>
-                        );
-                      }}
-                    />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={[{ name: "Insurance", value: insuranceFundTotal }]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      <Cell fill={PURPLE} />
+                      <Label
+                        content={({ viewBox }) => {
+                          if (
+                            !viewBox ||
+                            !("cx" in viewBox) ||
+                            !("cy" in viewBox)
+                          )
+                            return null;
+                          return (
+                            <text textAnchor="middle">
+                              <tspan
+                                x={viewBox.cx}
+                                y={(viewBox.cy ?? 0) - 8}
+                                className="fill-muted-foreground text-xs"
+                              >
+                                Total
+                              </tspan>
+                              <tspan
+                                x={viewBox.cx}
+                                y={(viewBox.cy ?? 0) + 14}
+                                className="fill-foreground text-base font-bold"
+                              >
+                                {formatUSDFull(insuranceFundTotal)}
+                              </tspan>
+                            </text>
+                          );
+                        }}
+                      />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-2">

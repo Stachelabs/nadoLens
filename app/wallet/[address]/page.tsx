@@ -1,7 +1,7 @@
 "use client";
 
 import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
-import { use, useEffect, useMemo } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
@@ -17,6 +17,9 @@ import { WalletTabNav } from "@/components/wallet/WalletTabNav";
 import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProductChart";
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
 import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
+
+const LOAD_TIMEOUT_MS = 30_000;
 
 type Props = {
   params: Promise<{ address: string }>;
@@ -50,6 +53,19 @@ function WalletContent({ address }: { address: string }) {
 
   const { activeTab, setActiveTab } = useWalletAnalyticsStore();
 
+  const [timedOut, setTimedOut] = useState(false);
+  const handleRetry = useCallback(() => {
+    setTimedOut(false);
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (phase1Ready) return;
+    setTimedOut(false);
+    const timer = setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [phase1Ready]);
+
   useEffect(() => {
     if (activeTab !== "analytics") return;
     void loadFundingForPeriod("7 Days");
@@ -72,6 +88,16 @@ function WalletContent({ address }: { address: string }) {
   );
 
   if (!phase1Ready) {
+    if (timedOut) {
+      return (
+        <div className="flex min-h-[calc(100vh-12rem)] flex-col items-center justify-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            Loading is taking longer than expected. The data source may be unavailable.
+          </p>
+          <Button onClick={handleRetry}>Retry</Button>
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
         <Spinner size={48} />

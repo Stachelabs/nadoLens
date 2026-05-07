@@ -353,7 +353,7 @@ export function WalletTradeHistory({
                       <div className="flex justify-center">
                         <Avatar size="sm" className="shrink-0">
                           <AvatarImage
-                            src={perpIconSrcFromPair(t.pair)}
+                            src={perpIconSrcFromPair(t.pair) ?? undefined}
                             alt=""
                           />
                           <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">

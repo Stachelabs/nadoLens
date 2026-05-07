@@ -1,5 +1,5 @@
-# ARCHI.md — NadoLens Wallet Explorer Architecture
-> Technical architecture for the Wallet Explorer feature — `/wallet/[address]`
+# ARCHI.md — NadoLens Architecture
+> Technical architecture for the Wallet Explorer (`/wallet/[address]`) and Protocol Analytics (`/protocol`)
 
 ---
 
@@ -166,6 +166,7 @@ type PairsState = {
   spot: V2Asset[]             // not persisted — market_type === 'spot' | null
   lastFetched: number | null  // persisted — timestamp ms (TTL 1h)
   initialized: boolean
+  error: string | null        // set on fetch failure — components can check
   init: () => Promise<void>
 }
 ```
@@ -330,13 +331,39 @@ Not available via public API. Ignore for MVP → display "—" or hide.
 
 ---
 
-## 11. Known Bugs
+## 11. Error Handling & Resilience
+
+### API Routes
+All API routes follow these error patterns (established in codebase audit 2026-05-07):
+- **try/catch**: Every route wraps its handler in try/catch → `{ error: "Internal server error" }` with 500
+- **Zod validation**: All external responses validated via `safeParse()` before returning to client
+- **withArchiveRetry**: All direct Archive fetches wrapped in `withArchiveRetry()` (handles 429 + backoff)
+- **SERVICE_SECRET**: matches/funding routes fail-fast if secret is missing (no silent empty string)
+
+### Client Hooks
+- **AbortController**: `useWalletData` and all protocol hooks pass `signal` to every fetch. Cleanup aborts on unmount.
+- **Cancelled guards**: Pagination loops check `if (cancelled) break` at each iteration
+- **Error propagation**: All hooks expose `error: string | null` to components (including `pairsStore`)
+
+### Error Boundaries
+- `app/error.tsx` — root-level catch-all
+- `app/protocol/error.tsx` — protocol-specific with retry button
+- `app/wallet/[address]/error.tsx` — wallet-specific with retry + go-back
+- Wallet page: 30s timeout fallback if `phase1Ready` never resolves
+
+### Accessibility
+- Tab navigation (`ProtocolTabNav`, `WalletTabNav`): `role="tablist"` + `role="tab"` + `aria-selected`
+- Spinner: `role="status"` + `aria-label="Loading"`
+
+---
+
+## 12. Known Issues
 
 No known bugs at this time.
 
 ---
 
-*ARCHI.md v3.5 — NadoLens Wallet Explorer — updated 2026-04-24*
+*ARCHI.md v4.0 — NadoLens — updated 2026-05-07*
 
 ---
 
@@ -360,16 +387,20 @@ No known bugs at this time.
 10) Final stats (`WalletStats`) are rendered in `WalletSummary` and `WalletStats`.
 ```
 
-## 12. Next.js API route conventions (Zod)
+## 13. Next.js API route conventions (Zod)
 
 All Nado proxy routes under `app/api/**/` follow the same pattern:
 
-1. **Incoming body** (POST): `SomeRequestSchema.safeParse(await request.json())` → `400` if invalid.
-2. **Call**: `fetch(NADO_GATEWAY_REST | NADO_ARCHIVE_REST, { headers: { Accept-Encoding: gzip, br, deflate } })`.
-3. **Response**: `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` if shape invalid.
-4. **Client response**: Already validated JSON (types = `z.infer<>`).
+1. **Guard**: Fail-fast if required env vars missing (e.g., `SERVICE_SECRET`).
+2. **Incoming body** (POST): `SomeRequestSchema.safeParse(await request.json())` → `400` if invalid.
+3. **Call**: `withArchiveRetry(() => fetch(NADO_ARCHIVE_REST, ...))` for Archive routes. Direct fetch for Gateway.
+4. **Response**: `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` if shape invalid.
+5. **Error**: Entire handler wrapped in `try/catch` → `{ error: "Internal server error" }` with `500`.
+6. **Client response**: Already validated JSON (types = `z.infer<>`).
 
-Shared helper: `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`.
+Shared helpers:
+- `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`, `parseGatewayJson(schema, raw)`
+- `lib/archiveRetry.ts` — `withArchiveRetry(fn)` — exponential backoff on 429, reads `Retry-After` header
 
 ---
 

@@ -36,62 +36,66 @@ function gatewayParseErrorResponse(parsed: {
 }
 
 export async function GET(request: NextRequest, { params }: Props) {
-  const { address } = await params;
-  const { searchParams } = new URL(request.url);
+  try {
+    const { address } = await params;
+    const { searchParams } = new URL(request.url);
 
-  const queryResult = QuerySchema.safeParse(
-    searchParams.get("query") ?? "subaccount_info",
-  );
-  if (!queryResult.success) {
-    return NextResponse.json({ error: "Invalid query type" }, { status: 400 });
-  }
-  const query = queryResult.data;
-
-  // Accept 20-byte EVM address (via isAddress) or 32-byte subaccount bytes32
-  const isBytes32 = /^0x[a-fA-F0-9]{64}$/.test(address);
-  if (!isAddress(address) && !isBytes32) {
-    return NextResponse.json({ error: "Invalid address" }, { status: 400 });
-  }
-
-  const response = await fetch(`${NADO_GATEWAY_REST}/query`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: query, subaccount: address }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: "Gateway request failed" },
-      { status: response.status },
+    const queryResult = QuerySchema.safeParse(
+      searchParams.get("query") ?? "subaccount_info",
     );
-  }
-
-  const raw: unknown = await response.json();
-
-  if (query === "subaccount_info") {
-    const parsed = parseGatewayJson(NadoSubaccountDataSchema, raw);
-    if (!parsed.ok) {
-      return gatewayParseErrorResponse(parsed);
+    if (!queryResult.success) {
+      return NextResponse.json({ error: "Invalid query type" }, { status: 400 });
     }
-    return NextResponse.json(parsed.data);
-  }
+    const query = queryResult.data;
 
-  if (query === "subaccount_orders") {
-    const parsed = parseGatewayJson(SubaccountOrdersDataSchema, raw);
-    if (!parsed.ok) {
-      return gatewayParseErrorResponse(parsed);
+    // Accept 20-byte EVM address (via isAddress) or 32-byte subaccount bytes32
+    const isBytes32 = /^0x[a-fA-F0-9]{64}$/.test(address);
+    if (!isAddress(address) && !isBytes32) {
+      return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
-    return NextResponse.json(parsed.data);
-  }
 
-  if (query === "isolated_positions") {
-    const parsed = parseGatewayJson(IsolatedPositionsDataSchema, raw);
-    if (!parsed.ok) {
-      return gatewayParseErrorResponse(parsed);
+    const response = await fetch(`${NADO_GATEWAY_REST}/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: query, subaccount: address }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Gateway request failed" },
+        { status: response.status },
+      );
     }
-    return NextResponse.json(parsed.data);
-  }
 
-  return NextResponse.json({ error: "Unhandled query type" }, { status: 400 });
+    const raw: unknown = await response.json();
+
+    if (query === "subaccount_info") {
+      const parsed = parseGatewayJson(NadoSubaccountDataSchema, raw);
+      if (!parsed.ok) {
+        return gatewayParseErrorResponse(parsed);
+      }
+      return NextResponse.json(parsed.data);
+    }
+
+    if (query === "subaccount_orders") {
+      const parsed = parseGatewayJson(SubaccountOrdersDataSchema, raw);
+      if (!parsed.ok) {
+        return gatewayParseErrorResponse(parsed);
+      }
+      return NextResponse.json(parsed.data);
+    }
+
+    if (query === "isolated_positions") {
+      const parsed = parseGatewayJson(IsolatedPositionsDataSchema, raw);
+      if (!parsed.ok) {
+        return gatewayParseErrorResponse(parsed);
+      }
+      return NextResponse.json(parsed.data);
+    }
+
+    return NextResponse.json({ error: "Unhandled query type" }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

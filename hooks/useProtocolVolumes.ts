@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { z } from 'zod'
-import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
+import { MarketSnapshotSchema, EnrichedTickerSchema, ProductsIdsResponseSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { useProtocolStore } from '@/store/protocolStore'
 
 export type ChartPoint = { ts: number; date: string; volume: number; cumVol: number; cumPerpVol: number; cumSpotVol: number; perpVol: number; spotVol: number }
 export type MarketSlice = { productId: string; volume: number }
@@ -11,6 +12,7 @@ export type MarketSlice = { productId: string; volume: number }
 export type ProtocolVolumesData = {
   volume24h: number
   allTimeVol: number
+  hourlyChartData: ChartPoint[]
   dailyChartData: ChartPoint[]
   weeklyChartData: ChartPoint[]
   donut24h: MarketSlice[]
@@ -42,9 +44,17 @@ function fmtDate(ts: number): string {
   }).format(new Date(ts * 1000))
 }
 
+function fmtHour(ts: number): string {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(ts * 1000))
+}
+
 function buildChartPoints(
   snapshots: MarketSnapshotType[],
   spotIds: Set<string> = new Set(),
+  dateFn = fmtDate,
 ): ChartPoint[] {
   const ordered = [...snapshots].reverse()
   return ordered.map((snap, i) => {
@@ -71,7 +81,7 @@ function buildChartPoints(
     }
     const perpVol = i > 0 ? cumPerpVol - prevCumPerpVol : 0
     const spotVol = i > 0 ? cumSpotVol - prevCumSpotVol : 0
-    return { ts: snap.timestamp, date: fmtDate(snap.timestamp), volume, cumVol, cumPerpVol, cumSpotVol, perpVol, spotVol }
+    return { ts: snap.timestamp, date: dateFn(snap.timestamp), volume, cumVol, cumPerpVol, cumSpotVol, perpVol, spotVol }
   })
 }
 
@@ -105,6 +115,7 @@ function build30dSlices(snapshots: MarketSnapshotType[]): MarketSlice[] {
 const INITIAL: ProtocolVolumesData = {
   volume24h: 0,
   allTimeVol: 0,
+  hourlyChartData: [],
   dailyChartData: [],
   weeklyChartData: [],
   donut24h: [],
@@ -121,6 +132,7 @@ const INITIAL: ProtocolVolumesData = {
 
 export function useProtocolVolumes(): ProtocolVolumesData {
   const [data, setData] = useState<ProtocolVolumesData>(INITIAL)
+  const cachedTickers = useProtocolStore((s) => s.tickers)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -130,8 +142,9 @@ export function useProtocolVolumes(): ProtocolVolumesData {
       try {
         // Start ALL fetches simultaneously — priority and background fire at the same time.
         const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
+        const fHourly = fetch('/api/protocol/market-snapshots?count=25&granularity=3600', { signal })
         const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
-        const fTickers = fetch('/api/protocol/tickers', { signal })
+        const fTickers = cachedTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
         const fProducts = fetch('/api/protocol/products', { signal })
         const f7d = fetch('/api/protocol/market-snapshots?count=2&granularity=604800', { signal })
         const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
@@ -141,19 +154,22 @@ export function useProtocolVolumes(): ProtocolVolumesData {
         f7d.catch(() => {}); f91d.catch(() => {}); fAllTime.catch(() => {}); f90d.catch(() => {})
 
         // Wave 1 — render 30d view as soon as priority group resolves
-        const [r24h, r30d, rTickers, rProducts] = await Promise.all([f24h, f30d, fTickers, fProducts])
+        const [r24h, rHourly, r30d, rTickers, rProducts] = await Promise.all([f24h, fHourly, f30d, fTickers ?? Promise.resolve(null), fProducts])
 
-        if (!r24h.ok || !r30d.ok || !rTickers.ok || !rProducts.ok) {
+        if (!r24h.ok || !r30d.ok || (rTickers && !rTickers.ok) || !rProducts.ok) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
           return
         }
 
-        const [raw24h, raw30d, rawTickers, rawProducts] = await Promise.all([
+        const [raw24h, rawHourly, raw30d, rawTickers, rawProducts] = await Promise.all([
           r24h.json() as Promise<unknown>,
+          rHourly.ok ? (rHourly.json() as Promise<unknown>) : Promise.resolve([]),
           r30d.json() as Promise<unknown>,
-          rTickers.json() as Promise<unknown>,
+          rTickers ? (rTickers.json() as Promise<unknown>) : Promise.resolve(cachedTickers as unknown),
           rProducts.json() as Promise<unknown>,
         ])
+
+        const pHourly = MarketSnapshotsArraySchema.safeParse(rawHourly)
 
         const p24h = MarketSnapshotsArraySchema.safeParse(raw24h)
         const p30d = MarketSnapshotsArraySchema.safeParse(raw30d)
@@ -171,7 +187,8 @@ export function useProtocolVolumes(): ProtocolVolumesData {
         for (const t of pTickers.data) {
           productNames[String(t.product_id)] = t.symbol
         }
-        const productsData = rawProducts as { spot_ids?: number[]; perp_ids?: number[] }
+        const pProducts = ProductsIdsResponseSchema.safeParse(rawProducts)
+        const productsData = pProducts.success ? pProducts.data : { spot_ids: [], perp_ids: [] }
         const spotIds = new Set((productsData.spot_ids ?? []).map(String))
 
         const volume24h =
@@ -195,6 +212,7 @@ export function useProtocolVolumes(): ProtocolVolumesData {
           ...prev,
           volume24h,
           allTimeVol,
+          hourlyChartData: pHourly.success ? buildChartPoints(pHourly.data, spotIds, fmtHour) : [],
           dailyChartData: buildChartPoints(snap30d, spotIds),
           donut24h,
           donut30d: build30dSlices(snap30d.slice(0, 31)),
@@ -260,7 +278,7 @@ export function useProtocolVolumes(): ProtocolVolumesData {
           backgroundLoading: false,
         }))
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
+        if (!(e instanceof Error) || e.name !== 'AbortError') {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
         }
       }

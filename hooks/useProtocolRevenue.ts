@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { useProtocolStore } from '@/store/protocolStore'
 
 export type ChartPoint = {
   ts: number
@@ -27,6 +28,7 @@ export type ProtocolRevenueData = {
   newUsers24h: number
   avgFeesPerUser: number
   traders24h: number
+  hourlyChartData: ChartPoint[]
   dailyChartData: ChartPoint[]
   weeklyChartData: ChartPoint[]
   feeDonutSlices: MarketSlice[]
@@ -46,6 +48,13 @@ function fmtDate(ts: number): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+  }).format(new Date(ts * 1000))
+}
+
+function fmtHour(ts: number): string {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(new Date(ts * 1000))
 }
 
@@ -70,7 +79,7 @@ function sumMakerRebates(snap: MarketSnapshotType): number {
   return Object.values(makerFees).reduce((s, v) => s + fromX18BigInt(v), 0)
 }
 
-function buildChartPoints(snapshots: MarketSnapshotType[]): ChartPoint[] {
+function buildChartPoints(snapshots: MarketSnapshotType[], dateFn = fmtDate): ChartPoint[] {
   const ordered = [...snapshots].reverse()
   return ordered.map((snap, i) => {
     const cumFees = sumNetFees(snap)
@@ -89,7 +98,7 @@ function buildChartPoints(snapshots: MarketSnapshotType[]): ChartPoint[] {
 
     return {
       ts: snap.timestamp,
-      date: fmtDate(snap.timestamp),
+      date: dateFn(snap.timestamp),
       fees,
       cumFees,
       makerRebates,
@@ -116,6 +125,7 @@ const INITIAL: ProtocolRevenueData = {
   newUsers24h: 0,
   avgFeesPerUser: 0,
   traders24h: 0,
+  hourlyChartData: [],
   dailyChartData: [],
   weeklyChartData: [],
   feeDonutSlices: [],
@@ -127,6 +137,7 @@ const INITIAL: ProtocolRevenueData = {
 
 export function useProtocolRevenue(): ProtocolRevenueData {
   const [data, setData] = useState<ProtocolRevenueData>(INITIAL)
+  const cachedTickers = useProtocolStore((s) => s.tickers)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -135,26 +146,29 @@ export function useProtocolRevenue(): ProtocolRevenueData {
     const fetchAll = async () => {
       try {
         const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
+        const fHourly = fetch('/api/protocol/market-snapshots?count=25&granularity=3600', { signal })
         const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
-        const fTickers = fetch('/api/protocol/tickers', { signal })
+        const fTickers = cachedTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
         const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
         const fAllTime = fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal })
         f91d.catch(() => {}); fAllTime.catch(() => {})
 
-        const [r24h, r30d, rTickers] = await Promise.all([f24h, f30d, fTickers])
+        const [r24h, rHourly, r30d, rTickers] = await Promise.all([f24h, fHourly, f30d, fTickers ?? Promise.resolve(null)])
 
-        if (!r24h.ok || !r30d.ok || !rTickers.ok) {
+        if (!r24h.ok || !r30d.ok || (rTickers && !rTickers.ok)) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load revenue data' }))
           return
         }
 
-        const [raw24h, raw30d, rawTickers] = await Promise.all([
+        const [raw24h, rawHourly, raw30d, rawTickers] = await Promise.all([
           r24h.json() as Promise<unknown>,
+          rHourly.ok ? (rHourly.json() as Promise<unknown>) : Promise.resolve([]),
           r30d.json() as Promise<unknown>,
-          rTickers.json() as Promise<unknown>,
+          rTickers ? (rTickers.json() as Promise<unknown>) : Promise.resolve(cachedTickers as unknown),
         ])
 
         const p24h = MarketSnapshotsArraySchema.safeParse(raw24h)
+        const pHourly = MarketSnapshotsArraySchema.safeParse(rawHourly)
         const p30d = MarketSnapshotsArraySchema.safeParse(raw30d)
         const pTickers = EnrichedTickersArraySchema.safeParse(rawTickers)
 
@@ -201,6 +215,7 @@ export function useProtocolRevenue(): ProtocolRevenueData {
           newUsers24h,
           avgFeesPerUser,
           traders24h,
+          hourlyChartData: pHourly.success ? buildChartPoints(pHourly.data, fmtHour) : [],
           dailyChartData: buildChartPoints(snap30d),
           feeDonutSlices,
           productNames,
@@ -251,7 +266,7 @@ export function useProtocolRevenue(): ProtocolRevenueData {
           backgroundLoading: false,
         }))
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
+        if (!(e instanceof Error) || e.name !== 'AbortError') {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load revenue data' }))
         }
       }

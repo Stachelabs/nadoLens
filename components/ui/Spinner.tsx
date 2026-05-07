@@ -10,6 +10,8 @@ export function Spinner({ size = 32 }: SpinnerProps) {
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      role="status"
+      aria-label="Loading"
       style={{ animation: "spin-pulse 1.1s linear infinite" }}
     >
       <rect width="16" height="16" rx="8" fill="#3C3C3C" />

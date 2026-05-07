@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -333,23 +334,24 @@ export function ProtocolRevenue() {
     newUsers24h,
     avgFeesPerUser,
     traders24h,
+    hourlyChartData,
     dailyChartData,
     weeklyChartData,
     feeDonutSlices,
     productNames,
     loading,
     backgroundLoading,
+    error,
   } = useProtocolRevenue()
 
   const [timeframe, setTimeframe] = useState<RevenueTimeframe>('30 Days')
 
   const isAllTime = timeframe === 'All Time'
   const chartLoading = loading || (backgroundLoading && timeframe !== '30 Days' && timeframe !== '24 Hours' && timeframe !== '7 Days')
-
   const chartData = isAllTime
     ? weeklyChartData
     : timeframe === '24 Hours'
-      ? dailyChartData.slice(-2)
+      ? hourlyChartData
       : timeframe === '7 Days'
         ? dailyChartData.slice(-7)
         : timeframe === '60 Days'
@@ -360,9 +362,21 @@ export function ProtocolRevenue() {
 
   const donutSlices = buildDonutSlices(feeDonutSlices, productNames)
   const donutTotal = donutSlices.reduce((s, d) => s + d.value, 0)
-
   return (
     <div className="space-y-6">
+      {error && (
+        <Card className="border-destructive/40 bg-destructive/5 p-0">
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <p className="text-sm text-foreground">
+              Revenue data is temporarily unavailable ({error}). You can retry now.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
@@ -429,16 +443,16 @@ export function ProtocolRevenue() {
             <div className="flex items-end justify-between">
               <div>
                 <p className="mb-0.5 text-sm font-medium">Fees by Market</p>
-                <p className="text-xs text-muted-foreground">All-time net taker fee distribution across markets.</p>
+                <p className="mb-3 text-xs text-muted-foreground">All-time net taker fee distribution across markets.</p>
               </div>
               <StatItem label="Total Maker Rebates" loading={loading} skeletonW="w-28">
                 <p className="text-2xl font-bold text-amber-400">{fmtCompact2.format(makerRebates)}</p>
               </StatItem>
             </div>
             {loading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="mt-auto w-full" style={{ height: CHART_H }} />
             ) : (
-              <div className="flex flex-1 items-center gap-6">
+              <div className="mt-auto flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
                   <PieChart width={260} height={260}>
                     <Pie data={donutSlices} cx={130} cy={130} innerRadius={65} outerRadius={110} dataKey="value" stroke="none">
