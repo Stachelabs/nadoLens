@@ -41,6 +41,8 @@ import {
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
 import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const GREEN = "#34d399";
 const RED = "#f87171";
@@ -477,6 +479,7 @@ export function ProtocolTVL() {
     spotAssets,
     loading,
     backgroundLoading,
+    error,
   } = useProtocolTVL();
 
   const [timeframe, setTimeframe] = useState<TVLTimeframe>("30 Days");
@@ -550,6 +553,7 @@ export function ProtocolTVL() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
@@ -594,6 +598,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -681,6 +687,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart
@@ -745,6 +753,8 @@ export function ProtocolTVL() {
             </p>
             {loading ? (
               <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+            ) : depositDonut.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -823,6 +833,8 @@ export function ProtocolTVL() {
             </p>
             {loading ? (
               <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+            ) : borrowDonut.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -903,6 +915,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -966,6 +980,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -1183,6 +1199,8 @@ export function ProtocolTVL() {
             )}
             {loading || !depositAssetData ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : depositRateHistory.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart
@@ -1288,6 +1306,8 @@ export function ProtocolTVL() {
             )}
             {loading || !borrowAssetData ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : borrowRateHistory.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart

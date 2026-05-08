@@ -52,6 +52,8 @@ const TIMEFRAME_SLICE: Record<OverviewTimeframe, number | null> = {
   "All Time": null,
 };
 
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
 import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
@@ -222,7 +224,7 @@ export function ProtocolOverview() {
     if (timeframe === "All Time") setAllTimeEnabled(true);
   }, [timeframe]);
 
-  const { snapshots, loading } = useProtocolMarketSnapshots(90);
+  const { snapshots, loading, error } = useProtocolMarketSnapshots(90);
   const { snapshots: hourlySnapshots, loading: hourlyLoading } = useProtocolMarketSnapshots(25, 3600);
   const { snapshots: weeklySnapshots, loading: weeklyLoading } = useProtocolMarketSnapshots(24, 604800, allTimeEnabled);
 
@@ -284,6 +286,7 @@ export function ProtocolOverview() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Toolbar */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-foreground">Timeframe</span>
@@ -342,6 +345,8 @@ export function ProtocolOverview() {
             </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : volumeChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart
@@ -431,6 +436,8 @@ export function ProtocolOverview() {
             </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : volumeChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -523,6 +530,8 @@ export function ProtocolOverview() {
             </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : volumeChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -602,6 +611,8 @@ export function ProtocolOverview() {
             </p>
             {isLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : volumeChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart

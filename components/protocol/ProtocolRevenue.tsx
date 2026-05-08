@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -32,6 +31,9 @@ import {
   ReferenceLine,
 } from 'recharts'
 import { useProtocolRevenue, type ChartPoint, type MarketSlice } from '@/hooks/useProtocolRevenue'
+
+import { ChartEmpty } from '@/components/protocol/ChartEmpty'
+import { ErrorBanner } from '@/components/protocol/ErrorBanner'
 
 const PURPLE = '#8b5cf6'
 const AMBER = '#f59e0b'
@@ -364,18 +366,7 @@ export function ProtocolRevenue() {
   const donutTotal = donutSlices.reduce((s, d) => s + d.value, 0)
   return (
     <div className="space-y-6">
-      {error && (
-        <Card className="border-destructive/40 bg-destructive/5 p-0">
-          <CardContent className="flex items-center justify-between gap-3 p-4">
-            <p className="text-sm text-foreground">
-              Revenue data is temporarily unavailable ({error}). You can retry now.
-            </p>
-            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
-              Reload
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {error && <ErrorBanner error={error} />}
 
       {/* Timeframe selector */}
       <div className="flex items-center gap-3">
@@ -415,6 +406,8 @@ export function ProtocolRevenue() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
@@ -451,6 +444,8 @@ export function ProtocolRevenue() {
             </div>
             {loading ? (
               <Skeleton className="mt-auto w-full" style={{ height: CHART_H }} />
+            ) : donutSlices.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="mt-auto flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -500,6 +495,8 @@ export function ProtocolRevenue() {
           </p>
           {chartLoading ? (
             <Skeleton className="w-full" style={{ height: CHART_H }} />
+          ) : chartData.length === 0 ? (
+            <ChartEmpty height={CHART_H} />
           ) : (
             <ResponsiveContainer width="100%" height={CHART_H}>
               <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
@@ -560,6 +557,8 @@ export function ProtocolRevenue() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
@@ -591,6 +590,8 @@ export function ProtocolRevenue() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>

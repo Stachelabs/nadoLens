@@ -34,6 +34,8 @@ import {
   type MarketSlice,
 } from "@/hooks/useProtocolVolumes";
 
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
 import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
@@ -337,6 +339,7 @@ export function ProtocolVolumes() {
     productNames,
     loading,
     backgroundLoading,
+    error,
   } = useProtocolVolumes();
 
   const [timeframe, setTimeframe] = useState<VolumeTimeframe>("30 Days");
@@ -384,6 +387,7 @@ export function ProtocolVolumes() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Unified timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
@@ -447,6 +451,8 @@ export function ProtocolVolumes() {
           </div>
           {chartLoading ? (
             <Skeleton className="w-full" style={{ height: CHART_H }} />
+          ) : chartData.length === 0 ? (
+            <ChartEmpty height={CHART_H} />
           ) : (
             <ResponsiveContainer width="100%" height={CHART_H}>
               <ComposedChart
@@ -527,6 +533,8 @@ export function ProtocolVolumes() {
 
           {chartLoading ? (
             <Skeleton className="w-full" style={{ height: CHART_H }} />
+          ) : donutSlices.length === 0 ? (
+            <ChartEmpty height={CHART_H} />
           ) : (
             <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-center">
               <div className="shrink-0">
@@ -615,6 +623,8 @@ export function ProtocolVolumes() {
             <CardDivider />
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <BarChart
@@ -683,6 +693,8 @@ export function ProtocolVolumes() {
             <CardDivider />
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : cumChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
