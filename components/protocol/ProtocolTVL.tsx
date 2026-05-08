@@ -355,7 +355,8 @@ function AreaTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {weekly ? weekLabel(pt.ts) : label}
       </p>
-      <p style={{ fontWeight: 600 }}>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
         {title}: {fmtCompact.format(val)}
       </p>
     </div>
@@ -429,7 +430,10 @@ function APRTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {weekly ? weekLabel(ts) : label}
       </p>
-      <p style={{ fontWeight: 600 }}>APR: {fmtAPR(rate)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        APR: {fmtAPR(rate)}
+      </p>
     </div>
   );
 }
@@ -589,7 +593,7 @@ export function ProtocolTVL() {
           <CardContent className="p-5">
             <div className="mb-3">
               <StatItem label="TVL" loading={loading} skeletonW="w-32">
-                <p className="text-2xl font-bold">{fmtCompact.format(tvl)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : fmtCompact.format(tvl)}</p>
               </StatItem>
             </div>
             <p className="mb-0.5 text-sm font-medium">TVL</p>
@@ -654,6 +658,9 @@ export function ProtocolTVL() {
           <CardContent className="p-5">
             <div className="mb-3">
               <StatItem label="24h Flows" loading={loading} skeletonW="w-40">
+                {error ? (
+                  <p className="text-2xl font-bold">—</p>
+                ) : (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className="text-2xl font-bold">
                     {fmtCompact.format(Math.abs(inflows24h))}
@@ -675,6 +682,7 @@ export function ProtocolTVL() {
                     Withdrawn
                   </Badge>
                 </div>
+                )}
               </StatItem>
             </div>
             <p className="mb-0.5 text-sm font-medium">
@@ -1197,9 +1205,9 @@ export function ProtocolTVL() {
                 </Select>
               </div>
             )}
-            {loading || !depositAssetData ? (
+            {loading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
-            ) : depositRateHistory.length === 0 ? (
+            ) : !depositAssetData || depositRateHistory.length === 0 ? (
               <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
@@ -1304,9 +1312,9 @@ export function ProtocolTVL() {
                 </Select>
               </div>
             )}
-            {loading || !borrowAssetData ? (
+            {loading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
-            ) : borrowRateHistory.length === 0 ? (
+            ) : !borrowAssetData || borrowRateHistory.length === 0 ? (
               <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>

@@ -161,7 +161,10 @@ function OITooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {formatDate(timestamp)}
       </p>
-      <p style={{ fontWeight: 600 }}>{formatUSD(totalOI)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        {formatUSD(totalOI)}
+      </p>
     </div>
   );
 }
@@ -189,7 +192,10 @@ function OIWeeklyTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {formatDateShort(timestamp - 7 * 86400)} – {formatDateShort(timestamp)}
       </p>
-      <p style={{ fontWeight: 600 }}>{formatUSD(totalOI)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        {formatUSD(totalOI)}
+      </p>
     </div>
   );
 }
@@ -333,15 +339,21 @@ function LiqTooltip({
         {formatDate(timestamp)}
       </p>
       <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+        style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}
       >
-        <span>Daily</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Daily
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(daily)}</span>
       </div>
       <div
         style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
       >
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgb(200,200,200)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(cumulative)}</span>
       </div>
     </div>
@@ -377,15 +389,21 @@ function LiqWeeklyTooltip({
         {weekStart} – {weekEnd}
       </p>
       <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+        style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}
       >
-        <span>Liquidations</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Liquidations
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(daily)}</span>
       </div>
       <div
         style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
       >
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgb(200,200,200)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(cumulative)}</span>
       </div>
     </div>
@@ -476,7 +494,7 @@ export function ProtocolOIFunding() {
               {oiLoading ? (
                 <Skeleton className="mt-1 h-8 w-28" />
               ) : (
-                <p className="text-2xl font-bold">{formatUSD(totalOI)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : formatUSD(totalOI)}</p>
               )}
             </div>
             <div className="mb-3">
@@ -554,7 +572,7 @@ export function ProtocolOIFunding() {
                 {oiLoading ? (
                   <Skeleton className="mt-1 h-8 w-24" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatUSD(btcOI)}</p>
+                  <p className="text-2xl font-bold">{error ? "—" : formatUSD(btcOI)}</p>
                 )}
               </div>
               <div>
@@ -562,7 +580,7 @@ export function ProtocolOIFunding() {
                 {oiLoading ? (
                   <Skeleton className="mt-1 h-8 w-24" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatUSD(ethOI)}</p>
+                  <p className="text-2xl font-bold">{error ? "—" : formatUSD(ethOI)}</p>
                 )}
               </div>
             </div>

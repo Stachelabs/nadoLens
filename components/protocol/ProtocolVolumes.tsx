@@ -247,11 +247,17 @@ function TradingVolumeTooltip({
     >
       <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{header}</p>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.55)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <span>Daily Volume</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Daily Volume
+        </span>
         <span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
       </div>
     </div>
@@ -422,7 +428,7 @@ export function ProtocolVolumes() {
           <div className="flex flex-wrap items-center gap-x-10 gap-y-3">
             <StatItem label="24h Volume" loading={loading} skeletonW="w-28">
               <p className="text-2xl font-bold">
-                {fmtCompact.format(volume24h)}
+                {error ? "—" : fmtCompact.format(volume24h)}
               </p>
             </StatItem>
             <StatItem
@@ -431,7 +437,7 @@ export function ProtocolVolumes() {
               skeletonW="w-32"
             >
               <p className="text-2xl font-bold">
-                {fmtCompact.format(allTimeVol)}
+                {error ? "—" : fmtCompact.format(allTimeVol)}
               </p>
             </StatItem>
           </div>

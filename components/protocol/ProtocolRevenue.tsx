@@ -318,7 +318,10 @@ function DAUTooltip({
     <div style={{ backgroundColor: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--foreground)', minWidth: 180 }}>
       <p style={{ color: 'var(--muted-foreground)', marginBottom: 6 }}>{weekly ? weekLabel(ts) : label}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <span>Active Traders</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: PURPLE, display: 'inline-block', flexShrink: 0 }} />
+          Active Traders
+        </span>
         <span style={{ fontWeight: 600 }}>{dau.toLocaleString('en-US')}</span>
       </div>
     </div>
@@ -394,10 +397,10 @@ export function ProtocolRevenue() {
           <CardContent className="p-5">
             <div className="mb-3 flex flex-wrap items-end gap-x-8 gap-y-2">
               <StatItem label="24h Fees" loading={loading} skeletonW="w-28">
-                <p className="text-2xl font-bold">{fmtCompact.format(fees24h)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : fmtCompact.format(fees24h)}</p>
               </StatItem>
               <StatItem label="Total Fees" loading={loading} skeletonW="w-32">
-                <p className="text-2xl font-bold">{fmtCompact.format(totalFees)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : fmtCompact.format(totalFees)}</p>
               </StatItem>
             </div>
             <p className="mb-0.5 text-sm font-medium">Trading Fees</p>
@@ -439,7 +442,7 @@ export function ProtocolRevenue() {
                 <p className="mb-3 text-xs text-muted-foreground">All-time net taker fee distribution across markets.</p>
               </div>
               <StatItem label="Total Maker Rebates" loading={loading} skeletonW="w-28">
-                <p className="text-2xl font-bold text-amber-400">{fmtCompact2.format(makerRebates)}</p>
+                <p className="text-2xl font-bold text-amber-400">{error ? "—" : fmtCompact2.format(makerRebates)}</p>
               </StatItem>
             </div>
             {loading ? (
@@ -527,17 +530,17 @@ export function ProtocolRevenue() {
         <CardContent className="p-5">
           <div className="flex flex-wrap items-center gap-x-10 gap-y-3">
             <StatItem label="Total Users" loading={loading} skeletonW="w-24">
-              <p className="text-2xl font-bold">{fmtUsers(totalUsers)}</p>
+              <p className="text-2xl font-bold">{error ? "—" : fmtUsers(totalUsers)}</p>
             </StatItem>
             <StatItem label="24h New Users" loading={loading} skeletonW="w-20">
-              <p className="text-2xl font-bold">{fmtUsers(newUsers24h)}</p>
+              <p className="text-2xl font-bold">{error ? "—" : fmtUsers(newUsers24h)}</p>
             </StatItem>
             <StatItem label="Avg Fees per User" loading={loading} skeletonW="w-24">
-              <p className="text-2xl font-bold">{fmtUsdFull.format(avgFeesPerUser)}</p>
+              <p className="text-2xl font-bold">{error ? "—" : fmtUsdFull.format(avgFeesPerUser)}</p>
             </StatItem>
             <div className="ml-auto">
               <StatItem label="24h Active Traders" loading={loading} skeletonW="w-20">
-                <p className="text-2xl font-bold">{fmtUsers(traders24h)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : fmtUsers(traders24h)}</p>
               </StatItem>
             </div>
           </div>

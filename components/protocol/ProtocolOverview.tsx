@@ -152,10 +152,18 @@ function TradingVolumeTooltip({ active, payload, label, weekly = false }: { acti
     <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)", minWidth: 220 }}>
       <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{weekly ? weekLabel(ts) : label}</p>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
-        <span>Cumulative</span><span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.55)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
+        <span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <span>Daily Volume</span><span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Daily Volume
+        </span>
+        <span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
       </div>
     </div>
   );
@@ -167,7 +175,10 @@ function OITooltip({ active, payload, label, weekly = false }: { active?: boolea
   return (
     <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
-      <p style={{ fontWeight: 600 }}>Open Interest : {fmtUsd.format(oi)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        Open Interest : {fmtUsd.format(oi)}
+      </p>
     </div>
   );
 }
@@ -178,7 +189,10 @@ function TVLTooltip({ active, payload, label, weekly = false }: { active?: boole
   return (
     <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
-      <p style={{ fontWeight: 600 }}>TVL : {fmtUsd.format(tvl)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        TVL : {fmtUsd.format(tvl)}
+      </p>
     </div>
   );
 }
@@ -189,7 +203,10 @@ function DAUTooltip({ active, payload, label, weekly = false }: { active?: boole
   return (
     <div style={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--foreground)" }}>
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
-      <p style={{ fontWeight: 600 }}>Daily Active Users : {dau.toLocaleString("en-US")}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        Daily Active Users : {dau.toLocaleString("en-US")}
+      </p>
     </div>
   );
 }
@@ -271,7 +288,7 @@ export function ProtocolOverview() {
     };
   }, [latest, prev]);
 
-  const isLoading = loading || !latest;
+  const isLoading = loading || (!latest && !error);
   const chartData = useMemo(() => buildChartData(snapshots), [snapshots]);
   const hourlyChartData = useMemo(() => buildChartData(hourlySnapshots, fmtHour), [hourlySnapshots]);
   const n = TIMEFRAME_SLICE[timeframe];
@@ -323,7 +340,7 @@ export function ProtocolOverview() {
             <div className="flex flex-wrap items-center gap-x-10 gap-y-3">
               <StatItem label="24h Volume" loading={isLoading} skeletonW="w-24">
                 <p className="text-2xl font-bold">
-                  {fmtCompact.format(volume24h)}
+                  {error ? "—" : fmtCompact.format(volume24h)}
                 </p>
               </StatItem>
               <StatItem
@@ -332,7 +349,7 @@ export function ProtocolOverview() {
                 skeletonW="w-28"
               >
                 <p className="text-2xl font-bold">
-                  {fmtCompact.format(allTimeVol)}
+                  {error ? "—" : fmtCompact.format(allTimeVol)}
                 </p>
               </StatItem>
             </div>
@@ -425,7 +442,7 @@ export function ProtocolOverview() {
                 skeletonW="w-24"
               >
                 <p className="text-2xl font-bold">
-                  {fmtCompact.format(currentOI)}
+                  {error ? "—" : fmtCompact.format(currentOI)}
                 </p>
               </StatItem>
             </div>
@@ -496,10 +513,13 @@ export function ProtocolOverview() {
             <div className="flex flex-wrap items-start gap-x-10 gap-y-3">
               <StatItem label="TVL" loading={isLoading} skeletonW="w-20">
                 <p className="text-2xl font-bold">
-                  {fmtCompact.format(currentTVL)}
+                  {error ? "—" : fmtCompact.format(currentTVL)}
                 </p>
               </StatItem>
               <StatItem label="24h Flows" loading={isLoading} skeletonW="w-40">
+                {error ? (
+                  <p className="text-2xl font-bold">—</p>
+                ) : (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className="text-2xl font-bold">
                     {fmtCompact.format(Math.abs(inflows24h))}
@@ -521,6 +541,7 @@ export function ProtocolOverview() {
                     Withdrawn
                   </Badge>
                 </div>
+                )}
               </StatItem>
             </div>
             <CardDivider />
@@ -591,7 +612,7 @@ export function ProtocolOverview() {
                 skeletonW="w-16"
               >
                 <p className="text-2xl font-bold">
-                  {dau.toLocaleString("en-US")}
+                  {error ? "—" : dau.toLocaleString("en-US")}
                 </p>
               </StatItem>
               <StatItem
@@ -600,7 +621,7 @@ export function ProtocolOverview() {
                 skeletonW="w-16"
               >
                 <p className="text-2xl font-bold">
-                  {fmtUsers.format(totalUsers)}
+                  {error ? "—" : fmtUsers.format(totalUsers)}
                 </p>
               </StatItem>
             </div>

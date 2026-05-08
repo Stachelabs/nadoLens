@@ -107,6 +107,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
         if (!snapshotsRes.ok || (tickersRes && !tickersRes.ok)) {
           setError('Failed to load OI data')
           setOiLoading(false)
+          setFundingLoading(false)
           return
         }
 
@@ -121,6 +122,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
         if (!parsedSnapshots.success || !parsedTickers.success) {
           setError('Invalid OI data response')
           setOiLoading(false)
+          setFundingLoading(false)
           return
         }
 
@@ -149,6 +151,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
         if (e instanceof Error && e.name === 'AbortError') return
         setError('Failed to load OI data')
         setOiLoading(false)
+        setFundingLoading(false)
       }
     }
 
