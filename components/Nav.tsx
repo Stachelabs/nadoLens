@@ -22,7 +22,7 @@ export function Nav() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
         {/* Logo */}
         <Link
-          href="/protocol"
+          href="/"
           className="font-bold leading-none tracking-tight text-foreground uppercase"
         >
           NadoLens
