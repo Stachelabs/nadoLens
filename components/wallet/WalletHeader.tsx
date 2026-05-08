@@ -72,7 +72,7 @@ export function WalletHeader({ stats }: Props) {
                   </p>
                 </HoverCardContent>
               </HoverCard>
-              <div className="text-lg font-bold text-emerald-400 tabular-nums">
+              <div className="text-lg font-bold text-[var(--bull)] tabular-nums">
                 {fmtUsd.format(stats.available_margin)}
               </div>
             </div>

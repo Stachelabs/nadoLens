@@ -33,7 +33,9 @@ import {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const PURPLE = "#8b5cf6";
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const DONUT_COLORS = [
@@ -53,18 +55,6 @@ const DONUT_COLORS = [
   "#0ea5e9",
   "#d946ef",
 ];
-
-const tooltipStyle = {
-  contentStyle: {
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-    color: "var(--foreground)",
-  },
-  itemStyle: { color: "var(--foreground)" },
-  labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
-};
 
 // ─── Token icon with fallback ─────────────────────────────────────────────────
 
@@ -171,7 +161,10 @@ function OITooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {formatDate(timestamp)}
       </p>
-      <p style={{ fontWeight: 600 }}>{formatUSD(totalOI)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        {formatUSD(totalOI)}
+      </p>
     </div>
   );
 }
@@ -199,7 +192,10 @@ function OIWeeklyTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {formatDateShort(timestamp - 7 * 86400)} – {formatDateShort(timestamp)}
       </p>
-      <p style={{ fontWeight: 600 }}>{formatUSD(totalOI)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        {formatUSD(totalOI)}
+      </p>
     </div>
   );
 }
@@ -343,15 +339,21 @@ function LiqTooltip({
         {formatDate(timestamp)}
       </p>
       <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+        style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}
       >
-        <span>Daily</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Daily
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(daily)}</span>
       </div>
       <div
         style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
       >
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgb(200,200,200)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(cumulative)}</span>
       </div>
     </div>
@@ -387,15 +389,21 @@ function LiqWeeklyTooltip({
         {weekStart} – {weekEnd}
       </p>
       <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
+        style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}
       >
-        <span>Liquidations</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Liquidations
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(daily)}</span>
       </div>
       <div
         style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
       >
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgb(200,200,200)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{formatUSD(cumulative)}</span>
       </div>
     </div>
@@ -449,6 +457,7 @@ export function ProtocolOIFunding() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Global timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-foreground">Timeframe</span>
@@ -485,7 +494,7 @@ export function ProtocolOIFunding() {
               {oiLoading ? (
                 <Skeleton className="mt-1 h-8 w-28" />
               ) : (
-                <p className="text-2xl font-bold">{formatUSD(totalOI)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : formatUSD(totalOI)}</p>
               )}
             </div>
             <div className="mb-3">
@@ -496,10 +505,8 @@ export function ProtocolOIFunding() {
             </div>
             {oiLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
-            ) : error && oiHistory.length === 0 ? (
-              <div className="flex h-[300px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-destructive/40">
-                <p className="text-sm text-destructive">{error}</p>
-              </div>
+            ) : oiHistory.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -565,7 +572,7 @@ export function ProtocolOIFunding() {
                 {oiLoading ? (
                   <Skeleton className="mt-1 h-8 w-24" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatUSD(btcOI)}</p>
+                  <p className="text-2xl font-bold">{error ? "—" : formatUSD(btcOI)}</p>
                 )}
               </div>
               <div>
@@ -573,7 +580,7 @@ export function ProtocolOIFunding() {
                 {oiLoading ? (
                   <Skeleton className="mt-1 h-8 w-24" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatUSD(ethOI)}</p>
+                  <p className="text-2xl font-bold">{error ? "—" : formatUSD(ethOI)}</p>
                 )}
               </div>
             </div>
@@ -585,6 +592,8 @@ export function ProtocolOIFunding() {
             </div>
             {oiLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
+            ) : oiDonutSlices.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex items-center gap-4">
                 <div className="flex-1 flex justify-center">
@@ -641,6 +650,8 @@ export function ProtocolOIFunding() {
             </div>
             {fundingLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
+            ) : topFunding.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex-1 flex items-center">
                 <div className="grid grid-cols-2 gap-x-6 w-full">
@@ -741,6 +752,8 @@ export function ProtocolOIFunding() {
             </div>
             {fundingLoading ? (
               <Skeleton className="h-[260px] w-full rounded-lg" />
+            ) : (fundingHistory[selectedFundingSymbol] ?? []).length === 0 ? (
+              <ChartEmpty height={260} />
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart
@@ -842,11 +855,7 @@ export function ProtocolOIFunding() {
             {liqLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : chartLiqHistory.length === 0 ? (
-              <div className="flex h-[300px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/50">
-                <p className="text-sm text-muted-foreground">
-                  Liquidation history unavailable for this timeframe
-                </p>
-              </div>
+              <ChartEmpty height={CHART_H} message="Liquidation history unavailable for this timeframe" />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart

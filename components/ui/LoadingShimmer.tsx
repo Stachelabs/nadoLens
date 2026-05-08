@@ -9,7 +9,7 @@ interface Props {
 
 export function LoadingShimmer({ text, height = 'h-80' }: Props) {
   return (
-    <div className={`flex ${height} items-center justify-center gap-2.5`}>
+    <div role="status" aria-label="Loading" className={`flex ${height} items-center justify-center gap-2.5`}>
       <Spinner size={15} />
       <span
         style={{

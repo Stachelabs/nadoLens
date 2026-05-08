@@ -44,7 +44,7 @@ import type {
   WalletStats,
 } from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAccountStream, type FillEvent } from "@/hooks/useAccountStream";
 
@@ -374,9 +374,13 @@ export function useWalletData(rawAddress: string): WalletData {
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Position stats are refreshed by the 6s poll fillDetected path (Archive, not WS).
-  const streamSubaccounts: string[] | null = data.stats?.cross_subaccounts?.length
-    ? data.stats.cross_subaccounts.map(c => c.subaccount)
-    : rawAddress ? [toSubaccount(rawAddress)] : null;
+  const streamSubaccounts = useMemo<string[] | null>(() =>
+    data.stats?.cross_subaccounts?.length
+      ? data.stats.cross_subaccounts.map(c => c.subaccount)
+      : rawAddress ? [toSubaccount(rawAddress)] : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable when subaccount list hasn't changed
+    [data.stats?.cross_subaccounts, rawAddress],
+  );
   const onWsFill = useCallback((event: FillEvent) => {
     const pairLabel = productName(event.product_id) || `#${event.product_id}`;
     const direction = event.is_bid ? "Long" : "Short";

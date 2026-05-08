@@ -34,7 +34,9 @@ import {
   type MarketSlice,
 } from "@/hooks/useProtocolVolumes";
 
-const PURPLE = "#8b5cf6";
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const DONUT_COLORS = [
@@ -72,18 +74,6 @@ function fmtAxis(v: number | string): string {
   if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
   return `$${n.toFixed(0)}`;
 }
-
-const tooltipStyle = {
-  contentStyle: {
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-    color: "var(--foreground)",
-  },
-  itemStyle: { color: "var(--foreground)" },
-  labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
-};
 
 function fmtDateShort(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString("en-US", {
@@ -257,11 +247,17 @@ function TradingVolumeTooltip({
     >
       <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{header}</p>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
-        <span>Cumulative</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.55)", display: "inline-block", flexShrink: 0 }} />
+          Cumulative
+        </span>
         <span style={{ fontWeight: 600 }}>{fmtUsd.format(cumVol)}</span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <span>Daily Volume</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+          Daily Volume
+        </span>
         <span style={{ fontWeight: 600 }}>{fmtUsd.format(volume)}</span>
       </div>
     </div>
@@ -349,6 +345,7 @@ export function ProtocolVolumes() {
     productNames,
     loading,
     backgroundLoading,
+    error,
   } = useProtocolVolumes();
 
   const [timeframe, setTimeframe] = useState<VolumeTimeframe>("30 Days");
@@ -396,6 +393,7 @@ export function ProtocolVolumes() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Unified timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
@@ -430,7 +428,7 @@ export function ProtocolVolumes() {
           <div className="flex flex-wrap items-center gap-x-10 gap-y-3">
             <StatItem label="24h Volume" loading={loading} skeletonW="w-28">
               <p className="text-2xl font-bold">
-                {fmtCompact.format(volume24h)}
+                {error ? "—" : fmtCompact.format(volume24h)}
               </p>
             </StatItem>
             <StatItem
@@ -439,7 +437,7 @@ export function ProtocolVolumes() {
               skeletonW="w-32"
             >
               <p className="text-2xl font-bold">
-                {fmtCompact.format(allTimeVol)}
+                {error ? "—" : fmtCompact.format(allTimeVol)}
               </p>
             </StatItem>
           </div>
@@ -459,6 +457,8 @@ export function ProtocolVolumes() {
           </div>
           {chartLoading ? (
             <Skeleton className="w-full" style={{ height: CHART_H }} />
+          ) : chartData.length === 0 ? (
+            <ChartEmpty height={CHART_H} />
           ) : (
             <ResponsiveContainer width="100%" height={CHART_H}>
               <ComposedChart
@@ -517,7 +517,7 @@ export function ProtocolVolumes() {
                   yAxisId="right"
                   type="monotone"
                   dataKey="cumVol"
-                  stroke="rgba(255,255,255,0.55)"
+                  stroke="var(--foreground)" strokeOpacity={0.55}
                   strokeWidth={1.5}
                   dot={false}
                 />
@@ -539,6 +539,8 @@ export function ProtocolVolumes() {
 
           {chartLoading ? (
             <Skeleton className="w-full" style={{ height: CHART_H }} />
+          ) : donutSlices.length === 0 ? (
+            <ChartEmpty height={CHART_H} />
           ) : (
             <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-center">
               <div className="shrink-0">
@@ -627,6 +629,8 @@ export function ProtocolVolumes() {
             <CardDivider />
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <BarChart
@@ -695,6 +699,8 @@ export function ProtocolVolumes() {
             <CardDivider />
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : cumChartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart

@@ -1,25 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
 import { FundingRatesResponseSchema, type FundingRateEntry } from '@/lib/schemas/nado'
 import { withArchiveRetry } from '@/lib/archiveRetry'
+
+const QuerySchema = z.object({
+  product_ids: z.string().transform(s => s.split(',').map(Number)).pipe(z.array(z.number().int().min(0))),
+})
 
 export const revalidate = 60
 
 export async function GET(
   request: NextRequest,
 ): Promise<NextResponse<Record<string, FundingRateEntry> | { error: string }>> {
-  const { searchParams } = new URL(request.url)
-  const productIdsStr = searchParams.get('product_ids')
-
-  if (!productIdsStr) {
-    return NextResponse.json({ error: 'product_ids is required' }, { status: 400 })
+  const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'product_ids is required and must be valid integers' }, { status: 400 })
   }
-
-  const productIds = productIdsStr.split(',').map((s) => parseInt(s.trim(), 10))
-
-  if (productIds.some((id) => !Number.isFinite(id) || id < 0)) {
-    return NextResponse.json({ error: 'Invalid product_ids' }, { status: 400 })
-  }
+  const productIds = parsed.data.product_ids
 
   try {
     const res = await withArchiveRetry(() =>

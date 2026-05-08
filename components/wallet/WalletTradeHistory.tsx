@@ -239,27 +239,29 @@ export function WalletTradeHistory({
               onValueChange={handleSubaccountFilter}
             />
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="icon-xs"
                 onClick={() => setPage(Math.max(0, safePage - 1))}
                 disabled={safePage === 0 || filteredTrades.length === 0}
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
               >
                 ←
-              </button>
+              </Button>
               <span className="tabular-nums">
                 {safePage + 1} / {totalPages}
               </span>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="icon-xs"
                 onClick={() => setPage(Math.min(maxPage, safePage + 1))}
                 disabled={
                   safePage === totalPages - 1 || filteredTrades.length === 0
                 }
-                className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
               >
                 →
-              </button>
+              </Button>
             </div>
             {onRefreshTrades ? (
               <Button
@@ -438,45 +440,49 @@ export function WalletTradeHistory({
             )}
           </span>
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon-xs"
               onClick={() => setPage(0)}
               disabled={safePage === 0 || filteredTrades.length === 0}
-              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="First page"
             >
               «
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-xs"
               onClick={() => setPage(Math.max(0, safePage - 1))}
               disabled={safePage === 0 || filteredTrades.length === 0}
-              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Previous page"
             >
               ←
-            </button>
+            </Button>
             <span className="tabular-nums">
               {safePage + 1} / {totalPages}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon-xs"
               onClick={() => setPage(Math.min(maxPage, safePage + 1))}
               disabled={
                 safePage === totalPages - 1 || filteredTrades.length === 0
               }
-              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Next page"
             >
               →
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-xs"
               onClick={() => setPage(totalPages - 1)}
               disabled={
                 safePage === totalPages - 1 || filteredTrades.length === 0
               }
-              className="px-2 py-0.5 rounded border border-border hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Last page"
             >
               »
-            </button>
+            </Button>
           </div>
         </div>
       </CardContent>

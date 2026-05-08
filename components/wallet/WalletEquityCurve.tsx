@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { fromX18BigInt } from "@/types/nado";
 import type { TradeMatch } from "@/types/nado";
@@ -74,6 +74,14 @@ export function WalletEquityCurve({
   fundingLoadedSince = Infinity,
 }: Props) {
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
+  const [shimmerTimedOut, setShimmerTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (globalMatchesComplete) return;
+    setShimmerTimedOut(false);
+    const timer = setTimeout(() => setShimmerTimedOut(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [globalMatchesComplete]);
 
   const tradesInPeriod = useMemo(
     () => filterTradesByPeriod(trades, period),
@@ -179,9 +187,14 @@ export function WalletEquityCurve({
             </Select>
           </div>
         </div>
-        {/* "All time" with incomplete data → keep skeleton (partial all-time is misleading) */}
         {period === "All time" && !globalMatchesComplete ? (
-          <LoadingShimmer text="Loading PnL curve..." />
+          shimmerTimedOut ? (
+            <div className="flex h-80 items-center justify-center text-xs text-muted-foreground">
+              Loading timed out — trade history may be too large to fetch completely.
+            </div>
+          ) : (
+            <LoadingShimmer text="Loading PnL curve..." />
+          )
         ) : points.length >= 2 ? (
           <ChartContainer
             config={chartConfig}

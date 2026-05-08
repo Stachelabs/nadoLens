@@ -41,7 +41,9 @@ import {
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const PURPLE = "#8b5cf6";
+import { ChartEmpty } from "@/components/protocol/ChartEmpty";
+import { ErrorBanner } from "@/components/protocol/ErrorBanner";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const GREEN = "#34d399";
 const RED = "#f87171";
 const CHART_H = 300;
@@ -353,7 +355,8 @@ function AreaTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {weekly ? weekLabel(pt.ts) : label}
       </p>
-      <p style={{ fontWeight: 600 }}>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
         {title}: {fmtCompact.format(val)}
       </p>
     </div>
@@ -427,7 +430,10 @@ function APRTooltip({
       <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
         {weekly ? weekLabel(ts) : label}
       </p>
-      <p style={{ fontWeight: 600 }}>APR: {fmtAPR(rate)}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        APR: {fmtAPR(rate)}
+      </p>
     </div>
   );
 }
@@ -477,6 +483,7 @@ export function ProtocolTVL() {
     spotAssets,
     loading,
     backgroundLoading,
+    error,
   } = useProtocolTVL();
 
   const [timeframe, setTimeframe] = useState<TVLTimeframe>("30 Days");
@@ -550,6 +557,7 @@ export function ProtocolTVL() {
 
   return (
     <div className="space-y-6">
+      {error && <ErrorBanner error={error} />}
       {/* Timeframe selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
@@ -585,7 +593,7 @@ export function ProtocolTVL() {
           <CardContent className="p-5">
             <div className="mb-3">
               <StatItem label="TVL" loading={loading} skeletonW="w-32">
-                <p className="text-2xl font-bold">{fmtCompact.format(tvl)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : fmtCompact.format(tvl)}</p>
               </StatItem>
             </div>
             <p className="mb-0.5 text-sm font-medium">TVL</p>
@@ -594,6 +602,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -648,6 +658,9 @@ export function ProtocolTVL() {
           <CardContent className="p-5">
             <div className="mb-3">
               <StatItem label="24h Flows" loading={loading} skeletonW="w-40">
+                {error ? (
+                  <p className="text-2xl font-bold">—</p>
+                ) : (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className="text-2xl font-bold">
                     {fmtCompact.format(Math.abs(inflows24h))}
@@ -669,6 +682,7 @@ export function ProtocolTVL() {
                     Withdrawn
                   </Badge>
                 </div>
+                )}
               </StatItem>
             </div>
             <p className="mb-0.5 text-sm font-medium">
@@ -681,6 +695,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <ComposedChart
@@ -721,7 +737,7 @@ export function ProtocolTVL() {
                   <Line
                     type="monotone"
                     dataKey="netFlows"
-                    stroke="rgba(255,255,255,0.7)"
+                    stroke="var(--foreground)" strokeOpacity={0.7}
                     strokeWidth={1.5}
                     dot={false}
                   />
@@ -745,6 +761,8 @@ export function ProtocolTVL() {
             </p>
             {loading ? (
               <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+            ) : depositDonut.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -823,6 +841,8 @@ export function ProtocolTVL() {
             </p>
             {loading ? (
               <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+            ) : borrowDonut.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -903,6 +923,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -966,6 +988,8 @@ export function ProtocolTVL() {
             </p>
             {chartLoading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : chartData.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <AreaChart
@@ -1181,8 +1205,10 @@ export function ProtocolTVL() {
                 </Select>
               </div>
             )}
-            {loading || !depositAssetData ? (
+            {loading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : !depositAssetData || depositRateHistory.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart
@@ -1286,8 +1312,10 @@ export function ProtocolTVL() {
                 </Select>
               </div>
             )}
-            {loading || !borrowAssetData ? (
+            {loading ? (
               <Skeleton className="w-full" style={{ height: CHART_H }} />
+            ) : !borrowAssetData || borrowRateHistory.length === 0 ? (
+              <ChartEmpty height={CHART_H} />
             ) : (
               <ResponsiveContainer width="100%" height={CHART_H}>
                 <LineChart
