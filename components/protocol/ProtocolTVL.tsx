@@ -41,7 +41,7 @@ import {
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const PURPLE = "#8b5cf6";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const GREEN = "#34d399";
 const RED = "#f87171";
 const CHART_H = 300;
@@ -721,7 +721,7 @@ export function ProtocolTVL() {
                   <Line
                     type="monotone"
                     dataKey="netFlows"
-                    stroke="rgba(255,255,255,0.7)"
+                    stroke="var(--foreground)" strokeOpacity={0.7}
                     strokeWidth={1.5}
                     dot={false}
                   />

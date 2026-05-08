@@ -33,7 +33,7 @@ import {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const PURPLE = "#8b5cf6";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const DONUT_COLORS = [
@@ -53,18 +53,6 @@ const DONUT_COLORS = [
   "#0ea5e9",
   "#d946ef",
 ];
-
-const tooltipStyle = {
-  contentStyle: {
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-    color: "var(--foreground)",
-  },
-  itemStyle: { color: "var(--foreground)" },
-  labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
-};
 
 // ─── Token icon with fallback ─────────────────────────────────────────────────
 

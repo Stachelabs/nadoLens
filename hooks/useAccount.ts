@@ -50,9 +50,12 @@ export function useAccount(): void {
 
     setAddress(address)
     const subaccount = toSubaccount(address)
-    const controller = new AbortController()
+    let currentController: AbortController | null = null
 
     const fetchData = async () => {
+      currentController?.abort()
+      const controller = new AbortController()
+      currentController = controller
       try {
         const res = await fetch(`/api/wallet/${subaccount}?query=subaccount_info`, {
           cache: 'no-store',
@@ -68,7 +71,6 @@ export function useAccount(): void {
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return
-        // network error — retry on next interval
       }
     }
 
@@ -77,7 +79,7 @@ export function useAccount(): void {
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
-      controller.abort()
+      currentController?.abort()
     }
   }, [address, isConnected, setHealth, setPositions, setAddress, clear])
 }

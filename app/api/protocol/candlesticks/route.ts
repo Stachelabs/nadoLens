@@ -1,26 +1,24 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { NADO_ARCHIVE_V2 } from '@/lib/nado'
 import { CandlesticksResponseSchema, type Candlestick } from '@/lib/schemas/nado'
 import { withArchiveRetry } from '@/lib/archiveRetry'
+
+const QuerySchema = z.object({
+  product_id: z.coerce.number().int().min(0),
+  limit: z.coerce.number().int().min(1).max(500).default(30),
+})
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: NextRequest,
 ): Promise<NextResponse<Candlestick[] | { error: string }>> {
-  const { searchParams } = new URL(request.url)
-  const productIdStr = searchParams.get('product_id')
-  const limitStr = searchParams.get('limit') ?? '30'
-
-  const productId = productIdStr ? parseInt(productIdStr, 10) : NaN
-  const limit = parseInt(limitStr, 10)
-
-  if (!Number.isFinite(productId) || productId < 0) {
-    return NextResponse.json({ error: 'Invalid product_id' }, { status: 400 })
+  const parsed = QuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams))
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid product_id or limit' }, { status: 400 })
   }
-  if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
-    return NextResponse.json({ error: 'Invalid limit' }, { status: 400 })
-  }
+  const { product_id: productId, limit } = parsed.data
 
   try {
     const res = await withArchiveRetry(() =>

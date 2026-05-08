@@ -178,8 +178,13 @@ export function useOIData(timeframe: Timeframe): OIDataState {
   }, [])
 
   // ─── Fetch current funding rates (needs product_ids from tickers) ───────────
+  const fundingProductKey = useMemo(
+    () => snapshotData?.tickers.map((t) => t.product_id).sort((a, b) => a - b).join(',') ?? '',
+    [snapshotData?.tickers],
+  )
+
   useEffect(() => {
-    if (!snapshotData) return
+    if (!fundingProductKey) return
 
     const controller = new AbortController()
     const { signal } = controller
@@ -188,20 +193,12 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
     const load = async () => {
       try {
-        const productIds = snapshotData.tickers.map((t) => t.product_id)
-        if (productIds.length === 0) {
-          setFundingData({ rates: {} })
-          setFundingLoading(false)
-          return
-        }
-
         const res = await fetch(
-          `/api/protocol/funding-rates?product_ids=${productIds.join(',')}`,
+          `/api/protocol/funding-rates?product_ids=${fundingProductKey}`,
           { signal },
         )
 
         if (!res.ok) {
-          // Non-fatal — funding section shows empty but other sections still render
           setFundingData({ rates: {} })
           setFundingLoading(false)
           return
@@ -227,7 +224,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
     void load()
     return () => controller.abort()
-  }, [snapshotData])
+  }, [fundingProductKey])
 
   // ─── OI history (memoized) ────────────────────────────────────────────────────
 

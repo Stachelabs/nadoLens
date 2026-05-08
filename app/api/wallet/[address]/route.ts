@@ -24,8 +24,9 @@ function gatewayParseErrorResponse(parsed: {
   error_code?: number;
 }) {
   if (parsed.kind === "gateway_failure") {
+    const code = parsed.error_code ? ` (${parsed.error_code})` : "";
     return NextResponse.json(
-      { error: parsed.error ?? "Gateway query failed", error_code: parsed.error_code },
+      { error: `${parsed.error ?? "Gateway query failed"}${code}` },
       { status: 502 },
     );
   }

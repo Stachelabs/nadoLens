@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Card, CardContent } from '@/components/ui/card'
 import { LoadingShimmer } from '@/components/ui/LoadingShimmer'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -89,7 +90,8 @@ export function WalletFundingByProductChart({
   }, [period, fundingLoadedSince])
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
+    <Card>
+      <CardContent className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
           Funding by Product
@@ -185,6 +187,7 @@ export function WalletFundingByProductChart({
           </span>
         )}
       </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

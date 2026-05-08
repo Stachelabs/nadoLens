@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
 import { MarketSnapshotsResponseSchema, type MarketSnapshot } from '@/lib/schemas/nado'
 import { withArchiveRetry } from '@/lib/archiveRetry'
 
+const QuerySchema = z.object({
+  count: z.coerce.number().int().min(1).max(200).default(31),
+  granularity: z.coerce.number().int().default(86400),
+})
+
 export const revalidate = 300
 
 export async function GET(request: NextRequest): Promise<NextResponse<MarketSnapshot[] | { error: string }>> {
-  const params = request.nextUrl.searchParams
-  const count = Math.min(Math.max(1, Number(params.get('count') ?? 31)), 100)
-  const granularity = Number(params.get('granularity') ?? 86400)
-
-  if (!Number.isInteger(count) || !Number.isInteger(granularity)) {
+  const parsed = QuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams))
+  if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid params' }, { status: 400 })
   }
+  const { count, granularity } = parsed.data
 
   const maxTime = Math.floor(Date.now() / 1000).toString()
 

@@ -34,7 +34,7 @@ import {
   type MarketSlice,
 } from "@/hooks/useProtocolVolumes";
 
-const PURPLE = "#8b5cf6";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const DONUT_COLORS = [
@@ -72,18 +72,6 @@ function fmtAxis(v: number | string): string {
   if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
   return `$${n.toFixed(0)}`;
 }
-
-const tooltipStyle = {
-  contentStyle: {
-    backgroundColor: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    fontSize: "12px",
-    color: "var(--foreground)",
-  },
-  itemStyle: { color: "var(--foreground)" },
-  labelStyle: { color: "var(--muted-foreground)", marginBottom: 4 },
-};
 
 function fmtDateShort(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString("en-US", {
@@ -517,7 +505,7 @@ export function ProtocolVolumes() {
                   yAxisId="right"
                   type="monotone"
                   dataKey="cumVol"
-                  stroke="rgba(255,255,255,0.55)"
+                  stroke="var(--foreground)" strokeOpacity={0.55}
                   strokeWidth={1.5}
                   dot={false}
                 />

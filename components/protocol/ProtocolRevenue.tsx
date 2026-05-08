@@ -430,7 +430,7 @@ export function ProtocolRevenue() {
                   <YAxis yAxisId="right" orientation="right" tickFormatter={fmtAxis} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} width={56} domain={['auto', 'auto']} />
                   <Tooltip content={<TradingFeeTooltip weekly={isAllTime} />} />
                   <Bar yAxisId="left" dataKey="fees" fill="url(#feeBarGrad)" stroke={PURPLE} strokeWidth={0} radius={[2, 2, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="cumFees" stroke="rgba(255,255,255,0.55)" strokeWidth={1.5} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="cumFees" stroke="var(--foreground)" strokeOpacity={0.55} strokeWidth={1.5} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -516,7 +516,7 @@ export function ProtocolRevenue() {
                 <Tooltip content={<NetFeeTooltip weekly={isAllTime} />} />
                 <Area type="monotone" dataKey="fees" stroke={PURPLE} fill="url(#netFeeGrad)" strokeWidth={1.5} dot={false} />
                 <Area type="monotone" dataKey="makerRebates" stroke={AMBER} fill="rgba(245,158,11,0.15)" strokeWidth={1} dot={false} />
-                <Area type="monotone" dataKey="netFees" stroke="rgba(255,255,255,0.35)" fill="rgba(255,255,255,0.05)" strokeWidth={1} dot={false} />
+                <Area type="monotone" dataKey="netFees" stroke="var(--foreground)" strokeOpacity={0.35} fill="var(--foreground)" fillOpacity={0.05} strokeWidth={1} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -575,7 +575,7 @@ export function ProtocolRevenue() {
                   <YAxis yAxisId="right" orientation="right" tickFormatter={fmtUsersAxis} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} width={52} domain={['auto', 'auto']} />
                   <Tooltip content={<UsersBarTooltip weekly={isAllTime} />} />
                   <Bar yAxisId="left" dataKey="newUsers" fill="url(#userBarGrad)" stroke={PURPLE} strokeWidth={0} radius={[2, 2, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="cumUsers" stroke="rgba(255,255,255,0.55)" strokeWidth={1.5} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="cumUsers" stroke="var(--foreground)" strokeOpacity={0.55} strokeWidth={1.5} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}

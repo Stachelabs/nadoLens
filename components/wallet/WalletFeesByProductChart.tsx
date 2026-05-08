@@ -15,6 +15,7 @@ import type { TradeMatch } from '@/types/nado'
 import { filterTradesByPeriod, getPeriodBoundsUtc, type EquityPeriod } from '@/lib/wallet/equityPeriod'
 import { nanoStringToUnixSec } from '@/lib/wallet/nanoTime'
 import { buildFeesByProduct } from '@/lib/wallet/buildFeesByProduct'
+import { Card, CardContent } from '@/components/ui/card'
 import { LoadingShimmer } from '@/components/ui/LoadingShimmer'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -78,7 +79,8 @@ export function WalletFeesByProductChart({ trades, globalMatchesComplete }: Prop
   const feesLoading = !periodTradesComplete
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
+    <Card>
+      <CardContent className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
           Fees by Product
@@ -167,6 +169,7 @@ export function WalletFeesByProductChart({ trades, globalMatchesComplete }: Prop
           </span>
         )}
       </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

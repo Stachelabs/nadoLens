@@ -52,7 +52,7 @@ const TIMEFRAME_SLICE: Record<OverviewTimeframe, number | null> = {
   "All Time": null,
 };
 
-const PURPLE = "#8b5cf6";
+import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const fmtCompact = new Intl.NumberFormat("en-US", {
@@ -400,7 +400,7 @@ export function ProtocolOverview() {
                     yAxisId="right"
                     type="monotone"
                     dataKey="cumVol"
-                    stroke="rgba(255,255,255,0.55)"
+                    stroke="var(--foreground)" strokeOpacity={0.55}
                     strokeWidth={1.5}
                     dot={false}
                   />

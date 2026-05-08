@@ -135,7 +135,7 @@ export function WalletSpotBalances({
                 <span
                   className={cn(
                     "text-sm tabular-nums",
-                    negative ? "text-red-400" : "text-foreground",
+                    negative ? "text-[var(--bear)]" : "text-foreground",
                   )}
                 >
                   {formatAmount(amount)}
@@ -143,7 +143,7 @@ export function WalletSpotBalances({
                 <span
                   className={cn(
                     "text-xs tabular-nums",
-                    negative ? "text-red-400" : "text-muted-foreground",
+                    negative ? "text-[var(--bear)]" : "text-muted-foreground",
                   )}
                 >
                   {fmtUsd.format(valueUsd)}
