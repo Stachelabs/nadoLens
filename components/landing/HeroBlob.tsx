@@ -49,12 +49,13 @@ function InkSplatter() {
       {/* Floating animation wrapper */}
       <motion.div
         animate={{
-          scale: [1, 1.02, 1],
-          y: [0, -4, 0],
-          rotate: [0, 0.5, 0, -0.5, 0],
+          scale: [1, 1.04, 0.98, 1.02, 1],
+          y: [0, -8, 2, -5, 0],
+          rotate: [0, 1.2, -0.8, 0.5, 0],
+          x: [0, 3, -3, 2, 0],
         }}
         transition={{
-          duration: 8,
+          duration: 10,
           repeat: Infinity,
           ease: "easeInOut" as const,
         }}
