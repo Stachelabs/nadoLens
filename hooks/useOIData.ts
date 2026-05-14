@@ -91,7 +91,6 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     const { signal } = controller
 
     setOiLoading(true)
-    setFundingLoading(true)
     setError(null)
 
     const load = async () => {
