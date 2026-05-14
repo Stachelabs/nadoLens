@@ -621,6 +621,16 @@ async function main(): Promise<void> {
           continue;
         }
 
+        await page
+          .locator('[data-testid="trading-market-switcher-trigger"] img')
+          .first()
+          .waitFor({ state: "visible", timeout: 25_000 })
+          .catch(() => {});
+        await page
+          .waitForSelector('img[src*="/_next/static/media/"]', { timeout: 5_000 })
+          .catch(() => {});
+        await sleep(Number.isFinite(delayMs) ? delayMs : 2000);
+
         if (await isChooseMarketSwitcher(page)) {
           status = "skipped_not_on_app";
           message =
@@ -636,16 +646,6 @@ async function main(): Promise<void> {
           detach();
           continue;
         }
-
-        await page
-          .locator('[data-testid="trading-market-switcher-trigger"] img')
-          .first()
-          .waitFor({ state: "visible", timeout: 25_000 })
-          .catch(() => {});
-        await page
-          .waitForSelector('img[src*="/_next/static/media/"]', { timeout: 5_000 })
-          .catch(() => {});
-        await sleep(Number.isFinite(delayMs) ? delayMs : 800);
 
         picked = pickSvgForMarket(row.marketKey, caps);
         if (!picked) {
