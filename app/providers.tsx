@@ -11,9 +11,15 @@ import { wagmiConfig } from "@/lib/wagmi";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { usePairs } from "@/hooks/usePairs";
+import { useProtocolPrefetch } from "@/hooks/useProtocolPrefetch";
 
 function PairsInitializer() {
   usePairs();
+  return null;
+}
+
+function ProtocolPrefetchInitializer() {
+  useProtocolPrefetch();
   return null;
 }
 
@@ -43,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }
         >
           <PairsInitializer />
+          <ProtocolPrefetchInitializer />
           {mounted ? children : null}
         </RainbowKitProvider>
       </QueryClientProvider>

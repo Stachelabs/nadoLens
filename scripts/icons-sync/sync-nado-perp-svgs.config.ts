@@ -19,7 +19,7 @@ export const nadoPerpIconsDefaults = {
   ICONS_OUTPUT_DIR: "public/icons/perps",
   PLAYWRIGHT_CDP_URL: "http://127.0.0.1:9222",
   PLAYWRIGHT_HEADED: "0",
-  ICONS_DELAY_MS: "800",
+  ICONS_DELAY_MS: "2000",
   ICONS_ONLY: "",
   ICONS_DEBUG: "0",
 } satisfies Record<string, string>

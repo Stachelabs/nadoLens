@@ -540,7 +540,7 @@ export function ProtocolRevenue() {
             </StatItem>
             <div className="ml-auto">
               <StatItem label="24h Active Traders" loading={loading} skeletonW="w-20">
-                <p className="text-2xl font-bold">{error ? "—" : fmtUsers(traders24h)}</p>
+                <p className="text-2xl font-bold">{error ? "—" : traders24h.toLocaleString('en-US')}</p>
               </StatItem>
             </div>
           </div>
