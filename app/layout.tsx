@@ -3,6 +3,7 @@ import { Outfit, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
+import { Footer } from '@/components/landing/Footer'
 import { Toaster } from 'sonner'
 import './globals.css'
 
@@ -32,11 +33,14 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <Providers>
-            <Nav />
-            <main className="flex-1">{children}</main>
+            <div className="flex min-h-screen flex-col">
+              <Nav />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </div>
             <Toaster position="bottom-right" theme="dark" richColors />
           </Providers>
         </ThemeProvider>
