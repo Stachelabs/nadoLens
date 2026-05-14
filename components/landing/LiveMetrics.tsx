@@ -22,7 +22,7 @@ const metrics = [
   { key: "volume24h", label: "24h Volume", icon: "chart" },
   { key: "currentOI", label: "Open Interest", icon: "layers" },
   { key: "currentTVL", label: "TVL", icon: "lock" },
-  { key: "dau", label: "Active Traders", icon: "users" },
+  { key: "dau", label: "24h Active Traders", icon: "users" },
 ] as const;
 
 const containerVariants = {
@@ -108,14 +108,14 @@ export function LiveMetrics() {
             variants={cardVariants}
             className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-purple-500/30"
           >
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-3 flex items-center justify-center gap-2">
               <MetricIcon type={m.icon} />
-              <span className="text-xs text-muted-foreground">{m.label}</span>
+              <span className="text-sm text-muted-foreground">{m.label}</span>
             </div>
             {isLoading ? (
-              <Skeleton className="h-8 w-24" />
+              <Skeleton className="mx-auto h-8 w-24" />
             ) : (
-              <p className="text-2xl font-bold tracking-tight text-foreground">
+              <p className="text-center text-2xl font-bold tracking-tight text-foreground">
                 {error
                   ? "—"
                   : m.key === "dau"
