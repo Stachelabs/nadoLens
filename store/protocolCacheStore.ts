@@ -36,7 +36,7 @@ export function getSnapshotsFromBucket(
   if (!bucket) return null
   if (Date.now() - bucket.fetchedAt > CACHE_TTL) return null
   if (bucket.data.length < count) return null
-  return bucket.data.slice(-count)
+  return bucket.data.slice(0, count)
 }
 
 export const useProtocolCacheStore = create<ProtocolCacheStore>((set, get) => ({

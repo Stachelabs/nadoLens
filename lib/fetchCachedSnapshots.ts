@@ -34,8 +34,16 @@ export async function fetchCachedSnapshots(
   const key = `${granularity}:${fetchCount}`
   const existing = getInflight(key)
   if (existing) {
-    const data = await existing
-    return count < data.length ? data.slice(-count) : data
+    try {
+      const data = await existing
+      return count < data.length ? data.slice(0, count) : data
+    } catch {
+      const recheck = getSnapshotsFromBucket(
+        useProtocolCacheStore.getState().buckets[granularity],
+        count,
+      )
+      if (recheck) return recheck
+    }
   }
 
   const promise = (async (): Promise<MarketSnapshot[]> => {
@@ -55,5 +63,5 @@ export async function fetchCachedSnapshots(
 
   setInflight(key, promise)
   const data = await promise
-  return count < data.length ? data.slice(-count) : data
+  return count < data.length ? data.slice(0, count) : data
 }

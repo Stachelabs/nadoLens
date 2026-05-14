@@ -45,5 +45,6 @@ export function useProtocolMarketSnapshots(count = 31, granularity = 86400, enab
     return () => controller.abort()
   }, [count, granularity, enabled])
 
+  if (cached) return { snapshots: cached, loading: false, error: null }
   return { snapshots, loading, error }
 }
