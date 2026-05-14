@@ -26,7 +26,7 @@ export function getInflight(key: string): Promise<MarketSnapshot[]> | undefined 
 
 export function setInflight(key: string, promise: Promise<MarketSnapshot[]>): void {
   inflight.set(key, promise)
-  promise.finally(() => inflight.delete(key))
+  promise.catch(() => {}).finally(() => inflight.delete(key))
 }
 
 export function getSnapshotsFromBucket(
