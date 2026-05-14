@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 import { useProtocolStore } from '@/store/protocolStore'
+import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,6 @@ export type ProtocolTVLData = {
 
 type Snap = z.infer<typeof MarketSnapshotSchema>
 
-const SnapsArray = z.array(MarketSnapshotSchema)
 const TickersArray = z.array(EnrichedTickerSchema)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -207,44 +207,34 @@ export function useProtocolTVL(): ProtocolTVLData {
 
     const fetchAll = async () => {
       try {
-        // Wave 1 — immediate
-        const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
-        const fHourly = fetch('/api/protocol/market-snapshots?count=25&granularity=3600', { signal })
-        const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
+        // Wave 1 — immediate (cache-aware)
+        const p24h = fetchCachedSnapshots(2, 86400, signal)
+        const pHourly = fetchCachedSnapshots(25, 3600, signal)
+        const p30d = fetchCachedSnapshots(31, 86400, signal)
         const fTickers = cachedTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
 
         // Wave 2 — fire early, await later
-        const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
-        const fAllTime = fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal })
-        f91d.catch(() => {}); fAllTime.catch(() => {})
+        const p91d = fetchCachedSnapshots(91, 86400, signal).catch(() => null)
+        const pAllTime = fetchCachedSnapshots(24, 604800, signal).catch(() => null)
 
-        const [r24h, rHourly, r30d, rTickers] = await Promise.all([f24h, fHourly, f30d, fTickers ?? Promise.resolve(null)])
+        const [snap24h, snapHourly, snap30d, rTickers] = await Promise.all([
+          p24h, pHourly, p30d, fTickers ?? Promise.resolve(null),
+        ])
 
-        if (!r24h.ok || !r30d.ok || (rTickers && !rTickers.ok)) {
+        if (rTickers && !rTickers.ok) {
           setData((p) => ({ ...p, loading: false, backgroundLoading: false, error: 'Failed to load TVL data' }))
           return
         }
 
-        const [raw24h, rawHourly, raw30d, rawTickers] = await Promise.all([
-          r24h.json() as Promise<unknown>,
-          rHourly.ok ? (rHourly.json() as Promise<unknown>) : Promise.resolve([]),
-          r30d.json() as Promise<unknown>,
-          rTickers ? (rTickers.json() as Promise<unknown>) : Promise.resolve(cachedTickers as unknown),
-        ])
-
-        const pHourly = SnapsArray.safeParse(rawHourly)
-
-        const p24h = SnapsArray.safeParse(raw24h)
-        const p30d = SnapsArray.safeParse(raw30d)
+        const rawTickers = rTickers
+          ? await (rTickers.json() as Promise<unknown>)
+          : (cachedTickers as unknown)
         const pTickers = TickersArray.safeParse(rawTickers)
 
-        if (!p24h.success || !p30d.success || !pTickers.success) {
+        if (!pTickers.success) {
           setData((p) => ({ ...p, loading: false, backgroundLoading: false, error: 'Invalid TVL data' }))
           return
         }
-
-        const snap24h = p24h.data
-        const snap30d = p30d.data
 
         const productNames: Record<string, string> = {}
         for (const t of pTickers.data) {
@@ -268,7 +258,7 @@ export function useProtocolTVL(): ProtocolTVLData {
           tvl,
           inflows24h,
           outflows24h,
-          hourlyChartData: pHourly.success ? buildChartPoints(pHourly.data, fmtHour) : [],
+          hourlyChartData: buildChartPoints(snapHourly, fmtHour),
           dailyChartData: buildChartPoints(snap30d),
           spotAssets,
           productNames,
@@ -278,32 +268,19 @@ export function useProtocolTVL(): ProtocolTVLData {
         }))
 
         // Wave 2 — background
-        const [r91d, rAllTime] = await Promise.all([f91d, fAllTime])
+        const [snap91d, snapAllTime] = await Promise.all([p91d, pAllTime])
 
-        if (!r91d.ok || !rAllTime.ok) {
+        if (!snap91d || !snapAllTime) {
           setData((p) => ({ ...p, backgroundLoading: false }))
           return
         }
 
-        const [raw91d, rawAllTime] = await Promise.all([
-          r91d.json() as Promise<unknown>,
-          rAllTime.json() as Promise<unknown>,
-        ])
-
-        const p91d = SnapsArray.safeParse(raw91d)
-        const pAllTime = SnapsArray.safeParse(rawAllTime)
-
-        if (!p91d.success || !pAllTime.success) {
-          setData((p) => ({ ...p, backgroundLoading: false }))
-          return
-        }
-
-        const updatedAssets = latest ? buildSpotAssets(latest, productNames, p91d.data, pAllTime.data) : spotAssets
+        const updatedAssets = latest ? buildSpotAssets(latest, productNames, snap91d, snapAllTime) : spotAssets
 
         setData((p) => ({
           ...p,
-          dailyChartData: buildChartPoints(p91d.data),
-          weeklyChartData: buildChartPoints(pAllTime.data),
+          dailyChartData: buildChartPoints(snap91d),
+          weeklyChartData: buildChartPoints(snapAllTime),
           spotAssets: updatedAssets,
           backgroundLoading: false,
         }))

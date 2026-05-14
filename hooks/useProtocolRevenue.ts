@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 import { useProtocolStore } from '@/store/protocolStore'
+import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
 export type ChartPoint = {
   ts: number
@@ -40,7 +41,6 @@ export type ProtocolRevenueData = {
 
 type MarketSnapshotType = z.infer<typeof MarketSnapshotSchema>
 
-const MarketSnapshotsArraySchema = z.array(MarketSnapshotSchema)
 const EnrichedTickersArraySchema = z.array(EnrichedTickerSchema)
 
 function fmtDate(ts: number): string {
@@ -145,40 +145,33 @@ export function useProtocolRevenue(): ProtocolRevenueData {
 
     const fetchAll = async () => {
       try {
-        const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
-        const fHourly = fetch('/api/protocol/market-snapshots?count=25&granularity=3600', { signal })
-        const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
+        // Fire all snapshot fetches (cache-aware) + tickers simultaneously
+        const p24h = fetchCachedSnapshots(2, 86400, signal)
+        const pHourly = fetchCachedSnapshots(25, 3600, signal)
+        const p30d = fetchCachedSnapshots(31, 86400, signal)
         const fTickers = cachedTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
-        const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
-        const fAllTime = fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal })
-        f91d.catch(() => {}); fAllTime.catch(() => {})
+        const p91d = fetchCachedSnapshots(91, 86400, signal).catch(() => null)
+        const pAllTime = fetchCachedSnapshots(24, 604800, signal).catch(() => null)
 
-        const [r24h, rHourly, r30d, rTickers] = await Promise.all([f24h, fHourly, f30d, fTickers ?? Promise.resolve(null)])
+        // Wave 1 — render 30d view
+        const [snap24h, snapHourly, snap30d, rTickers] = await Promise.all([
+          p24h, pHourly, p30d, fTickers ?? Promise.resolve(null),
+        ])
 
-        if (!r24h.ok || !r30d.ok || (rTickers && !rTickers.ok)) {
+        if (rTickers && !rTickers.ok) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load revenue data' }))
           return
         }
 
-        const [raw24h, rawHourly, raw30d, rawTickers] = await Promise.all([
-          r24h.json() as Promise<unknown>,
-          rHourly.ok ? (rHourly.json() as Promise<unknown>) : Promise.resolve([]),
-          r30d.json() as Promise<unknown>,
-          rTickers ? (rTickers.json() as Promise<unknown>) : Promise.resolve(cachedTickers as unknown),
-        ])
-
-        const p24h = MarketSnapshotsArraySchema.safeParse(raw24h)
-        const pHourly = MarketSnapshotsArraySchema.safeParse(rawHourly)
-        const p30d = MarketSnapshotsArraySchema.safeParse(raw30d)
+        const rawTickers = rTickers
+          ? await (rTickers.json() as Promise<unknown>)
+          : (cachedTickers as unknown)
         const pTickers = EnrichedTickersArraySchema.safeParse(rawTickers)
 
-        if (!p24h.success || !p30d.success || !pTickers.success) {
+        if (!pTickers.success) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Invalid revenue data' }))
           return
         }
-
-        const snap24h = p24h.data
-        const snap30d = p30d.data
 
         const productNames: Record<string, string> = {}
         for (const t of pTickers.data) {
@@ -215,7 +208,7 @@ export function useProtocolRevenue(): ProtocolRevenueData {
           newUsers24h,
           avgFeesPerUser,
           traders24h,
-          hourlyChartData: pHourly.success ? buildChartPoints(pHourly.data, fmtHour) : [],
+          hourlyChartData: buildChartPoints(snapHourly, fmtHour),
           dailyChartData: buildChartPoints(snap30d),
           feeDonutSlices,
           productNames,
@@ -224,28 +217,13 @@ export function useProtocolRevenue(): ProtocolRevenueData {
           error: null,
         }))
 
-        const [r91d, rAllTime] = await Promise.all([f91d, fAllTime])
+        // Wave 2 — extend with 91d + all-time
+        const [snap91d, snapAllTime] = await Promise.all([p91d, pAllTime])
 
-        if (!r91d.ok || !rAllTime.ok) {
+        if (!snap91d || !snapAllTime) {
           setData((prev) => ({ ...prev, backgroundLoading: false }))
           return
         }
-
-        const [raw91d, rawAllTime] = await Promise.all([
-          r91d.json() as Promise<unknown>,
-          rAllTime.json() as Promise<unknown>,
-        ])
-
-        const p91d = MarketSnapshotsArraySchema.safeParse(raw91d)
-        const pAllTime = MarketSnapshotsArraySchema.safeParse(rawAllTime)
-
-        if (!p91d.success || !pAllTime.success) {
-          setData((prev) => ({ ...prev, backgroundLoading: false }))
-          return
-        }
-
-        const snap91d = p91d.data
-        const snapAllTime = pAllTime.data
 
         const latestAllTime = snapAllTime[0]
         const updatedTotalFees = latestAllTime ? sumNetFees(latestAllTime) : totalFees

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, FundingRatesResponseSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 import { useProtocolStore } from '@/store/protocolStore'
+import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -99,27 +100,24 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
         const storeTickers = useProtocolStore.getState().tickers
         const tickersReq = storeTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
-        const [snapshotsRes, tickersRes] = await Promise.all([
-          fetch(`/api/protocol/market-snapshots?count=${count}&granularity=${granularity}`, { signal }),
+        const [snapshots, tickersRes] = await Promise.all([
+          fetchCachedSnapshots(count, granularity, signal),
           tickersReq ?? Promise.resolve(null),
         ])
 
-        if (!snapshotsRes.ok || (tickersRes && !tickersRes.ok)) {
+        if (tickersRes && !tickersRes.ok) {
           setError('Failed to load OI data')
           setOiLoading(false)
           setFundingLoading(false)
           return
         }
 
-        const [rawSnapshots, rawTickers] = await Promise.all([
-          snapshotsRes.json() as Promise<unknown>,
-          tickersRes ? (tickersRes.json() as Promise<unknown>) : Promise.resolve(storeTickers as unknown),
-        ])
-
-        const parsedSnapshots = MarketSnapshotsArraySchema.safeParse(rawSnapshots)
+        const rawTickers = tickersRes
+          ? await (tickersRes.json() as Promise<unknown>)
+          : (storeTickers as unknown)
         const parsedTickers = EnrichedTickersArraySchema.safeParse(rawTickers)
 
-        if (!parsedSnapshots.success || !parsedTickers.success) {
+        if (!parsedTickers.success) {
           setError('Invalid OI data response')
           setOiLoading(false)
           setFundingLoading(false)
@@ -136,8 +134,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
           if (ticker.symbol === 'ETH-PERP') ethProductId = ticker.product_id
         }
 
-        // Sort ascending so oldest snapshot is first — downstream diffs and chart axes are correct
-        const sortedSnapshots = [...parsedSnapshots.data].sort((a, b) => a.timestamp - b.timestamp)
+        const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp)
 
         setSnapshotData({
           snapshots: sortedSnapshots,

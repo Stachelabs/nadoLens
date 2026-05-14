@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema, ProductsIdsResponseSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
 import { useProtocolStore } from '@/store/protocolStore'
+import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
 export type ChartPoint = { ts: number; date: string; volume: number; cumVol: number; cumPerpVol: number; cumSpotVol: number; perpVol: number; spotVol: number }
 export type MarketSlice = { productId: string; volume: number }
@@ -29,7 +30,6 @@ export type ProtocolVolumesData = {
 
 type MarketSnapshotType = z.infer<typeof MarketSnapshotSchema>
 
-const MarketSnapshotsArraySchema = z.array(MarketSnapshotSchema)
 const EnrichedTickersArraySchema = z.array(EnrichedTickerSchema)
 
 function sumRecord(rec: Record<string, string>): number {
@@ -140,48 +140,41 @@ export function useProtocolVolumes(): ProtocolVolumesData {
 
     const fetchAll = async () => {
       try {
-        // Start ALL fetches simultaneously — priority and background fire at the same time.
-        const f24h = fetch('/api/protocol/market-snapshots?count=2&granularity=86400', { signal })
-        const fHourly = fetch('/api/protocol/market-snapshots?count=25&granularity=3600', { signal })
-        const f30d = fetch('/api/protocol/market-snapshots?count=31&granularity=86400', { signal })
+        // Fire all snapshot fetches (cache-aware) + non-snapshot fetches simultaneously
+        const p24h = fetchCachedSnapshots(2, 86400, signal)
+        const pHourly = fetchCachedSnapshots(25, 3600, signal)
+        const p30d = fetchCachedSnapshots(31, 86400, signal)
         const fTickers = cachedTickers.length > 0 ? null : fetch('/api/protocol/tickers', { signal })
         const fProducts = fetch('/api/protocol/products', { signal })
-        const f7d = fetch('/api/protocol/market-snapshots?count=2&granularity=604800', { signal })
-        const f91d = fetch('/api/protocol/market-snapshots?count=91&granularity=86400', { signal })
-        const fAllTime = fetch('/api/protocol/market-snapshots?count=24&granularity=604800', { signal })
-        const f90d = fetch('/api/protocol/market-snapshots?count=2&granularity=7776000', { signal })
-        // Side-chain error handlers to prevent unhandled rejection during Wave 1
-        f7d.catch(() => {}); f91d.catch(() => {}); fAllTime.catch(() => {}); f90d.catch(() => {})
+        const p7d = fetchCachedSnapshots(2, 604800, signal).catch(() => null)
+        const p91d = fetchCachedSnapshots(91, 86400, signal).catch(() => null)
+        const pAllTime = fetchCachedSnapshots(24, 604800, signal).catch(() => null)
+        const p90d = fetchCachedSnapshots(2, 7776000, signal).catch(() => null)
 
-        // Wave 1 — render 30d view as soon as priority group resolves
-        const [r24h, rHourly, r30d, rTickers, rProducts] = await Promise.all([f24h, fHourly, f30d, fTickers ?? Promise.resolve(null), fProducts])
+        // Wave 1 — render 30d view
+        const [snap24h, snapHourly, snap30d, rTickers, rProducts] = await Promise.all([
+          p24h, pHourly, p30d, fTickers ?? Promise.resolve(null), fProducts,
+        ])
 
-        if (!r24h.ok || !r30d.ok || (rTickers && !rTickers.ok) || !rProducts.ok) {
+        if (rTickers && !rTickers.ok) {
+          setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
+          return
+        }
+        if (!rProducts.ok) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Failed to load volumes data' }))
           return
         }
 
-        const [raw24h, rawHourly, raw30d, rawTickers, rawProducts] = await Promise.all([
-          r24h.json() as Promise<unknown>,
-          rHourly.ok ? (rHourly.json() as Promise<unknown>) : Promise.resolve([]),
-          r30d.json() as Promise<unknown>,
+        const [rawTickers, rawProducts] = await Promise.all([
           rTickers ? (rTickers.json() as Promise<unknown>) : Promise.resolve(cachedTickers as unknown),
           rProducts.json() as Promise<unknown>,
         ])
 
-        const pHourly = MarketSnapshotsArraySchema.safeParse(rawHourly)
-
-        const p24h = MarketSnapshotsArraySchema.safeParse(raw24h)
-        const p30d = MarketSnapshotsArraySchema.safeParse(raw30d)
         const pTickers = EnrichedTickersArraySchema.safeParse(rawTickers)
-
-        if (!p24h.success || !p30d.success || !pTickers.success) {
+        if (!pTickers.success) {
           setData((prev) => ({ ...prev, loading: false, backgroundLoading: false, error: 'Invalid volumes data' }))
           return
         }
-
-        const snap24h = p24h.data
-        const snap30d = p30d.data
 
         const productNames: Record<string, string> = {}
         for (const t of pTickers.data) {
@@ -198,7 +191,6 @@ export function useProtocolVolumes(): ProtocolVolumesData {
               ? sumRecord(snap24h[0]!.cumulative_volumes)
               : 0
 
-        // Use most recent daily snapshot for allTimeVol (background wave will refine with weekly)
         const allTimeVol = snap30d.length > 0 ? sumRecord(snap30d[0]!.cumulative_volumes) : 0
 
         const donut24h =
@@ -212,7 +204,7 @@ export function useProtocolVolumes(): ProtocolVolumesData {
           ...prev,
           volume24h,
           allTimeVol,
-          hourlyChartData: pHourly.success ? buildChartPoints(pHourly.data, spotIds, fmtHour) : [],
+          hourlyChartData: buildChartPoints(snapHourly, spotIds, fmtHour),
           dailyChartData: buildChartPoints(snap30d, spotIds),
           donut24h,
           donut30d: build30dSlices(snap30d.slice(0, 31)),
@@ -223,34 +215,12 @@ export function useProtocolVolumes(): ProtocolVolumesData {
         }))
 
         // Wave 2 — extend with remaining timeframes
-        const [r7d, r91d, rAllTime, r90d] = await Promise.all([f7d, f91d, fAllTime, f90d])
+        const [snap7d, snap91d, snapAllTime, snap90d] = await Promise.all([p7d, p91d, pAllTime, p90d])
 
-        if (!r7d.ok || !r91d.ok || !rAllTime.ok || !r90d.ok) {
+        if (!snap7d || !snap91d || !snapAllTime || !snap90d) {
           setData((prev) => ({ ...prev, backgroundLoading: false }))
           return
         }
-
-        const [raw7d, raw91d, rawAllTime, raw90d] = await Promise.all([
-          r7d.json() as Promise<unknown>,
-          r91d.json() as Promise<unknown>,
-          rAllTime.json() as Promise<unknown>,
-          r90d.json() as Promise<unknown>,
-        ])
-
-        const p7d = MarketSnapshotsArraySchema.safeParse(raw7d)
-        const p91d = MarketSnapshotsArraySchema.safeParse(raw91d)
-        const pAllTime = MarketSnapshotsArraySchema.safeParse(rawAllTime)
-        const p90d = MarketSnapshotsArraySchema.safeParse(raw90d)
-
-        if (!p7d.success || !p91d.success || !pAllTime.success || !p90d.success) {
-          setData((prev) => ({ ...prev, backgroundLoading: false }))
-          return
-        }
-
-        const snap7d = p7d.data
-        const snap91d = p91d.data
-        const snapAllTime = pAllTime.data
-        const snap90d = p90d.data
 
         const donut7d =
           snap7d.length >= 2
