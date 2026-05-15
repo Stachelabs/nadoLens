@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import type { WalletStats } from "@/types/nado";
+import { useWalletFundingStore } from "@/store/walletFundingStore";
 import { RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -55,9 +56,6 @@ function timeAgo(nanoTs: string | null): string {
 type Props = {
   stats: WalletStats;
   globalMatchesComplete?: boolean;
-  globalFundingComplete?: boolean;
-  globalFundingLoading?: boolean;
-  loadGlobalFunding?: () => Promise<void>;
   /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
   onRefresh?: () => void | Promise<void>;
   refreshing?: boolean;
@@ -124,19 +122,20 @@ function Section({
 export function WalletSummary({
   stats,
   globalMatchesComplete = true,
-  globalFundingComplete = true,
-  globalFundingLoading = false,
-  loadGlobalFunding,
   onRefresh,
   refreshing = false,
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
-  // Same total as parseSubaccountInfo.unrealizedTotal (BigInt-safe); do not re-sum floats here.
+  const globalFundingComplete = useWalletFundingStore((s) => s.globalFundingComplete);
+  const globalFundingLoading = useWalletFundingStore((s) => s.globalFundingLoading);
+  const loadGlobalFunding = useWalletFundingStore((s) => s.loadGlobalFunding);
+  const fundingPaidUsd = useWalletFundingStore((s) => s.fundingPaidUsd);
   const unrealizedPnl = stats.unrealized_pnl_usd;
   const isUnrealizedPositive = unrealizedPnl >= 0;
+  const isPerpPnlPositive = stats.trading_pnl_usd >= 0;
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0;
-  const isFundingPositive = stats.funding_pnl_usd >= 0;
+  const isFundingPositive = fundingPaidUsd >= 0;
 
   return (
     <Card className="border-border bg-card">
@@ -156,6 +155,7 @@ export function WalletSummary({
 
             <Section
               title="Positions"
+              loading={!globalMatchesComplete}
               action={
                 onRefreshUnrealized ? (
                   <Button
@@ -183,6 +183,22 @@ export function WalletSummary({
                 value={`${isUnrealizedPositive ? "+" : ""}${fmtUsd.format(unrealizedPnl)}`}
                 valueClass={
                   isUnrealizedPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                }
+              />
+              <Row
+                label="Perp PnL"
+                value={
+                  globalMatchesComplete ? (
+                    `${isPerpPnlPositive ? "+" : ""}${fmtUsd.format(stats.trading_pnl_usd)}`
+                  ) : (
+                    <Skeleton
+                      className="h-4 w-28 shrink-0 rounded-sm"
+                      aria-hidden
+                    />
+                  )
+                }
+                valueClass={
+                  isPerpPnlPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
                 }
               />
               <Row
@@ -310,7 +326,7 @@ export function WalletSummary({
               label="Total Funding"
               value={
                 globalFundingComplete ? (
-                  `${isFundingPositive ? "+" : ""}${fmtUsd.format(stats.funding_pnl_usd)}`
+                  `${isFundingPositive ? "+" : ""}${fmtUsd.format(fundingPaidUsd)}`
                 ) : globalFundingLoading ? (
                   <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
                     <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
@@ -329,7 +345,9 @@ export function WalletSummary({
                 )
               }
               valueClass={
-                isFundingPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                globalFundingComplete
+                  ? isFundingPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                  : "text-[var(--bull)]"
               }
             />
             <Row

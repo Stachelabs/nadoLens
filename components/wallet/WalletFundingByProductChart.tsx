@@ -12,12 +12,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { FundingPaymentEntry } from '@/lib/wallet/buildEquityCurve'
 import {
   filterFundingPaymentsByPeriod,
   isFundingLoaded,
   type EquityPeriod,
 } from '@/lib/wallet/equityPeriod'
+import { useWalletFundingStore } from '@/store/walletFundingStore'
 import { buildFundingByProduct } from '@/lib/wallet/buildFundingByProduct'
 import {
   Select,
@@ -52,17 +52,10 @@ function fmtAxis(v: number): string {
   return v < 0 ? `-$${formatted}` : `$${formatted}`
 }
 
-interface Props {
-  fundingPayments: FundingPaymentEntry[]
-  fundingLoadedSince?: number
-  loadFundingForPeriod?: (period: EquityPeriod) => Promise<void>
-}
-
-export function WalletFundingByProductChart({
-  fundingPayments,
-  fundingLoadedSince = Infinity,
-  loadFundingForPeriod,
-}: Props) {
+export function WalletFundingByProductChart() {
+  const fundingPayments = useWalletFundingStore((s) => s.fundingPayments);
+  const fundingLoadedSince = useWalletFundingStore((s) => s.fundingLoadedSince);
+  const loadFundingForPeriod = useWalletFundingStore((s) => s.loadFundingForPeriod);
   const [period, setPeriod] = useState<EquityPeriod>('7 Days')
 
   function handlePeriodChange(newPeriod: EquityPeriod) {
@@ -183,7 +176,7 @@ export function WalletFundingByProductChart({
           <Skeleton className="h-3.5 w-20 rounded-sm" />
         ) : (
           <span className={`tabular-nums ${isFundingPositive ? 'text-primary' : 'text-destructive'}`}>
-            {isFundingPositive ? '+' : ''}{fmtUsd.format(totalFunding)}
+            {fmtUsd.format(totalFunding)}
           </span>
         )}
       </div>

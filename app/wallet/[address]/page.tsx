@@ -5,6 +5,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
+import { useWalletFunding } from "@/hooks/useWalletFunding";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
 import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
@@ -26,19 +27,13 @@ type Props = {
 }
 
 function WalletContent({ address }: { address: string }) {
+  useWalletFunding(address);
   const {
     stats,
     trades,
-    fundingPayments,
     phase1Ready,
     tradesComplete,
-    fundingComplete,
     globalMatchesComplete,
-    globalFundingLoading,
-    globalFundingComplete,
-    loadGlobalFunding,
-    loadFundingForPeriod,
-    fundingLoadedSince,
     error,
     refresh,
     refreshing,
@@ -47,7 +42,6 @@ function WalletContent({ address }: { address: string }) {
     refreshSpotBalances,
     spotBalancesRefreshing,
     positionMatchesComplete,
-    positionFundingComplete,
     snapshotReady,
   } = useWalletData(address);
 
@@ -65,12 +59,6 @@ function WalletContent({ address }: { address: string }) {
     const timer = setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [phase1Ready]);
-
-  useEffect(() => {
-    if (activeTab !== "analytics") return;
-    void loadFundingForPeriod("7 Days");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
 
   const positionCrossSubaccountLabels = useMemo(
     () => stats?.spot_balances_by_subaccount.map((g) => g.label) ?? [],
@@ -138,21 +126,16 @@ function WalletContent({ address }: { address: string }) {
             onRefreshUnrealized={refreshUnrealizedPnl}
             unrealizedRefreshing={unrealizedRefreshing}
             positionMatchesComplete={positionMatchesComplete}
-            positionFundingComplete={positionFundingComplete}
             snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
           />
           <WalletStats
             stats={stats}
             tradesComplete={tradesComplete}
-            fundingComplete={fundingComplete}
           />
           <WalletSummary
             stats={stats}
             globalMatchesComplete={globalMatchesComplete}
-            globalFundingComplete={globalFundingComplete}
-            globalFundingLoading={globalFundingLoading}
-            loadGlobalFunding={loadGlobalFunding}
             onRefresh={refresh}
             refreshing={refreshing}
             onRefreshUnrealized={refreshUnrealizedPnl}
@@ -173,21 +156,13 @@ function WalletContent({ address }: { address: string }) {
         <>
           <WalletEquityCurve
             trades={trades}
-            fundingPayments={fundingPayments}
             globalMatchesComplete={globalMatchesComplete}
-            globalFundingComplete={globalFundingComplete}
-            globalFundingLoading={globalFundingLoading}
-            fundingLoadedSince={fundingLoadedSince}
           />
           <WalletFeesByProductChart
             trades={trades}
             globalMatchesComplete={globalMatchesComplete}
           />
-          <WalletFundingByProductChart
-            fundingPayments={fundingPayments}
-            fundingLoadedSince={fundingLoadedSince}
-            loadFundingForPeriod={loadFundingForPeriod}
-          />
+          <WalletFundingByProductChart />
         </>
       )}
     </div>
