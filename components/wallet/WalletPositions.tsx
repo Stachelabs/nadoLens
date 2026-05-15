@@ -27,6 +27,7 @@ import {
 } from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
+import { useWalletFundingStore } from "@/store/walletFundingStore";
 import { RefreshCw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
@@ -118,8 +119,6 @@ type Props = {
   unrealizedRefreshing?: boolean;
   /** True once position-scoped matches (Phase 2a) are done — enables Realized PnL + Fees. */
   positionMatchesComplete?: boolean;
-  /** True once position-scoped funding (Phase 2b) is done — enables Funding column. */
-  positionFundingComplete?: boolean;
   /** True once snapshot entry prices are applied — gates Unrealized PnL column. */
   snapshotReady?: boolean;
   /** True while Gateway positions are being fetched (Phase 1 in progress). */
@@ -133,10 +132,10 @@ export function WalletPositions({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
   positionMatchesComplete = true,
-  positionFundingComplete = true,
   snapshotReady = true,
   loading = false,
 }: Props) {
+  const positionFundingComplete = useWalletFundingStore((s) => s.positionFundingComplete);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
   const displayFilter = useMemo(

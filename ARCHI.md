@@ -195,24 +195,38 @@ components/wallet/
   WalletStats.tsx         Props: { stats: WalletStats }                        ← win rate, PnL, volume, avg size
   WalletPositions.tsx     Props: { positions, subaccountHealths, onRefreshUnrealized, unrealizedRefreshing }
                                                                                 ← open positions + per-position health badge + unrealized PnL
-  WalletSummary.tsx       Props: { stats, tradesComplete, fundingComplete, onRefresh, refreshing, ... }
+  WalletSummary.tsx       Props: { stats, globalMatchesComplete, onRefresh, refreshing }
+                          + store selectors: globalFundingComplete, globalFundingLoading, loadGlobalFunding
                                                                                 ← global PnL summary (trading + funding + fees)
   WalletTradeHistory.tsx  Props: { trades: TradeMatch[] }                      ← last N trades history
-  WalletEquityCurve.tsx          Props: { trades, fundingPayments, tradesComplete }   ← Recharts equity curve
+  WalletEquityCurve.tsx          Props: { trades, globalMatchesComplete }
+                                 + store selectors: fundingPayments, fundingLoadedSince   ← Recharts equity curve
   WalletFeesByProductChart.tsx   Props: { trades }                                    ← Recharts fee breakdown by product (Analytics tab)
-  WalletFundingByProductChart.tsx Props: { fundingPayments }                          ← Recharts funding breakdown by product (Analytics tab)
+  WalletFundingByProductChart.tsx No props — reads store directly                     ← Recharts funding breakdown by product (Analytics tab)
   WalletTabNav.tsx               Props: { activeTab, onTabChange }                   ← tab navigation (Positions / History / Analytics)
   AccountFilterSelect.tsx        Props: { options, value, onValueChange }             ← subaccount filter dropdown (positions, trades, spot)
 
 hooks/
-  useWalletData.ts        ← multi-subaccount fetch + 6s polling → WalletData
+  useWalletData.ts        ← multi-subaccount fetch + 6s polling → WalletData (orchestrates trades, positions, snapshots)
+  useWalletFunding.ts     ← thin lifecycle hook — initForAddress + abort on address change
   useAccountStream.ts     ← EventSource to /sse, exponential-backoff reconnect, fill → onFill callback
   usePairs.ts             ← triggers pairsStore.init() on mount (via PairsInitializer)
   useAccount.ts           ← wagmi useAccount wrapper (connected wallet)
 
 store/
+  walletFundingStore.ts ← Zustand (no persist) — funding data owner, two distinct flows:
+                          1. Position-scoped: fetchPositionScopedFunding() → positionFundingPayments[]
+                             Auto-loaded Phase 2b, funding only for open positions (stops at openTime)
+                             Used by: WalletPositions Funding column
+                          2. Global: loadFundingForPeriod(period) / loadGlobalFunding()
+                             → fundingPayments[] + fundingPaidUsd
+                             Delta fetch with per-subaccount cursors, inflight dedup
+                             Used by: WalletSummary, WalletEquityCurve, WalletFundingByProductChart
   pairsStore.ts        ← Zustand + persist — V2 assets, byId Map, perp[], spot[]
   accountStore.ts      ← Zustand — connected wallet state
+
+lib/wallet/
+  fetchWalletFunding.ts ← pure fetch functions: fetchFundingBySubaccount, fetchFundingAllSubaccounts, fetchPositionScopedFunding
 
 lib/schemas/nado.ts    ← NadoSubaccountDataSchema + ArchiveMatchesResponseSchema + V2AssetSchema (Zod)
 types/nado.ts          ← WalletStats, Position, TradeMatch, fromX18BigInt

@@ -10,7 +10,6 @@ const fmtUsd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'US
 type Props = {
   stats: WalletStats
   tradesComplete?: boolean
-  fundingComplete?: boolean
 }
 
 export function WalletStats({

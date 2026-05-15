@@ -7,7 +7,6 @@ import type { TradeMatch } from "@/types/nado";
 import {
   buildEquityCurveData,
   type EquityPoint,
-  type FundingPaymentEntry,
 } from "@/lib/wallet/buildEquityCurve";
 import { isClosingTrade } from "@/lib/wallet/performance";
 import {
@@ -16,6 +15,7 @@ import {
   isFundingLoaded,
   type EquityPeriod,
 } from "@/lib/wallet/equityPeriod";
+import { useWalletFundingStore } from "@/store/walletFundingStore";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -38,15 +38,8 @@ import { LoadingShimmer } from "@/components/ui/LoadingShimmer";
 
 type Props = {
   trades: TradeMatch[];
-  fundingPayments: FundingPaymentEntry[];
   /** When false, global match pagination is still running — chart shows if data available. */
   globalMatchesComplete?: boolean;
-  /** True once all funding has loaded. */
-  globalFundingComplete?: boolean;
-  /** True while funding history is loading. */
-  globalFundingLoading?: boolean;
-  /** Oldest funding timestamp loaded (unix ms). Infinity = nothing, 0 = all time. */
-  fundingLoadedSince?: number;
 };
 
 const BULL_STROKE = "var(--color-bull)";
@@ -67,12 +60,10 @@ const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
 
 export function WalletEquityCurve({
   trades,
-  fundingPayments,
   globalMatchesComplete = true,
-  globalFundingComplete = false,
-  globalFundingLoading = false,
-  fundingLoadedSince = Infinity,
 }: Props) {
+  const fundingPayments = useWalletFundingStore((s) => s.fundingPayments);
+  const fundingLoadedSince = useWalletFundingStore((s) => s.fundingLoadedSince);
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
   const [shimmerTimedOut, setShimmerTimedOut] = useState(false);
 
