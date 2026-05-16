@@ -17,7 +17,7 @@ import { WalletSummary } from "@/components/wallet/WalletSummary";
 import { WalletTabNav } from "@/components/wallet/WalletTabNav";
 import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProductChart";
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
-import { Spinner } from "@/components/ui/Spinner";
+import { InkLoader } from "@/components/ui/InkLoader";
 import { Button } from "@/components/ui/button";
 
 const LOAD_TIMEOUT_MS = 30_000;
@@ -88,7 +88,7 @@ function WalletContent({ address }: { address: string }) {
     }
     return (
       <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
-        <Spinner size={48} />
+        <InkLoader size={160} />
       </div>
     );
   }

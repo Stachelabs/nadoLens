@@ -111,7 +111,7 @@ const server = Bun.serve({
       const data: unknown = await archiveRes.json();
 
       try {
-        await redis.set(key, data, { ex: 86_400 });
+        await redis.set(key, data, { ex: 21_600 });
       } catch {
         // Cache write failure is non-fatal
       }
