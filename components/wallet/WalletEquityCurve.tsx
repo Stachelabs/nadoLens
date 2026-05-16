@@ -64,8 +64,23 @@ export function WalletEquityCurve({
 }: Props) {
   const fundingPayments = useWalletFundingStore((s) => s.fundingPayments);
   const fundingLoadedSince = useWalletFundingStore((s) => s.fundingLoadedSince);
+  const loadFundingForPeriod = useWalletFundingStore((s) => s.loadFundingForPeriod);
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
   const [shimmerTimedOut, setShimmerTimedOut] = useState(false);
+
+  function handlePeriodChange(v: EquityPeriod) {
+    setPeriod(v);
+    if (!isFundingLoaded(v, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(v);
+    }
+  }
+
+  useEffect(() => {
+    if (!isFundingLoaded(period, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(period);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, fundingLoadedSince]);
 
   useEffect(() => {
     if (globalMatchesComplete) return;
@@ -154,7 +169,7 @@ export function WalletEquityCurve({
             <Select
               value={period}
               onValueChange={(v) => {
-                if (v != null) setPeriod(v as EquityPeriod);
+                if (v != null) handlePeriodChange(v as EquityPeriod);
               }}
             >
               <SelectTrigger

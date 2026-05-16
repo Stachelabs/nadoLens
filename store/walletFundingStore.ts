@@ -6,7 +6,6 @@ import { fromX18BigInt } from '@/types/nado'
 import { usePairsStore } from '@/store/pairsStore'
 import {
   fetchFundingBySubaccount,
-  fetchFundingAllSubaccounts,
   type FundingFetchResult,
 } from '@/lib/wallet/fetchWalletFunding'
 
@@ -33,8 +32,16 @@ function getSignal(): AbortSignal | undefined {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getAllPerpProductIds(): number[] {
-  const { perp } = usePairsStore.getState()
+async function ensurePerpProductIds(): Promise<number[]> {
+  let { perp } = usePairsStore.getState()
+  if (perp.length === 0) {
+    await usePairsStore.getState().init()
+    perp = usePairsStore.getState().perp
+  }
+  if (perp.length === 0) {
+    console.warn('ensurePerpProductIds: pairsStore still empty after init')
+    return []
+  }
   return Array.from(new Set(perp.map(a => a.product_id)))
 }
 
@@ -58,14 +65,11 @@ type WalletFundingState = {
   fundingPeriodLoading: boolean
   fundingLoadedSince: number
 
-  loadedProductIds: number[]
-
   initForAddress: (addr: string) => void
   setSubaccounts: (subs: string[]) => void
   setPositionFunding: (payments: FundingPaymentEntry[], productIds: number[]) => void
   loadGlobalFunding: () => Promise<void>
   loadFundingForPeriod: (period: EquityPeriod) => Promise<void>
-  loadFundingForProducts: (productIds: number[]) => Promise<void>
   abort: () => void
 }
 
@@ -81,7 +85,6 @@ const INITIAL_FUNDING_STATE = {
   globalFundingComplete: false,
   fundingPeriodLoading: false,
   fundingLoadedSince: Infinity,
-  loadedProductIds: [] as number[],
 }
 
 export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
@@ -121,14 +124,14 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
       set({ globalFundingLoading: true })
 
       try {
-        const productIds = getAllPerpProductIds()
+        const productIds = await ensurePerpProductIds()
         if (productIds.length === 0) {
           set({ globalFundingLoading: false })
           return
         }
 
         const { subaccountCursors, fundingPayments: existingPayments } = get()
-        const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}`))
+        const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}:${p.product_id}`))
         const newPayments: FundingPaymentEntry[] = []
         let newUsd = 0
         let allComplete = true
@@ -149,7 +152,7 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
           }
 
           for (const p of result.payments) {
-            const dedupKey = `${p.subaccount}:${p.idx}`
+            const dedupKey = `${p.subaccount}:${p.idx}:${p.product_id}`
             if (!existingKeys.has(dedupKey)) {
               existingKeys.add(dedupKey)
               newPayments.push(p)
@@ -209,14 +212,14 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
       set({ fundingPeriodLoading: true })
 
       try {
-        const productIds = getAllPerpProductIds()
+        const productIds = await ensurePerpProductIds()
         if (productIds.length === 0) {
           set({ fundingPeriodLoading: false })
           return
         }
 
         const { subaccountCursors, fundingPayments: existingPayments } = get()
-        const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}`))
+        const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}:${p.product_id}`))
         const newPayments: FundingPaymentEntry[] = []
         let rateLimited = false
         const updatedCursors = { ...subaccountCursors }
@@ -235,7 +238,7 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
           }
 
           for (const p of result.payments) {
-            const dedupKey = `${p.subaccount}:${p.idx}`
+            const dedupKey = `${p.subaccount}:${p.idx}:${p.product_id}`
             if (!existingKeys.has(dedupKey)) {
               existingKeys.add(dedupKey)
               newPayments.push(p)
@@ -274,49 +277,6 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
         }
         if (!(e instanceof DOMException && e.name === 'AbortError')) {
           console.error('loadFundingForPeriod failed:', e)
-        }
-      }
-    })()
-
-    setInflight(key, promise)
-    return promise
-  },
-
-  loadFundingForProducts: async (productIds: number[]) => {
-    const { address, subaccounts, loadedProductIds } = get()
-    if (!address || subaccounts.length === 0) return
-
-    const toLoad = productIds.filter(id => !loadedProductIds.includes(id))
-    if (toLoad.length === 0) return
-
-    const key = `${address}:products:${[...toLoad].sort().join(',')}`
-    const existing = getInflight(key)
-    if (existing) return existing
-
-    const promise = (async () => {
-      set({ globalFundingLoading: true })
-
-      try {
-        const result = await fetchFundingAllSubaccounts(subaccounts, toLoad, getSignal())
-
-        if (get().address !== address) return
-
-        const { fundingPayments: existingPayments } = get()
-        const existingIdxs = new Set(existingPayments.map(p => p.idx))
-        const newPayments = result.payments.filter(p => !existingIdxs.has(p.idx))
-
-        set(prev => ({
-          fundingPayments: [...prev.fundingPayments, ...newPayments],
-          fundingPaidUsd: prev.fundingPaidUsd + result.totalFundingUsd,
-          loadedProductIds: [...new Set([...prev.loadedProductIds, ...toLoad])],
-          globalFundingLoading: false,
-        }))
-      } catch (e) {
-        if (get().address === address) {
-          set({ globalFundingLoading: false })
-        }
-        if (!(e instanceof DOMException && e.name === 'AbortError')) {
-          console.error('loadFundingForProducts failed:', e)
         }
       }
     })()
