@@ -2,7 +2,14 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Turbopack (default in Next.js 16) — wallet SDKs work without extra config
+  serverExternalPackages: [
+    'lokijs',
+    'pino-pretty',
+    'encoding',
+    'idb-keyval',
+    '@walletconnect/keyvaluestorage',
+    '@coinbase/wallet-sdk',
+  ],
   turbopack: {},
   webpack: (config) => {
     // Fallback for explicit --webpack builds
