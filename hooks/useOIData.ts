@@ -178,7 +178,11 @@ export function useOIData(timeframe: Timeframe): OIDataState {
 
   // ─── Fetch current funding rates (needs product_ids from tickers) ───────────
   const fundingProductKey = useMemo(
-    () => snapshotData?.tickers.map((t) => t.product_id).sort((a, b) => a - b).join(',') ?? '',
+    () => snapshotData?.tickers
+      .filter((t) => t.market_type === 'perp')
+      .map((t) => t.product_id)
+      .sort((a, b) => a - b)
+      .join(',') ?? '',
     [snapshotData?.tickers],
   )
 
@@ -263,6 +267,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     if (!snapshotData) return []
 
     return [...snapshotData.tickers]
+      .filter((t) => t.market_type === 'perp')
       .sort((a, b) => {
         const aOI = a.open_interest_usd != null ? Number(a.open_interest_usd) : 0
         const bOI = b.open_interest_usd != null ? Number(b.open_interest_usd) : 0
@@ -283,7 +288,7 @@ export function useOIData(timeframe: Timeframe): OIDataState {
     // Only keep assets with active markets (OI > 0)
     const activeProductIds = new Set(
       snapshotData.tickers
-        .filter((t) => t.open_interest_usd != null && Number(t.open_interest_usd) > 0)
+        .filter((t) => t.market_type === 'perp' && t.open_interest_usd != null && Number(t.open_interest_usd) > 0)
         .map((t) => t.product_id),
     )
 
