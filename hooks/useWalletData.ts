@@ -543,6 +543,21 @@ export function useWalletData(rawAddress: string): WalletData {
       const hasCachedTrades = cached && cached.trades.length > 0;
       const phase3a = (async () => {
         if (hasCachedTrades && cached.globalMatchesComplete) {
+          // Phase 1 wiped trades/flags via full setData replace — restore from refs
+          if (!cancelled) {
+            const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+            const pnl = buildPnlStats(tradesRef.current, fs?.fundingPaidUsd ?? 0);
+            setData(prev => ({
+              ...prev,
+              trades: tradesRef.current,
+              globalMatchesComplete: true,
+              tradesComplete: true,
+              stats: prev.stats
+                ? { ...prev.stats, trades: tradesRef.current, trades_complete: true, ...pnl }
+                : null,
+            }));
+          }
+          // Incremental catch-up for trades newer than cache
           if (latestKnownIdxRef.current && !cancelled) {
             const newTrades = await fetchIncrementalTrades(subaccountChunks, latestKnownIdxRef.current);
             if (!cancelled && newTrades.length > 0) {
