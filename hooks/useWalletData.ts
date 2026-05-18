@@ -1172,16 +1172,6 @@ export function useWalletData(rawAddress: string): WalletData {
     return () => {
       cancelled = true;
       controller.abort();
-      tradesRef.current = [];
-      entryPriceMapRef.current = new Map();
-      positionStatsMapRef.current = new Map();
-      latestKnownIdxRef.current = null;
-      seenTradeIdsRef.current = new Set();
-      isolatedParentNameRef.current = new Map();
-      isolatedParentSubaccountRef.current = new Map();
-      positionTradesRef.current = [];
-      positionOpenTimeMapRef.current = {};
-      positionSeenTradeIdsRef.current = new Set();
       if (intervalRef.current) clearTimeout(intervalRef.current);
     };
   }, [rawAddress]);
