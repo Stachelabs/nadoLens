@@ -339,7 +339,7 @@ export function useWalletData(rawAddress: string): WalletData {
       ));
 
       if (openPerpProductIds.length === 0) {
-        useWalletFundingStore.getState().setPositionFunding([], []);
+        useWalletFundingStore.getState().setPositionFunding(rawAddress, [], []);
         return;
       }
 
@@ -368,7 +368,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = positionSessionStatsMap;
-      useWalletFundingStore.getState().setPositionFunding(accumulated, openPerpProductIds);
+      useWalletFundingStore.getState().setPositionFunding(rawAddress, accumulated, openPerpProductIds);
 
       if (!cancelled) {
         setData(prev => ({
@@ -425,7 +425,7 @@ export function useWalletData(rawAddress: string): WalletData {
       }
       if (cancelled) return;
       const subAddrs = subs.map((s) => s.subaccount);
-      useWalletFundingStore.getState().setSubaccounts(subAddrs);
+      useWalletFundingStore.getState().setSubaccounts(rawAddress, subAddrs);
 
       const subaccountChunks = chunk(subAddrs, 5);
 
@@ -494,9 +494,9 @@ export function useWalletData(rawAddress: string): WalletData {
         if (cancelled) return;
         setData((prev) => {
           if (!prev.stats) return { ...prev, snapshotReady: true };
-          const fs = useWalletFundingStore.getState();
-          const ef = fs.fundingPayments.length > 0
-            ? fs.fundingPayments : fs.positionFundingPayments;
+          const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+          const ef = (fs?.fundingPayments.length ?? 0) > 0
+            ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
           const corrected = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -556,8 +556,8 @@ export function useWalletData(rawAddress: string): WalletData {
         // Global trades are used only for overall wallet PnL stats, not per-position columns.
         // Update data after first-page trades arrive
         setData((prev) => {
-          const fs = useWalletFundingStore.getState();
-          const pnlStats = buildPnlStats(allTrades, fs.fundingPaidUsd);
+          const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+          const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
           return {
           ...prev,
           trades: allTrades,
@@ -568,8 +568,8 @@ export function useWalletData(rawAddress: string): WalletData {
                 trades_complete: firstPages.every((page) => page.done),
                 ...pnlStats,
                 positions: (() => {
-                  const ef = fs.fundingPayments.length > 0
-                    ? fs.fundingPayments : fs.positionFundingPayments;
+                  const ef = (fs?.fundingPayments.length ?? 0) > 0
+                    ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
                   return applySessionFunding(
                     applyPositionStats(
                       applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -596,7 +596,7 @@ export function useWalletData(rawAddress: string): WalletData {
             tradesRef.current = allTrades;
             latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
             setData((prev) => {
-              const catchUpStats = buildPnlStats(allTrades, useWalletFundingStore.getState().fundingPaidUsd);
+              const catchUpStats = buildPnlStats(allTrades, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0);
               return {
               ...prev,
               trades: allTrades,
@@ -656,8 +656,8 @@ export function useWalletData(rawAddress: string): WalletData {
             const allDone = chunkStates.every((state) => state.done);
             tradesCompleteRef.current = allDone || page === MAX_PAGES - 1;
             setData((prev) => {
-              const fs = useWalletFundingStore.getState();
-              const updatedStats = buildPnlStats(allTrades, fs.fundingPaidUsd);
+              const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+              const updatedStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
               return {
               ...prev,
               trades: allTrades,
@@ -670,8 +670,8 @@ export function useWalletData(rawAddress: string): WalletData {
                     trades_complete: allDone || page === MAX_PAGES - 1,
                     ...updatedStats,
                     positions: (() => {
-                      const ef = fs.fundingPayments.length > 0
-                        ? fs.fundingPayments : fs.positionFundingPayments;
+                      const ef = (fs?.fundingPayments.length ?? 0) > 0
+                        ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
                       return applySessionFunding(
                         applyPositionStats(
                           applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -822,10 +822,10 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           if (cancelled) return;
           // Use global funding if loaded (CTA clicked), otherwise fall back to position-scoped funding.
-          const fState = useWalletFundingStore.getState();
-          const effectiveFunding = fState.fundingPayments.length > 0
-            ? fState.fundingPayments
-            : fState.positionFundingPayments;
+          const fState = useWalletFundingStore.getState().forAddress(rawAddress);
+          const effectiveFunding = (fState?.fundingPayments.length ?? 0) > 0
+            ? (fState?.fundingPayments ?? [])
+            : (fState?.positionFundingPayments ?? []);
           const pollPositions = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
@@ -835,10 +835,8 @@ export function useWalletData(rawAddress: string): WalletData {
             effectiveFunding,
           );
           const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
-          // Rebuild global PnL stats (win_rate, net_pnl_usd, total_fees_usd, volume, etc.)
-          // when new trades were detected so WalletStats and WalletSummary update immediately.
           const tradeStats = tradeHistoryUpdated
-            ? buildPnlStats(tradesRef.current, fState.fundingPaidUsd)
+            ? buildPnlStats(tradesRef.current, fState?.fundingPaidUsd ?? 0)
             : {};
           setData((prev) => ({
             ...prev,
@@ -921,10 +919,10 @@ export function useWalletData(rawAddress: string): WalletData {
           if (cancelled) return;
           positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
 
-          const fStore = useWalletFundingStore.getState();
-          const effectiveFundingR = fStore.fundingPayments.length > 0
-            ? fStore.fundingPayments
-            : fStore.positionFundingPayments;
+          const fStore = useWalletFundingStore.getState().forAddress(rawAddress);
+          const effectiveFundingR = (fStore?.fundingPayments.length ?? 0) > 0
+            ? (fStore?.fundingPayments ?? [])
+            : (fStore?.positionFundingPayments ?? []);
           const refreshPositions = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
@@ -1041,7 +1039,7 @@ export function useWalletData(rawAddress: string): WalletData {
           latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
           setData((prev) => {
             if (!prev.stats) return prev;
-            const pnl = buildPnlStats(updatedTrades, useWalletFundingStore.getState().fundingPaidUsd);
+            const pnl = buildPnlStats(updatedTrades, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0);
             return { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...pnl } };
           });
         }
@@ -1092,9 +1090,10 @@ export function useWalletData(rawAddress: string): WalletData {
   // Rebuild stats.net_pnl_usd when global funding finishes loading.
   // buildPnlStats only reruns on trade changes — this bridges the gap.
   useEffect(() => {
-    let prev = useWalletFundingStore.getState().fundingPaidUsd;
+    if (!rawAddress) return;
+    let prev = useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0;
     const unsub = useWalletFundingStore.subscribe((state) => {
-      const next = state.fundingPaidUsd;
+      const next = state.forAddress(rawAddress)?.fundingPaidUsd ?? 0;
       if (next === prev) return;
       prev = next;
       if (tradesRef.current.length === 0) return;
@@ -1105,7 +1104,7 @@ export function useWalletData(rawAddress: string): WalletData {
       });
     });
     return unsub;
-  }, []);
+  }, [rawAddress]);
 
   return {
     ...data,

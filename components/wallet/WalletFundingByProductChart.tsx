@@ -53,15 +53,16 @@ function fmtAxis(v: number): string {
 }
 
 export function WalletFundingByProductChart() {
-  const fundingPayments = useWalletFundingStore((s) => s.fundingPayments);
-  const fundingLoadedSince = useWalletFundingStore((s) => s.fundingLoadedSince);
+  const activeAddress = useWalletFundingStore((s) => s.activeAddress);
+  const fundingPayments = useWalletFundingStore((s) => s.forActive()?.fundingPayments ?? []);
+  const fundingLoadedSince = useWalletFundingStore((s) => s.forActive()?.fundingLoadedSince ?? Infinity);
   const loadFundingForPeriod = useWalletFundingStore((s) => s.loadFundingForPeriod);
   const [period, setPeriod] = useState<EquityPeriod>('7 Days')
 
   function handlePeriodChange(newPeriod: EquityPeriod) {
     setPeriod(newPeriod)
-    if (!isFundingLoaded(newPeriod, fundingLoadedSince)) {
-      void loadFundingForPeriod?.(newPeriod)
+    if (activeAddress && !isFundingLoaded(newPeriod, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(activeAddress, newPeriod)
     }
   }
 
@@ -76,11 +77,11 @@ export function WalletFundingByProductChart() {
 
   // Retry load when a previous period completes but current period is still pending
   useEffect(() => {
-    if (!isFundingLoaded(period, fundingLoadedSince)) {
-      void loadFundingForPeriod?.(period)
+    if (activeAddress && !isFundingLoaded(period, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(activeAddress, period)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, fundingLoadedSince])
+  }, [period, fundingLoadedSince, activeAddress])
 
   return (
     <Card>
