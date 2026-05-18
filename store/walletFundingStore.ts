@@ -148,6 +148,7 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
   },
 
   setPositionFunding: (addr: string, payments: FundingPaymentEntry[], productIds: number[]) => {
+    if (!get().wallets.has(addr)) return
     set(prev => ({
       wallets: updateSlot(prev.wallets, addr, () => ({
         positionFundingPayments: payments,
