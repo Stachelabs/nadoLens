@@ -97,14 +97,6 @@ type WalletFundingState = {
   trimCache: (protectedAddr: string | null) => void
 }
 
-function getOrCreateSlot(wallets: Map<string, PerAddressFundingState>, addr: string): PerAddressFundingState {
-  const existing = wallets.get(addr)
-  if (existing) return existing
-  const fresh = { ...INITIAL_FUNDING_STATE }
-  wallets.set(addr, fresh)
-  return fresh
-}
-
 function updateSlot(
   wallets: Map<string, PerAddressFundingState>,
   addr: string,
