@@ -45,6 +45,7 @@ import {
   type MatchesPageResult,
 } from "@/lib/wallet/walletFetchers";
 import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
+import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore";
 
 const POSITIONS_POLL_MS = 6_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
@@ -180,6 +181,12 @@ export function useWalletData(rawAddress: string): WalletData {
         tradesComplete: cached.globalMatchesComplete,
         stats: prev.stats ? { ...prev.stats, trades: cached.trades, ...cachedPnl } : null,
       }));
+    }
+
+    // Seed position stats from cache — instant Realized PnL on re-visit
+    const posCached = usePositionMatchesCacheStore.getState().getCache(rawAddress);
+    if (posCached && posCached.positionTrades.length > 0) {
+      positionStatsMapRef.current = buildPositionStatsMap(posCached.positionTrades, true);
     }
 
     // Local wrappers that bind the shared signal to extracted fetchers
@@ -502,6 +509,12 @@ export function useWalletData(rawAddress: string): WalletData {
       // Phase 2: position-scoped matches → position-scoped funding (sequential)
       const phase2 = (async () => {
         await fetchPositionScopedMatches(positionData.positions, true);
+        if (!cancelled && positionTradesRef.current.length > 0) {
+          usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+            positionTrades: [...positionTradesRef.current],
+            positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+          });
+        }
         if (cancelled) return;
         await loadPositionFundingPhase2b(positionData.positions);
       })();
@@ -870,6 +883,10 @@ export function useWalletData(rawAddress: string): WalletData {
             await fetchPositionScopedMatches(pd.positions, true);
             if (cancelled) return;
             positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+            usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+              positionTrades: [...positionTradesRef.current],
+              positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+            });
 
             // Also pull new fills into the global trade history (WalletTradeHistory).
             // Redis TTL for first-page is 15s, so this sees fresh data after the fill.
@@ -991,6 +1008,10 @@ export function useWalletData(rawAddress: string): WalletData {
           await fetchPositionScopedMatches(pd.positions);
           if (cancelled) return;
           positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+          usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+            positionTrades: [...positionTradesRef.current],
+            positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+          });
 
           const fStore = useWalletFundingStore.getState().forAddress(rawAddress);
           const effectiveFundingR = (fStore?.fundingPayments.length ?? 0) > 0
