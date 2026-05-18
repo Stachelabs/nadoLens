@@ -761,6 +761,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // Wait for all background tasks — don't block UI (already rendered at Phase 1)
       await Promise.all([phase2, snapshotsTask, phase3a]).catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
         console.error("[useWalletData] background phase error:", e);
       });
 
@@ -933,6 +934,7 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           pollErrorCountRef.current = 0;
         } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
           console.error('[useWalletData] pollPositionsOnly error:', e);
           pollErrorCountRef.current += 1;
         }
@@ -1126,6 +1128,7 @@ export function useWalletData(rawAddress: string): WalletData {
     };
 
     void loadWallet("initial").catch((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error("[useWalletData] loadWallet failed:", e);
       if (!cancelled)
         setData((p) => ({
