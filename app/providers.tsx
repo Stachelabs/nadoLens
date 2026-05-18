@@ -12,6 +12,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { usePairs } from "@/hooks/usePairs";
 import { useProtocolPrefetch } from "@/hooks/useProtocolPrefetch";
+import { useConnectedWalletPrefetch } from "@/hooks/useConnectedWalletPrefetch";
 
 function PairsInitializer() {
   usePairs();
@@ -20,6 +21,11 @@ function PairsInitializer() {
 
 function ProtocolPrefetchInitializer() {
   useProtocolPrefetch();
+  return null;
+}
+
+function ConnectedWalletPrefetchInitializer() {
+  useConnectedWalletPrefetch();
   return null;
 }
 
@@ -50,6 +56,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         >
           <PairsInitializer />
           <ProtocolPrefetchInitializer />
+          <ConnectedWalletPrefetchInitializer />
           {mounted ? children : null}
         </RainbowKitProvider>
       </QueryClientProvider>
