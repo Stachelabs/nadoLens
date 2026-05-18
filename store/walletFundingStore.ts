@@ -123,7 +123,6 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
   ensureSlot: (addr: string) => {
     const { wallets } = get()
     if (wallets.has(addr)) {
-      // Refresh abort controller without wiping data
       abortControllers.get(addr)?.abort()
       abortControllers.set(addr, new AbortController())
       return
@@ -132,6 +131,7 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
     const next = new Map(wallets)
     next.set(addr, { ...INITIAL_FUNDING_STATE })
     set({ wallets: next })
+    get().trimCache(addr)
   },
 
   setActive: (addr: string) => {

@@ -23,6 +23,13 @@ export const usePositionMatchesCacheStore = create<PositionMatchesCacheState>((s
     set(prev => {
       const next = new Map(prev.wallets)
       next.set(addr, { ...data, cachedAt: Date.now() })
+      if (next.size > MAX_CACHED_WALLETS) {
+        for (const [key] of next) {
+          if (next.size <= MAX_CACHED_WALLETS) break
+          if (key === addr) continue
+          next.delete(key)
+        }
+      }
       return { wallets: next }
     })
   },

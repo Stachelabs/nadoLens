@@ -32,6 +32,13 @@ export const useWalletMatchesCacheStore = create<WalletMatchesCacheState>((set, 
         globalMatchesComplete: data.globalMatchesComplete ?? existing?.globalMatchesComplete ?? false,
         cachedAt: Date.now(),
       })
+      if (next.size > MAX_CACHED_WALLETS) {
+        for (const [key] of next) {
+          if (next.size <= MAX_CACHED_WALLETS) break
+          if (key === addr) continue
+          next.delete(key)
+        }
+      }
       return { wallets: next }
     })
   },
