@@ -129,12 +129,15 @@ export function useConnectedWalletPrefetch(): void {
 
           if (signal.aborted) return
 
-          useWalletMatchesCacheStore.getState().setCache(address, {
-            trades: sorted,
-            latestKnownIdx: latestIdx,
-            seenTradeIds: seenIds,
-            globalMatchesComplete: complete,
-          })
+          const freshMatchCheck = useWalletMatchesCacheStore.getState().getCache(address)
+          if (!freshMatchCheck || freshMatchCheck.trades.length === 0) {
+            useWalletMatchesCacheStore.getState().setCache(address, {
+              trades: sorted,
+              latestKnownIdx: latestIdx,
+              seenTradeIds: seenIds,
+              globalMatchesComplete: complete,
+            })
+          }
         }
 
         // ── Position-scoped matches prefetch ─────────────────────────────
@@ -165,10 +168,13 @@ export function useConnectedWalletPrefetch(): void {
         if (signal.aborted) return
 
         if (posMatches.positionTrades.length > 0) {
-          usePositionMatchesCacheStore.getState().setCache(address, {
-            positionTrades: posMatches.positionTrades,
-            positionOpenTimeMap: posMatches.positionOpenTimeMap,
-          })
+          const freshCheck = usePositionMatchesCacheStore.getState().getCache(address)
+          if (!freshCheck || freshCheck.positionTrades.length === 0) {
+            usePositionMatchesCacheStore.getState().setCache(address, {
+              positionTrades: posMatches.positionTrades,
+              positionOpenTimeMap: posMatches.positionOpenTimeMap,
+            })
+          }
         }
       } catch (e) {
         if (!(e instanceof DOMException && e.name === 'AbortError')) {
