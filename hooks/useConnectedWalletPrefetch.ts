@@ -72,7 +72,7 @@ export function useConnectedWalletPrefetch(): void {
             const p = await fetchOnePage(subChunks[c]!, signal)
             if (p.rateLimited) return
             firstPages.push(p)
-            if (c < subChunks.length - 1) await sleep(PREFETCH_BURST_MS)
+            if (c < subChunks.length - 1) await sleep(PREFETCH_BURST_MS, signal)
           }
 
           for (const page of firstPages) {
@@ -120,12 +120,12 @@ export function useConnectedWalletPrefetch(): void {
 
                 state.done = result.done
                 state.nextIdx = result.nextIdx
-                if (a < active.length - 1) await sleep(PREFETCH_BURST_MS)
+                if (a < active.length - 1) await sleep(PREFETCH_BURST_MS, signal)
               }
 
               complete = chunkStates.every(s => s.done)
               if (complete) break
-              await sleep(PREFETCH_BURST_MS)
+              await sleep(PREFETCH_BURST_MS, signal)
             }
 
             sorted = sortTradesNewestFirst(allTrades)

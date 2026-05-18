@@ -85,8 +85,15 @@ export function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason); return }
+    const id = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(id)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
 }
 
 export function sortTradesNewestFirst(trades: TradeMatch[]): TradeMatch[] {
@@ -579,7 +586,7 @@ export async function prefetchPositionMatches(
         }
       }
 
-      await sleep(burstMs)
+      await sleep(burstMs, signal)
     }
     iteration++
   }
