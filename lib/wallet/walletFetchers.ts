@@ -489,3 +489,100 @@ export async function fetchOnePage(
     return { trades: [], nextIdx: null, done: true }
   }
 }
+
+// ─── Position-scoped match prefetch ────────────────────────────────────────
+
+export type PositionMatchesPrefetchResult = {
+  positionTrades: TradeMatch[]
+  positionOpenTimeMap: Record<string, number>
+}
+
+const MAX_POSITION_SCOPED_PAGES = 5
+
+export async function prefetchPositionMatches(
+  positions: Position[],
+  signal: AbortSignal,
+  burstMs: number,
+): Promise<PositionMatchesPrefetchResult> {
+  const positionTrades: TradeMatch[] = []
+  const positionOpenTimeMap: Record<string, number> = {}
+  const seenIds = new Set<string>()
+
+  type PairKey = {
+    pocketSubaccount: string
+    querySubaccount: string
+    productId: number
+    isIsolated: boolean
+  }
+
+  const pairs: PairKey[] = positions
+    .filter(p => fromX18BigInt(p.amount_x18) !== 0)
+    .map(p => ({
+      pocketSubaccount: p.subaccount,
+      querySubaccount: p.isolated
+        ? (p.parent_subaccount ?? p.subaccount)
+        : p.subaccount,
+      productId: p.product_id,
+      isIsolated: p.isolated,
+    }))
+
+  if (pairs.length === 0) return { positionTrades, positionOpenTimeMap }
+
+  const completedProducts = new Set<string>()
+  const cursorByPair: Record<string, string | undefined> = {}
+
+  let iteration = 0
+  while (completedProducts.size < pairs.length && iteration < MAX_POSITION_SCOPED_PAGES) {
+    if (signal.aborted) break
+    for (const pair of pairs) {
+      if (signal.aborted) break
+      const pairKey = `${pair.pocketSubaccount}:${pair.productId}`
+      if (completedProducts.has(pairKey)) continue
+
+      const result = await fetchOnePage(
+        [pair.querySubaccount],
+        signal,
+        cursorByPair[pairKey],
+        [pair.productId],
+      )
+
+      if (result.rateLimited || result.trades.length === 0) {
+        completedProducts.add(pairKey)
+        continue
+      }
+
+      for (const trade of result.trades) {
+        const tradeId = `${trade.submission_idx ?? ""}-${trade.subaccount ?? ""}-${trade.product_id}`
+        if (seenIds.has(tradeId)) continue
+        seenIds.add(tradeId)
+        positionTrades.push(trade)
+
+        if ((trade.isolated ?? false) !== pair.isIsolated) continue
+        if (trade.pre_balance_amount === undefined) continue
+
+        const preBalance = fromX18BigInt(trade.pre_balance_amount)
+        if (Math.abs(preBalance) < 1e-10) {
+          const timeSec = trade.timestamp
+            ? Number(BigInt(trade.timestamp) / BigInt(1_000_000_000))
+            : 0
+          positionOpenTimeMap[pairKey] = timeSec
+          completedProducts.add(pairKey)
+          break
+        }
+      }
+
+      if (!completedProducts.has(pairKey)) {
+        if (result.done) {
+          completedProducts.add(pairKey)
+        } else {
+          cursorByPair[pairKey] = result.nextIdx ?? undefined
+        }
+      }
+
+      await sleep(burstMs)
+    }
+    iteration++
+  }
+
+  return { positionTrades, positionOpenTimeMap }
+}
