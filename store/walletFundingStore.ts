@@ -93,9 +93,11 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
   ...INITIAL_FUNDING_STATE,
 
   initForAddress: (addr: string) => {
+    const currentAddress = get().address
     abortController?.abort()
     abortController = new AbortController()
     inflight.clear()
+    if (currentAddress === addr) return
     set({ address: addr, subaccounts: [], ...INITIAL_FUNDING_STATE })
   },
 
