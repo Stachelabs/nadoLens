@@ -29,7 +29,7 @@ export function useConnectedWalletPrefetch(): void {
     if (!isConnected || !address) return
 
     const existing = useWalletMatchesCacheStore.getState().getCache(address)
-    if (existing && existing.trades.length > 0) {
+    if (existing && existing.trades.length > 0 && existing.globalMatchesComplete) {
       const posExisting = usePositionMatchesCacheStore.getState().getCache(address)
       if (posExisting && posExisting.positionTrades.length > 0) return
     }
