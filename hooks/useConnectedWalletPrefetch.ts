@@ -17,6 +17,7 @@ import {
   type MatchesPageResult,
 } from '@/lib/wallet/walletFetchers'
 import type { TradeMatch } from '@/types/nado'
+import { fromX18BigInt } from '@/types/nado'
 
 const PREFETCH_BURST_MS = 440
 
@@ -157,7 +158,7 @@ export function useConnectedWalletPrefetch(): void {
         )
         if (signal.aborted) return
 
-        const openPositions = posResult.positions.filter(p => p.amount !== 0)
+        const openPositions = posResult.positions.filter(p => fromX18BigInt(p.amount_x18) !== 0)
         if (openPositions.length === 0) return
 
         const posMatches = await prefetchPositionMatches(
