@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAccount } from 'wagmi'
 import { useWalletFundingStore } from '@/store/walletFundingStore'
+import { usePairsStore } from '@/store/pairsStore'
 import { useWalletMatchesCacheStore } from '@/store/walletMatchesCacheStore'
 import { usePositionMatchesCacheStore } from '@/store/positionMatchesCacheStore'
 import {
@@ -38,6 +39,9 @@ export function useConnectedWalletPrefetch(): void {
 
     void (async () => {
       try {
+        await usePairsStore.getState().init()
+        if (signal.aborted) return
+
         const subs = await fetchSubaccounts(address, signal)
         if (signal.aborted) return
 
