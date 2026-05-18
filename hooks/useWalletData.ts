@@ -44,6 +44,7 @@ import {
   type SubaccountEntry,
   type MatchesPageResult,
 } from "@/lib/wallet/walletFetchers";
+import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
 
 const POSITIONS_POLL_MS = 6_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
@@ -162,6 +163,24 @@ export function useWalletData(rawAddress: string): WalletData {
     positionTradesRef.current = [];
     positionOpenTimeMapRef.current = {};
     positionSeenTradeIdsRef.current = new Set();
+
+    // Seed from matches cache if available — instant trades on re-visit
+    const cached = useWalletMatchesCacheStore.getState().getCache(rawAddress);
+    if (cached && cached.trades.length > 0) {
+      tradesRef.current = cached.trades;
+      latestKnownIdxRef.current = cached.latestKnownIdx;
+      seenTradeIdsRef.current = new Set(cached.seenTradeIds);
+      tradesCompleteRef.current = cached.globalMatchesComplete;
+      const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+      const cachedPnl = buildPnlStats(cached.trades, fs?.fundingPaidUsd ?? 0);
+      setData(prev => ({
+        ...prev,
+        trades: cached.trades,
+        globalMatchesComplete: cached.globalMatchesComplete,
+        tradesComplete: cached.globalMatchesComplete,
+        stats: prev.stats ? { ...prev.stats, trades: cached.trades, ...cachedPnl } : null,
+      }));
+    }
 
     // Local wrappers that bind the shared signal to extracted fetchers
     const fetchSubs = () => fetchSubaccounts(rawAddress, signal);
@@ -520,7 +539,29 @@ export function useWalletData(rawAddress: string): WalletData {
       })();
 
       // Phase 3a: global background pagination loop (first page + remaining pages)
+      // If cache already has complete trades, skip full pagination — incremental only.
+      const hasCachedTrades = cached && cached.trades.length > 0;
       const phase3a = (async () => {
+        if (hasCachedTrades && cached.globalMatchesComplete) {
+          if (latestKnownIdxRef.current && !cancelled) {
+            const newTrades = await fetchIncrementalTrades(subaccountChunks, latestKnownIdxRef.current);
+            if (!cancelled && newTrades.length > 0) {
+              const merged = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+              tradesRef.current = merged;
+              seenTradeIdsRef.current = new Set(merged.map(tradeIdentity));
+              latestKnownIdxRef.current = merged[0]?.submission_idx ?? latestKnownIdxRef.current;
+              const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+              const pnl = buildPnlStats(merged, fs?.fundingPaidUsd ?? 0);
+              setData(prev => ({
+                ...prev,
+                trades: merged,
+                stats: prev.stats ? { ...prev.stats, trades: merged, ...pnl } : null,
+              }));
+            }
+          }
+          return;
+        }
+
         let firstPages: MatchesPageResult[];
         try {
           const pages: MatchesPageResult[] = [];
@@ -708,6 +749,15 @@ export function useWalletData(rawAddress: string): WalletData {
         console.error("[useWalletData] background phase error:", e);
       });
 
+      if (!cancelled && tradesRef.current.length > 0) {
+        useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+          trades: tradesRef.current,
+          latestKnownIdx: latestKnownIdxRef.current,
+          seenTradeIds: new Set(seenTradeIdsRef.current),
+          globalMatchesComplete: tradesCompleteRef.current,
+        });
+      }
+
       // Poll live position marks / unrealized only — subaccount_info only (Gateway).
       // avg_entry (account_snapshots) is cached and only re-fetched when a fill is detected:
       // if any position's amount_x18 changed since the last tick, a fill happened and the
@@ -859,7 +909,13 @@ export function useWalletData(rawAddress: string): WalletData {
                 }
               : null,
           }));
-          // Poll succeeded — reset error counter
+          if (tradeHistoryUpdated) {
+            useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+              trades: tradesRef.current,
+              latestKnownIdx: latestKnownIdxRef.current,
+              seenTradeIds: new Set(seenTradeIdsRef.current),
+            });
+          }
           pollErrorCountRef.current = 0;
         } catch (e) {
           console.error('[useWalletData] pollPositionsOnly error:', e);
