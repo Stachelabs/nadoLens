@@ -62,25 +62,26 @@ export function WalletEquityCurve({
   trades,
   globalMatchesComplete = true,
 }: Props) {
-  const fundingPayments = useWalletFundingStore((s) => s.fundingPayments);
-  const fundingLoadedSince = useWalletFundingStore((s) => s.fundingLoadedSince);
+  const activeAddress = useWalletFundingStore((s) => s.activeAddress);
+  const fundingPayments = useWalletFundingStore((s) => s.forActive()?.fundingPayments ?? []);
+  const fundingLoadedSince = useWalletFundingStore((s) => s.forActive()?.fundingLoadedSince ?? Infinity);
   const loadFundingForPeriod = useWalletFundingStore((s) => s.loadFundingForPeriod);
   const [period, setPeriod] = useState<EquityPeriod>("7 Days");
   const [shimmerTimedOut, setShimmerTimedOut] = useState(false);
 
   function handlePeriodChange(v: EquityPeriod) {
     setPeriod(v);
-    if (!isFundingLoaded(v, fundingLoadedSince)) {
-      void loadFundingForPeriod?.(v);
+    if (activeAddress && !isFundingLoaded(v, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(activeAddress, v);
     }
   }
 
   useEffect(() => {
-    if (!isFundingLoaded(period, fundingLoadedSince)) {
-      void loadFundingForPeriod?.(period);
+    if (activeAddress && !isFundingLoaded(period, fundingLoadedSince)) {
+      void loadFundingForPeriod?.(activeAddress, period);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, fundingLoadedSince]);
+  }, [period, fundingLoadedSince, activeAddress]);
 
   useEffect(() => {
     if (globalMatchesComplete) return;

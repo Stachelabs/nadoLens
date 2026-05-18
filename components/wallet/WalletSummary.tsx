@@ -127,10 +127,11 @@ export function WalletSummary({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
-  const globalFundingComplete = useWalletFundingStore((s) => s.globalFundingComplete);
-  const globalFundingLoading = useWalletFundingStore((s) => s.globalFundingLoading);
+  const globalFundingComplete = useWalletFundingStore((s) => s.forActive()?.globalFundingComplete ?? false);
+  const globalFundingLoading = useWalletFundingStore((s) => s.forActive()?.globalFundingLoading ?? false);
+  const activeAddress = useWalletFundingStore((s) => s.activeAddress);
   const loadGlobalFunding = useWalletFundingStore((s) => s.loadGlobalFunding);
-  const fundingPaidUsd = useWalletFundingStore((s) => s.fundingPaidUsd);
+  const fundingPaidUsd = useWalletFundingStore((s) => s.forActive()?.fundingPaidUsd ?? 0);
   const unrealizedPnl = stats.unrealized_pnl_usd;
   const isUnrealizedPositive = unrealizedPnl >= 0;
   const isPerpPnlPositive = stats.trading_pnl_usd >= 0;
@@ -338,7 +339,7 @@ export function WalletSummary({
                     variant="outline"
                     size="sm"
                     className="h-5 text-[10px] px-2"
-                    onClick={() => void loadGlobalFunding?.()}
+                    onClick={() => activeAddress && void loadGlobalFunding?.(activeAddress)}
                   >
                     Add funding history
                   </Button>

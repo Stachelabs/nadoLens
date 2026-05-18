@@ -6,49 +6,11 @@ import { fromX18BigInt } from '@/types/nado'
 import { usePairsStore } from '@/store/pairsStore'
 import {
   fetchFundingBySubaccount,
-  type FundingFetchResult,
 } from '@/lib/wallet/fetchWalletFunding'
 
-// ─── Inflight dedup (same pattern as protocolCacheStore.ts) ──────────────────
+// ─── Per-address state ──────────────────────────────────────────────────────
 
-const inflight = new Map<string, Promise<void>>()
-
-function getInflight(key: string): Promise<void> | undefined {
-  return inflight.get(key)
-}
-
-function setInflight(key: string, promise: Promise<void>): void {
-  inflight.set(key, promise)
-  promise.catch(() => {}).finally(() => inflight.delete(key))
-}
-
-// ─── Module-level AbortController per wallet address ─────────────────────────
-
-let abortController: AbortController | null = null
-
-function getSignal(): AbortSignal | undefined {
-  return abortController?.signal
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function ensurePerpProductIds(): Promise<number[]> {
-  let { perp } = usePairsStore.getState()
-  if (perp.length === 0) {
-    await usePairsStore.getState().init()
-    perp = usePairsStore.getState().perp
-  }
-  if (perp.length === 0) {
-    console.warn('ensurePerpProductIds: pairsStore still empty after init')
-    return []
-  }
-  return Array.from(new Set(perp.map(a => a.product_id)))
-}
-
-// ─── Store ───────────────────────────────────────────────────────────────────
-
-type WalletFundingState = {
-  address: string | null
+export type PerAddressFundingState = {
   subaccounts: string[]
   subaccountCursors: Record<string, string | null>
 
@@ -64,22 +26,16 @@ type WalletFundingState = {
   globalFundingComplete: boolean
   fundingPeriodLoading: boolean
   fundingLoadedSince: number
-
-  initForAddress: (addr: string) => void
-  setSubaccounts: (subs: string[]) => void
-  setPositionFunding: (payments: FundingPaymentEntry[], productIds: number[]) => void
-  loadGlobalFunding: () => Promise<void>
-  loadFundingForPeriod: (period: EquityPeriod) => Promise<void>
-  abort: () => void
 }
 
-const INITIAL_FUNDING_STATE = {
-  subaccountCursors: {} as Record<string, string | null>,
-  fundingPayments: [] as FundingPaymentEntry[],
+const INITIAL_FUNDING_STATE: PerAddressFundingState = {
+  subaccounts: [],
+  subaccountCursors: {},
+  fundingPayments: [],
   fundingPaidUsd: 0,
-  positionFundingPayments: [] as FundingPaymentEntry[],
+  positionFundingPayments: [],
   positionFundingComplete: false,
-  positionFundingProductIds: [] as number[],
+  positionFundingProductIds: [],
   lastPositionFundingFetch: 0,
   globalFundingLoading: false,
   globalFundingComplete: false,
@@ -87,50 +43,143 @@ const INITIAL_FUNDING_STATE = {
   fundingLoadedSince: Infinity,
 }
 
+// ─── Module-level AbortControllers + inflight dedup (keyed by address) ──────
+
+const abortControllers = new Map<string, AbortController>()
+const inflight = new Map<string, Promise<void>>()
+
+function getSignal(addr: string): AbortSignal | undefined {
+  return abortControllers.get(addr)?.signal
+}
+
+function getInflight(key: string): Promise<void> | undefined {
+  return inflight.get(key)
+}
+
+function setInflight(key: string, promise: Promise<void>): void {
+  inflight.set(key, promise)
+  promise.catch(() => {}).finally(() => inflight.delete(key))
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function ensurePerpProductIds(): Promise<number[]> {
+  let { perp } = usePairsStore.getState()
+  if (perp.length === 0) {
+    await usePairsStore.getState().init()
+    perp = usePairsStore.getState().perp
+  }
+  if (perp.length === 0) {
+    console.warn('ensurePerpProductIds: pairsStore still empty after init')
+    return []
+  }
+  return Array.from(new Set(perp.map(a => a.product_id)))
+}
+
+const MAX_CACHED_WALLETS = 2
+
+// ─── Store ──────────────────────────────────────────────────────────────────
+
+type WalletFundingState = {
+  wallets: Map<string, PerAddressFundingState>
+  activeAddress: string | null
+
+  ensureSlot: (addr: string) => void
+  setActive: (addr: string) => void
+  forActive: () => PerAddressFundingState | undefined
+  forAddress: (addr: string) => PerAddressFundingState | undefined
+
+  setSubaccounts: (addr: string, subs: string[]) => void
+  setPositionFunding: (addr: string, payments: FundingPaymentEntry[], productIds: number[]) => void
+  loadGlobalFunding: (addr: string) => Promise<void>
+  loadFundingForPeriod: (addr: string, period: EquityPeriod) => Promise<void>
+  abortAddress: (addr: string) => void
+  trimCache: (protectedAddr: string | null) => void
+}
+
+function updateSlot(
+  wallets: Map<string, PerAddressFundingState>,
+  addr: string,
+  updater: (prev: PerAddressFundingState) => Partial<PerAddressFundingState>,
+): Map<string, PerAddressFundingState> {
+  const next = new Map(wallets)
+  const prev = next.get(addr) ?? { ...INITIAL_FUNDING_STATE }
+  next.set(addr, { ...prev, ...updater(prev) })
+  return next
+}
+
 export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
-  address: null,
-  subaccounts: [],
-  ...INITIAL_FUNDING_STATE,
+  wallets: new Map(),
+  activeAddress: null,
 
-  initForAddress: (addr: string) => {
-    abortController?.abort()
-    abortController = new AbortController()
-    inflight.clear()
-    set({ address: addr, subaccounts: [], ...INITIAL_FUNDING_STATE })
+  ensureSlot: (addr: string) => {
+    const { wallets } = get()
+    if (wallets.has(addr)) {
+      abortControllers.get(addr)?.abort()
+      abortControllers.set(addr, new AbortController())
+      for (const key of inflight.keys()) {
+        if (key.startsWith(`${addr}:`)) inflight.delete(key)
+      }
+      return
+    }
+    abortControllers.set(addr, new AbortController())
+    const next = new Map(wallets)
+    next.set(addr, { ...INITIAL_FUNDING_STATE })
+    set({ wallets: next })
+    get().trimCache(addr)
   },
 
-  setSubaccounts: (subs: string[]) => {
-    set({ subaccounts: subs })
+  setActive: (addr: string) => {
+    set({ activeAddress: addr })
   },
 
-  setPositionFunding: (payments: FundingPaymentEntry[], productIds: number[]) => {
-    set({
-      positionFundingPayments: payments,
-      positionFundingComplete: true,
-      positionFundingProductIds: productIds,
-      lastPositionFundingFetch: Date.now(),
-    })
+  forActive: () => {
+    const { wallets, activeAddress } = get()
+    if (!activeAddress) return undefined
+    return wallets.get(activeAddress)
   },
 
-  loadGlobalFunding: async () => {
-    const { address, subaccounts } = get()
-    if (!address || subaccounts.length === 0) return
+  forAddress: (addr: string) => {
+    return get().wallets.get(addr)
+  },
 
-    const key = `${address}:global`
+  setSubaccounts: (addr: string, subs: string[]) => {
+    set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ subaccounts: subs })) }))
+  },
+
+  setPositionFunding: (addr: string, payments: FundingPaymentEntry[], productIds: number[]) => {
+    if (!get().wallets.has(addr)) return
+    set(prev => ({
+      wallets: updateSlot(prev.wallets, addr, () => ({
+        positionFundingPayments: payments,
+        positionFundingComplete: true,
+        positionFundingProductIds: productIds,
+        lastPositionFundingFetch: Date.now(),
+      })),
+    }))
+  },
+
+  loadGlobalFunding: async (addr: string) => {
+    const slot = get().wallets.get(addr)
+    if (!slot || slot.subaccounts.length === 0) return
+
+    const key = `${addr}:global`
     const existing = getInflight(key)
     if (existing) return existing
 
     const promise = (async () => {
-      set({ globalFundingLoading: true })
+      set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: true })) }))
 
       try {
         const productIds = await ensurePerpProductIds()
         if (productIds.length === 0) {
-          set({ globalFundingLoading: false })
+          set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: false })) }))
           return
         }
 
-        const { subaccountCursors, fundingPayments: existingPayments } = get()
+        const currentSlot = get().wallets.get(addr)
+        if (!currentSlot) return
+        const { subaccountCursors, fundingPayments: existingPayments, subaccounts } = currentSlot
         const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}:${p.product_id}`))
         const newPayments: FundingPaymentEntry[] = []
         let newUsd = 0
@@ -138,13 +187,14 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
         let rateLimited = false
         const updatedCursors = { ...subaccountCursors }
 
-        for (const sub of subaccounts) {
-          if (abortController?.signal.aborted) break
+        for (let i = 0; i < subaccounts.length; i++) {
+          if (abortControllers.get(addr)?.signal.aborted) break
+          const sub = subaccounts[i]!
           const cursor = subaccountCursors[sub]
           if (cursor === null) continue
 
           const result = await fetchFundingBySubaccount(
-            sub, productIds, { resumeFromIdx: cursor }, getSignal(),
+            sub, productIds, { resumeFromIdx: cursor }, getSignal(addr),
           )
 
           if (result.nextMaxIdx !== undefined) {
@@ -162,22 +212,27 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
 
           if (!result.complete) allComplete = false
           if (result.rateLimited) { rateLimited = true; break }
+          if (i < subaccounts.length - 1) {
+            await new Promise(r => setTimeout(r, 220))
+          }
         }
 
-        if (get().address !== address) return
+        if (!get().wallets.has(addr)) return
 
         const globalComplete = allComplete && !rateLimited
         set(prev => ({
-          subaccountCursors: updatedCursors,
-          fundingPayments: [...prev.fundingPayments, ...newPayments],
-          fundingPaidUsd: prev.fundingPaidUsd + newUsd,
-          globalFundingComplete: globalComplete,
-          globalFundingLoading: false,
-          fundingLoadedSince: globalComplete ? 0 : prev.fundingLoadedSince,
+          wallets: updateSlot(prev.wallets, addr, (s) => ({
+            subaccountCursors: updatedCursors,
+            fundingPayments: [...s.fundingPayments, ...newPayments],
+            fundingPaidUsd: s.fundingPaidUsd + newUsd,
+            globalFundingComplete: globalComplete,
+            globalFundingLoading: false,
+            fundingLoadedSince: globalComplete ? 0 : s.fundingLoadedSince,
+          })),
         }))
       } catch (e) {
-        if (get().address === address) {
-          set({ globalFundingLoading: false })
+        if (get().wallets.has(addr)) {
+          set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: false })) }))
         }
         if (!(e instanceof DOMException && e.name === 'AbortError')) {
           console.error('loadGlobalFunding failed:', e)
@@ -189,48 +244,50 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
     return promise
   },
 
-  loadFundingForPeriod: async (period: EquityPeriod) => {
-    const { address, subaccounts, fundingLoadedSince, globalFundingLoading } = get()
-    if (!address || subaccounts.length === 0) return
-    if (globalFundingLoading) return
+  loadFundingForPeriod: async (addr: string, period: EquityPeriod) => {
+    const slot = get().wallets.get(addr)
+    if (!slot || slot.subaccounts.length === 0) return
+    if (slot.globalFundingLoading) return
 
     const bounds = getPeriodBoundsUtc(period)
     const stopBeforeMs = bounds ? bounds.startSec * 1000 : undefined
 
     const already =
       period === 'All time'
-        ? fundingLoadedSince === 0
-        : fundingLoadedSince !== Infinity &&
-          fundingLoadedSince <= (stopBeforeMs ?? 0)
+        ? slot.fundingLoadedSince === 0
+        : slot.fundingLoadedSince !== Infinity &&
+          slot.fundingLoadedSince <= (stopBeforeMs ?? 0)
     if (already) return
 
-    const key = `${address}:period:${period}`
+    const key = `${addr}:period:${period}`
     const existing = getInflight(key)
     if (existing) return existing
 
     const promise = (async () => {
-      set({ fundingPeriodLoading: true })
+      set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ fundingPeriodLoading: true })) }))
 
       try {
         const productIds = await ensurePerpProductIds()
         if (productIds.length === 0) {
-          set({ fundingPeriodLoading: false })
+          set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ fundingPeriodLoading: false })) }))
           return
         }
 
-        const { subaccountCursors, fundingPayments: existingPayments } = get()
+        const currentSlot = get().wallets.get(addr)
+        if (!currentSlot) return
+        const { subaccountCursors, fundingPayments: existingPayments, subaccounts } = currentSlot
         const existingKeys = new Set(existingPayments.map(p => `${p.subaccount}:${p.idx}:${p.product_id}`))
         const newPayments: FundingPaymentEntry[] = []
         let rateLimited = false
         const updatedCursors = { ...subaccountCursors }
 
         for (let i = 0; i < subaccounts.length; i++) {
-          if (abortController?.signal.aborted) break
+          if (abortControllers.get(addr)?.signal.aborted) break
           const sub = subaccounts[i]!
           const cursor = updatedCursors[sub]
 
           const result = await fetchFundingBySubaccount(
-            sub, productIds, { stopBeforeMs, resumeFromIdx: cursor }, getSignal(),
+            sub, productIds, { stopBeforeMs, resumeFromIdx: cursor }, getSignal(addr),
           )
 
           if (result.nextMaxIdx !== undefined) {
@@ -251,7 +308,7 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
           }
         }
 
-        if (get().address !== address) return
+        if (!get().wallets.has(addr)) return
 
         let newUsd = 0
         for (const p of newPayments) {
@@ -264,16 +321,18 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
         const loadedSince = allExhausted ? 0 : (stopBeforeMs ?? 0)
 
         set(prev => ({
-          subaccountCursors: updatedCursors,
-          fundingPayments: [...prev.fundingPayments, ...newPayments],
-          fundingPaidUsd: prev.fundingPaidUsd + newUsd,
-          fundingPeriodLoading: false,
-          fundingLoadedSince: loadedSince,
-          globalFundingComplete: loadedSince === 0,
+          wallets: updateSlot(prev.wallets, addr, (s) => ({
+            subaccountCursors: updatedCursors,
+            fundingPayments: [...s.fundingPayments, ...newPayments],
+            fundingPaidUsd: s.fundingPaidUsd + newUsd,
+            fundingPeriodLoading: false,
+            fundingLoadedSince: loadedSince,
+            globalFundingComplete: loadedSince === 0,
+          })),
         }))
       } catch (e) {
-        if (get().address === address) {
-          set({ fundingPeriodLoading: false })
+        if (get().wallets.has(addr)) {
+          set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ fundingPeriodLoading: false })) }))
         }
         if (!(e instanceof DOMException && e.name === 'AbortError')) {
           console.error('loadFundingForPeriod failed:', e)
@@ -285,9 +344,28 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
     return promise
   },
 
-  abort: () => {
-    abortController?.abort()
-    abortController = null
-    inflight.clear()
+  abortAddress: (addr: string) => {
+    abortControllers.get(addr)?.abort()
+    abortControllers.delete(addr)
+    // Clear inflight for this address only
+    for (const key of inflight.keys()) {
+      if (key.startsWith(`${addr}:`)) {
+        inflight.delete(key)
+      }
+    }
+  },
+
+  trimCache: (protectedAddr: string | null) => {
+    const { wallets, activeAddress } = get()
+    if (wallets.size <= MAX_CACHED_WALLETS) return
+    const next = new Map(wallets)
+    for (const [addr] of wallets) {
+      if (next.size <= MAX_CACHED_WALLETS) break
+      if (addr === activeAddress || addr === protectedAddr) continue
+      next.delete(addr)
+      abortControllers.get(addr)?.abort()
+      abortControllers.delete(addr)
+    }
+    set({ wallets: next })
   },
 }))

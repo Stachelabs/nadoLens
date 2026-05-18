@@ -135,7 +135,7 @@ export function WalletPositions({
   snapshotReady = true,
   loading = false,
 }: Props) {
-  const positionFundingComplete = useWalletFundingStore((s) => s.positionFundingComplete);
+  const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
   const displayFilter = useMemo(

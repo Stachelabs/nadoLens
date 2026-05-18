@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  type ArchiveMatch,
-  ArchiveMatchesResponseSchema,
-  ArchiveSubaccountsResponseSchema,
-  IsolatedPositionsDataSchema,
-} from "@/lib/schemas/nado";
-import { parseSubaccountInfo } from "@/lib/parseSubaccountInfo";
 import { useWalletFundingStore } from "@/store/walletFundingStore";
 import { fetchPositionScopedFunding } from "@/lib/wallet/fetchWalletFunding";
 import {
   applySnapshotEntryPrices,
-  buildEntryPriceMap,
   recomputeUnrealizedTotals,
   type EntryPriceMap,
 } from "@/lib/wallet/snapshotEntryPrice";
@@ -21,23 +13,13 @@ import {
   buildPositionStatsMap,
   type PositionStatsMap,
 } from "@/lib/wallet/positionStats";
-import { AccountSnapshotsResponseSchema } from "@/lib/schemas/nado";
 import {
   computeTradeMetrics,
   mergePnl,
 } from "@/lib/wallet/performance";
-import { usePairsStore, productName } from "@/store/pairsStore";
-import {
-  normalizeSubaccountDisplayName,
-  subaccountDisplayLabelSortKey,
-} from "@/lib/wallet/subaccountLabel";
-import { isEmptyTrackedSpotBalances } from "@/lib/wallet/spotTracked";
+import { productName } from "@/store/pairsStore";
 import type {
-  CrossSubaccountEntry,
   Position,
-  SpotBalance,
-  SpotBalancesGroup,
-  SubaccountHealthEntry,
   TradeMatch,
   WalletStats,
 } from "@/types/nado";
@@ -45,168 +27,29 @@ import { fromX18BigInt } from "@/types/nado";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAccountStream, type FillEvent } from "@/hooks/useAccountStream";
+import {
+  toSubaccount,
+  chunk,
+  sleep,
+  sortTradesNewestFirst,
+  tradeIdentity,
+  fetchSubaccounts,
+  fetchIsolatedParentMaps,
+  fetchSnapshotEntryPrices,
+  fetchAllPositions,
+  fetchOnePage,
+  MATCHES_LIMIT,
+  MAX_PAGES,
+  MATCHES_BURST_MS,
+  type SubaccountEntry,
+  type MatchesPageResult,
+} from "@/lib/wallet/walletFetchers";
+import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
+import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore";
 
-// Poll interval for live positions + marks.
-// subaccount_info = weight 2, account_snapshots = weight ~2 → 4 weight/poll/subaccount.
-// At 5s: 48 weight/min/user → safe for ~50 concurrent users within 2400/min IP limit.
-// Lower to 1_000 for personal/single-user deployments (10% of budget).
 const POSITIONS_POLL_MS = 6_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
 const POLL_BACKOFF_THRESHOLD = 3;
-const MATCHES_LIMIT = 500;
-const MAX_PAGES = 50;
-/** Space out Archive `matches` calls to avoid saturating the service. */
-const MATCHES_BURST_MS = 220;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-type MatchesPageResult = {
-  trades: TradeMatch[];
-  nextIdx: string | null;
-  done: boolean;
-  /** True when Archive kept returning 429 after retries — do not treat as end of history. */
-  rateLimited?: boolean;
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function toSubaccount(address: string): string {
-  const addr = address.toLowerCase().replace("0x", "");
-  if (addr.length === 64) return `0x${addr}`; // already bytes32
-  return `0x${addr}64656661756c740000000000`;
-}
-
-// ─── Parsers ──────────────────────────────────────────────────────────────────
-
-const PARSE_FALLBACK = {
-  positions: [] as Position[],
-  spotBalances: [] as SpotBalance[],
-  equityUsd: 0,
-  availableMargin: 0,
-  maintenanceMargin: 0,
-  healthScore: 1,
-  unrealizedTotal: 0,
-}
-
-function parsePositions(
-  raw: unknown,
-  isolated = false,
-): {
-  positions: Position[];
-  spotBalances: SpotBalance[];
-  equityUsd: number;
-  availableMargin: number;
-  maintenanceMargin: number;
-  healthScore: number;
-  unrealizedTotal: number;
-} {
-  const parsed = parseSubaccountInfo(raw, isolated)
-  if (!parsed) return PARSE_FALLBACK
-  return {
-    positions: parsed.positions,
-    spotBalances: parsed.spotBalances,
-    equityUsd: parsed.equityUsd,
-    availableMargin: parsed.availableMargin,
-    maintenanceMargin: parsed.totalMaintMargin,
-    healthScore: parsed.healthScore,
-    unrealizedTotal: parsed.unrealizedTotal,
-  }
-}
-
-// txMap: submission_idx → real Unix timestamp (seconds) from the txs[] field
-function parseMatchesBatch(matches: ArchiveMatch[], txMap: Map<string, number>): TradeMatch[] {
-  return matches.map((m): TradeMatch => {
-    const isPerpTrade = !!(
-      m.pre_balance?.base?.perp?.product_id !== undefined
-        ? m.pre_balance.base.perp.product_id
-        : m.post_balance?.base?.perp?.product_id
-    );
-    const productId =
-      m.pre_balance?.base?.perp?.product_id ??
-      m.post_balance?.base?.perp?.product_id ??
-      0;
-    const side: "long" | "short" =
-      BigInt(m.base_filled ?? "0") >= BigInt(0) ? "long" : "short";
-    // Real timestamp from txs[] — Unix seconds per Nado docs; fall back to 0 if missing
-    const timeSec = txMap.get(m.submission_idx) ?? 0;
-
-    // Encode as synthetic "large int" string — must use BigInt (timeSec * 1e9 exceeds Number precision)
-    const timestampStr =
-      timeSec > 0
-        ? (BigInt(timeSec) * BigInt(1_000_000_000)).toString()
-        : "0";
-
-    // Fill price for avg-entry replay = |(quote_filled + fee) / base_filled| in x18.
-    // This follows Nado Definitions/Formulas docs for matches fill price.
-    // We do not add sequencer_fee separately because `fee` is the exchange fee field used in formula.
-    const WAD_LOCAL = BigInt(10) ** BigInt(18);
-    let priceX18Str: string;
-    try {
-      const baseB = BigInt(m.base_filled ?? "0");
-      if (baseB !== BigInt(0) && m.quote_filled) {
-        const quoteB = BigInt(m.quote_filled);
-        const feeB = BigInt(m.fee ?? "0");
-        const absBase = baseB < BigInt(0) ? -baseB : baseB;
-        const signedNotional = quoteB + feeB;
-        const absSignedNotional =
-          signedNotional < BigInt(0) ? -signedNotional : signedNotional;
-        priceX18Str = ((absSignedNotional * WAD_LOCAL) / absBase).toString();
-      } else {
-        priceX18Str = m.order?.priceX18 ?? "0";
-      }
-    } catch {
-      priceX18Str = m.order?.priceX18 ?? "0";
-    }
-
-    return {
-      digest: m.digest,
-      subaccount: m.order?.sender,
-      is_taker: m.is_taker,
-      isolated: m.isolated,
-      timestamp: timestampStr,
-      submission_idx: m.submission_idx,
-      product_id: productId,
-      pair: productName(productId),
-      amount: m.base_filled ?? "0",
-      price: priceX18Str,
-      quote_filled: m.quote_filled ?? "0",
-      realized_pnl: m.realized_pnl ?? "0",
-      closed_amount: m.closed_amount ?? "0",
-      fee: m.fee ?? "0",
-      sequencer_fee: m.sequencer_fee ?? "0",
-      side,
-      is_perp: isPerpTrade,
-      pre_balance_amount: m.pre_balance?.base?.perp?.balance?.amount ?? undefined,
-    };
-  });
-}
-
-// ─── Trade/Funding helpers ─────────────────────────────────────────────────────
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  if (arr.length === 0) return [];
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size));
-  }
-  return out;
-}
-
-function sortTradesNewestFirst(trades: TradeMatch[]): TradeMatch[] {
-  return [...trades].sort((a, b) => {
-    try {
-      const ai = BigInt(a.submission_idx);
-      const bi = BigInt(b.submission_idx);
-      if (ai > bi) return -1;
-      if (ai < bi) return 1;
-      return (a.digest ?? "").localeCompare(b.digest ?? "");
-    } catch {
-      return b.timestamp.localeCompare(a.timestamp);
-    }
-  });
-}
 
 function buildPnlStats(
   trades: TradeMatch[],
@@ -216,26 +59,7 @@ function buildPnlStats(
   return mergePnl(tradeMetrics, funding_pnl_usd);
 }
 
-function tradeIdentity(trade: TradeMatch): string {
-  return [
-    trade.submission_idx,
-    trade.digest ?? "",
-    trade.product_id,
-    trade.amount,
-    trade.quote_filled ?? "0",
-    trade.realized_pnl,
-    trade.closed_amount,
-    trade.fee,
-  ].join(":");
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type SubaccountEntry = {
-  subaccount: string;
-  isolated: boolean;
-  subaccount_name?: string;
-};
 
 export type WalletData = {
   stats: WalletStats | null;
@@ -341,311 +165,45 @@ export function useWalletData(rawAddress: string): WalletData {
     positionOpenTimeMapRef.current = {};
     positionSeenTradeIdsRef.current = new Set();
 
-    // 1. Resolve all subaccounts (default + isolated) via Archive
-    const fetchSubaccounts = async (): Promise<SubaccountEntry[]> => {
-      const fallback: SubaccountEntry[] = [
-        { subaccount: toSubaccount(rawAddress), isolated: false, subaccount_name: "default" },
-      ];
-      try {
-        const res = await fetch(`/api/subaccounts/${rawAddress}`, {
-          cache: "no-store",
-          signal,
-        });
-        if (!res.ok) return fallback;
-        const raw: unknown = await res.json();
-        const result = ArchiveSubaccountsResponseSchema.safeParse(raw);
-        if (!result.success || result.data.subaccounts.length === 0)
-          return fallback;
-        return result.data.subaccounts.map((s) => ({
-          subaccount: s.subaccount,
-          isolated: s.isolated ?? false,
-          subaccount_name: s.subaccount_name,
-        }));
-      } catch {
-        return fallback;
-      }
-    };
+    // Seed from matches cache if available — instant trades on re-visit
+    const cached = useWalletMatchesCacheStore.getState().getCache(rawAddress);
+    if (cached && cached.trades.length > 0) {
+      tradesRef.current = cached.trades;
+      latestKnownIdxRef.current = cached.latestKnownIdx;
+      seenTradeIdsRef.current = new Set(cached.seenTradeIds);
+      tradesCompleteRef.current = cached.globalMatchesComplete;
+      const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+      const cachedPnl = buildPnlStats(cached.trades, fs?.fundingPaidUsd ?? 0);
+      setData(prev => ({
+        ...prev,
+        trades: cached.trades,
+        globalMatchesComplete: cached.globalMatchesComplete,
+        tradesComplete: cached.globalMatchesComplete,
+        stats: prev.stats ? { ...prev.stats, trades: cached.trades, ...cachedPnl } : null,
+      }));
+    }
 
-    const fetchIsolatedParentMaps = async (
+    // Seed position stats from cache — instant Realized PnL on re-visit
+    const posCached = usePositionMatchesCacheStore.getState().getCache(rawAddress);
+    if (posCached && posCached.positionTrades.length > 0) {
+      positionStatsMapRef.current = buildPositionStatsMap(posCached.positionTrades, true);
+    }
+
+    // Local wrappers that bind the shared signal to extracted fetchers
+    const fetchSubs = () => fetchSubaccounts(rawAddress, signal);
+    const fetchIsoMaps = (subs: SubaccountEntry[]) => fetchIsolatedParentMaps(subs, signal);
+    const fetchSnapshots = (crossSubs: string[]) => fetchSnapshotEntryPrices(crossSubs, signal);
+    const fetchAllPos = (
       subs: SubaccountEntry[],
-    ): Promise<{
-      parentNameByIsolatedSubaccount: Map<string, string>;
-      parentSubaccountByIsolatedSubaccount: Map<string, string>;
-    }> => {
-      const parentNameByIsolatedSubaccount = new Map<string, string>();
-      const parentSubaccountByIsolatedSubaccount = new Map<string, string>();
-      const crossSubs = subs.filter((s) => !s.isolated);
-      for (const c of crossSubs) {
-        try {
-          const res = await fetch(
-            `/api/wallet/${c.subaccount}?query=isolated_positions`,
-            { cache: "no-store", signal },
-          );
-          if (!res.ok) continue;
-          const raw: unknown = await res.json();
-          const parsed = IsolatedPositionsDataSchema.safeParse(raw);
-          if (!parsed.success) continue;
-          for (const iso of parsed.data.isolated_positions) {
-            parentNameByIsolatedSubaccount.set(
-              iso.subaccount.toLowerCase(),
-              c.subaccount_name ?? "default",
-            );
-            parentSubaccountByIsolatedSubaccount.set(
-              iso.subaccount.toLowerCase(),
-              c.subaccount,
-            );
-          }
-        } catch {
-          // best effort only
-        }
-      }
-      return {
-        parentNameByIsolatedSubaccount,
-        parentSubaccountByIsolatedSubaccount,
-      };
-    };
-
-    /**
-     * Fetch account_snapshots for the cross parent subaccounts.
-     * Both cross (isolated:false) and isolated (isolated:true) snapshots are fetched
-     * in a single call (no filter) so one request covers all positions.
-     * Returns an EntryPriceMap keyed by `${subaccount}:${product_id}:${isolated}`.
-     */
-    const fetchSnapshotEntryPrices = async (
-      crossSubaccounts: string[],
-    ): Promise<EntryPriceMap> => {
-      if (crossSubaccounts.length === 0) return new Map();
-      try {
-        const res = await fetch("/api/snapshots", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subaccounts: crossSubaccounts }),
-          cache: "no-store",
-          signal,
-        });
-        if (!res.ok) return new Map();
-        const raw: unknown = await res.json();
-        const parsed = AccountSnapshotsResponseSchema.safeParse(raw);
-        if (!parsed.success) return new Map();
-        return buildEntryPriceMap(parsed.data.snapshots);
-      } catch {
-        return new Map();
-      }
-    };
-
-    // 2. Fetch positions for a single subaccount
-    const fetchPositions = async (
-      sub: string,
-      isolated: boolean,
-    ): Promise<{
-      positions: Position[];
-      spotBalances: SpotBalance[];
-      equityUsd: number;
-      availableMargin: number;
-      maintenanceMargin: number;
-      healthScore: number;
-      unrealizedTotal: number;
-    }> => {
-      try {
-        const res = await fetch(`/api/wallet/${sub}?query=subaccount_info`, {
-          cache: "no-store",
-          signal,
-        });
-        if (!res.ok) return PARSE_FALLBACK;
-        const raw: unknown = await res.json();
-        return parsePositions(raw, isolated);
-      } catch {
-        return PARSE_FALLBACK;
-      }
-    };
-
-    // 3. Fetch positions for all subaccounts and merge
-    const fetchAllPositions = async (
-      subs: SubaccountEntry[],
-      isolatedParentNameBySubaccount: Map<string, string>,
-      isolatedParentSubaccountBySubaccount: Map<string, string>,
-    ): Promise<{
-      positions: Position[];
-      spotBalances: SpotBalance[];
-      spotBalancesBySubaccount: SpotBalancesGroup[];
-      crossSubaccounts: CrossSubaccountEntry[];
-      equityUsd: number;
-      availableMargin: number;
-      maintenanceMargin: number;
-      healthScore: number;
-      unrealizedTotal: number;
-      subaccountHealths: SubaccountHealthEntry[];
-    }> => {
-      const results = await Promise.all(
-        subs.map(({ subaccount, isolated }) =>
-          fetchPositions(subaccount, isolated),
-        ),
-      );
-      const subNameBySubaccount = new Map(
-        subs.map((s) => [s.subaccount.toLowerCase(), s.subaccount_name ?? "default"]),
-      );
-      const allPositions = results
-        .flatMap((r) => r.positions)
-        .map((p) => ({
-          ...p,
-          subaccount_name:
-            subNameBySubaccount.get(p.subaccount.toLowerCase()) ??
-            p.subaccount_name ??
-            "default",
-          parent_subaccount_name: p.isolated
-            ? isolatedParentNameBySubaccount.get(p.subaccount.toLowerCase())
-            : undefined,
-          parent_subaccount: p.isolated
-            ? isolatedParentSubaccountBySubaccount.get(p.subaccount.toLowerCase())
-            : undefined,
-        }));
-      // Spot: cross (parent) subaccounts only; merge sums only subs with non-zero on tracked product IDs
-      const spotMap = new Map<number, SpotBalance>();
-      for (let i = 0; i < subs.length; i++) {
-        const sub = subs[i];
-        if (!sub || sub.isolated) continue;
-        const balances = results[i]?.spotBalances ?? [];
-        if (isEmptyTrackedSpotBalances(balances)) continue;
-        for (const b of balances) {
-          const existing = spotMap.get(b.product_id);
-          if (existing) {
-            spotMap.set(b.product_id, {
-              ...existing,
-              amount: existing.amount + b.amount,
-              value_usd: existing.value_usd + b.value_usd,
-            });
-          } else {
-            spotMap.set(b.product_id, { ...b });
-          }
-        }
-      }
-      const spotBalances = Array.from(spotMap.values());
-      const spotBalancesBySubaccount: SpotBalancesGroup[] = subs
-        .map((s, i) => ({
-          s,
-          balances: results[i]?.spotBalances ?? [],
-        }))
-        .filter(
-          ({ s, balances }) =>
-            !s.isolated && !isEmptyTrackedSpotBalances(balances),
-        )
-        .map(({ s, balances }) => ({
-          label: normalizeSubaccountDisplayName(s.subaccount_name),
-          subaccount: s.subaccount,
-          balances,
-        }))
-        .sort(
-          (a, b) =>
-            subaccountDisplayLabelSortKey(a.label) -
-            subaccountDisplayLabelSortKey(b.label),
-        );
-      const crossSubaccounts: CrossSubaccountEntry[] = subs
-        .filter((s) => !s.isolated)
-        .map((s) => ({
-          subaccount: s.subaccount,
-          label: normalizeSubaccountDisplayName(s.subaccount_name),
-        }))
-        .sort(
-          (a, b) =>
-            subaccountDisplayLabelSortKey(a.label) -
-            subaccountDisplayLabelSortKey(b.label),
-        );
-      const equityUsd = results.reduce((s, r) => s + r.equityUsd, 0);
-      const availableMargin = results.reduce((s, r) => s + r.availableMargin, 0);
-      const maintenanceMargin = results.reduce((s, r) => s + r.maintenanceMargin, 0);
-      // Health from the primary (non-isolated) subaccount
-      const primaryIdx = subs.findIndex((s) => !s.isolated);
-      const healthScore =
-        results[primaryIdx >= 0 ? primaryIdx : 0]?.healthScore ?? 1;
-      const unrealizedTotal = results.reduce((s, r) => s + r.unrealizedTotal, 0);
-
-      const subaccountHealths: SubaccountHealthEntry[] = subs
-        .flatMap((sub, i): SubaccountHealthEntry[] => {
-          const r = results[i]
-          if (!r) return []
-          if (r.equityUsd === 0 && r.positions.length === 0) return []
-          const entry: SubaccountHealthEntry = {
-            subaccount: sub.subaccount,
-            subaccount_name: normalizeSubaccountDisplayName(sub.subaccount_name),
-            health_score: r.healthScore,
-            isolated: sub.isolated,
-          }
-          if (sub.isolated && r.positions[0]?.pair) {
-            entry.pair = r.positions[0].pair
-          }
-          return [entry]
-        })
-
-      return {
-        positions: allPositions,
-        spotBalances,
-        spotBalancesBySubaccount,
-        crossSubaccounts,
-        equityUsd,
-        availableMargin,
-        maintenanceMargin,
-        healthScore,
-        unrealizedTotal,
-        subaccountHealths,
-      };
-    };
-
-    // 4. Fetch a single page of matches (retry 429 — Archive IP limits)
-    const fetchOnePage = async (
+      parentNameMap: Map<string, string>,
+      parentSubMap: Map<string, string>,
+    ) => fetchAllPositions(subs, parentNameMap, parentSubMap, signal);
+    const fetchPage = (
       subs: string[],
       lastIdx?: string,
       productIds?: number[],
       noCache?: boolean,
-    ): Promise<MatchesPageResult> => {
-      const body: Record<string, unknown> = {
-        subaccounts: subs,
-        isolated: null,
-        limit: MATCHES_LIMIT,
-        ...(lastIdx ? { idx: lastIdx } : {}),
-        ...(productIds && productIds.length > 0
-          ? { product_ids: productIds }
-          : {}),
-        ...(noCache ? { no_cache: true } : {}),
-      };
-
-      try {
-        const res = await fetch("/api/matches", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          cache: "no-store",
-          signal,
-        });
-
-        if (res.status === 429) {
-          return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true };
-        }
-
-        if (!res.ok) {
-          return { trades: [], nextIdx: null, done: true };
-        }
-
-        const raw: unknown = await res.json();
-        const result = ArchiveMatchesResponseSchema.safeParse(raw);
-        if (!result.success || result.data.matches.length === 0) {
-          return { trades: [], nextIdx: null, done: true };
-        }
-
-        const pageMatches = result.data.matches;
-        const txMap = new Map<string, number>();
-        for (const tx of result.data.txs) {
-          txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10));
-        }
-        const trades = parseMatchesBatch(pageMatches, txMap);
-        const done = pageMatches.length < MATCHES_LIMIT;
-        const nextIdx = done
-          ? null
-          : pageMatches[pageMatches.length - 1].submission_idx;
-        return { trades, nextIdx, done };
-      } catch {
-        return { trades: [], nextIdx: null, done: true };
-      }
-    };
+    ) => fetchOnePage(subs, signal, lastIdx, productIds, noCache);
 
 
     /**
@@ -666,7 +224,7 @@ export function useWalletData(rawAddress: string): WalletData {
         for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
           // Always bypass cache: incremental fetches specifically look for fills newer than
           // latestKnownIdx — a cached first page would return stale data without the new fill.
-          const page = await fetchOnePage(chunkSubs, pageIdx, undefined, true);
+          const page = await fetchPage(chunkSubs, pageIdx, undefined, true);
           if (cancelled || page.rateLimited) break;
           let boundaryHit = false;
           for (const trade of page.trades) {
@@ -729,7 +287,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const pairKey = `${pair.pocketSubaccount}:${pair.productId}`;
           if (completedProducts.has(pairKey)) continue;
 
-          const result = await fetchOnePage(
+          const result = await fetchPage(
             [pair.querySubaccount],
             cursorByPair[pairKey],
             [pair.productId],
@@ -807,7 +365,7 @@ export function useWalletData(rawAddress: string): WalletData {
       ));
 
       if (openPerpProductIds.length === 0) {
-        useWalletFundingStore.getState().setPositionFunding([], []);
+        useWalletFundingStore.getState().setPositionFunding(rawAddress, [], []);
         return;
       }
 
@@ -836,7 +394,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = positionSessionStatsMap;
-      useWalletFundingStore.getState().setPositionFunding(accumulated, openPerpProductIds);
+      useWalletFundingStore.getState().setPositionFunding(rawAddress, accumulated, openPerpProductIds);
 
       if (!cancelled) {
         setData(prev => ({
@@ -870,11 +428,11 @@ export function useWalletData(rawAddress: string): WalletData {
       }
 
       try {
-      const subs = await fetchSubaccounts();
+      const subs = await fetchSubs();
       if (cancelled) return;
       subaccountsRef.current = subs;
       {
-        const parentMaps = await fetchIsolatedParentMaps(subs);
+        const parentMaps = await fetchIsoMaps(subs);
         isolatedParentNameRef.current =
           parentMaps.parentNameByIsolatedSubaccount;
         isolatedParentSubaccountRef.current =
@@ -885,7 +443,7 @@ export function useWalletData(rawAddress: string): WalletData {
         subs.some((s) => s.isolated)
       ) {
         await sleep(200);
-        const parentMaps = await fetchIsolatedParentMaps(subs);
+        const parentMaps = await fetchIsoMaps(subs);
         isolatedParentNameRef.current =
           parentMaps.parentNameByIsolatedSubaccount;
         isolatedParentSubaccountRef.current =
@@ -893,11 +451,11 @@ export function useWalletData(rawAddress: string): WalletData {
       }
       if (cancelled) return;
       const subAddrs = subs.map((s) => s.subaccount);
-      useWalletFundingStore.getState().setSubaccounts(subAddrs);
+      useWalletFundingStore.getState().setSubaccounts(rawAddress, subAddrs);
 
       const subaccountChunks = chunk(subAddrs, 5);
 
-      const positionData = await fetchAllPositions(
+      const positionData = await fetchAllPos(
         subs,
         isolatedParentNameRef.current,
         isolatedParentSubaccountRef.current,
@@ -915,6 +473,10 @@ export function useWalletData(rawAddress: string): WalletData {
         [],
       );
       const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
+      const hasCachedTradesForPhase1 = tradesRef.current.length > 0;
+      const cachedPnlForPhase1 = hasCachedTradesForPhase1
+        ? buildPnlStats(tradesRef.current, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0)
+        : initialPnlStats;
       setData({
         stats: {
           address: rawAddress,
@@ -928,18 +490,18 @@ export function useWalletData(rawAddress: string): WalletData {
           spot_balances: positionData.spotBalances,
           spot_balances_by_subaccount: positionData.spotBalancesBySubaccount,
           cross_subaccounts: positionData.crossSubaccounts,
-          trades: [],
-          trades_complete: false,
-          ...initialPnlStats,
+          trades: hasCachedTradesForPhase1 ? tradesRef.current : [],
+          trades_complete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
+          ...cachedPnlForPhase1,
         },
-        trades: [],
+        trades: hasCachedTradesForPhase1 ? tradesRef.current : [],
         loading: false,
         phase1Ready: true,
         snapshotReady: false,
         positionTrades: [],
         positionMatchesComplete: false,
-        globalMatchesComplete: false,
-        tradesComplete: false,
+        globalMatchesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
+        tradesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
         refreshing: false,
         unrealizedRefreshing: false,
         spotBalancesRefreshing: false,
@@ -951,6 +513,12 @@ export function useWalletData(rawAddress: string): WalletData {
       // Phase 2: position-scoped matches → position-scoped funding (sequential)
       const phase2 = (async () => {
         await fetchPositionScopedMatches(positionData.positions, true);
+        if (!cancelled && positionTradesRef.current.length > 0) {
+          usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+            positionTrades: [...positionTradesRef.current],
+            positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+          });
+        }
         if (cancelled) return;
         await loadPositionFundingPhase2b(positionData.positions);
       })();
@@ -958,13 +526,13 @@ export function useWalletData(rawAddress: string): WalletData {
       // Snapshot entry prices (background, updates avg entry)
       const snapshotsTask = (async () => {
         const crossSubaccounts = subs.filter((s) => !s.isolated).map((s) => s.subaccount);
-        entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubaccounts);
+        entryPriceMapRef.current = await fetchSnapshots(crossSubaccounts);
         if (cancelled) return;
         setData((prev) => {
           if (!prev.stats) return { ...prev, snapshotReady: true };
-          const fs = useWalletFundingStore.getState();
-          const ef = fs.fundingPayments.length > 0
-            ? fs.fundingPayments : fs.positionFundingPayments;
+          const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+          const ef = (fs?.fundingPayments.length ?? 0) > 0
+            ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
           const corrected = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -988,13 +556,50 @@ export function useWalletData(rawAddress: string): WalletData {
       })();
 
       // Phase 3a: global background pagination loop (first page + remaining pages)
+      // If cache already has complete trades, skip full pagination — incremental only.
+      const hasCachedTrades = cached && cached.trades.length > 0;
       const phase3a = (async () => {
+        if (hasCachedTrades && cached.globalMatchesComplete) {
+          // Phase 1 wiped trades/flags via full setData replace — restore from refs
+          if (!cancelled) {
+            const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+            const pnl = buildPnlStats(tradesRef.current, fs?.fundingPaidUsd ?? 0);
+            setData(prev => ({
+              ...prev,
+              trades: tradesRef.current,
+              globalMatchesComplete: true,
+              tradesComplete: true,
+              stats: prev.stats
+                ? { ...prev.stats, trades: tradesRef.current, trades_complete: true, ...pnl }
+                : null,
+            }));
+          }
+          // Incremental catch-up for trades newer than cache
+          if (latestKnownIdxRef.current && !cancelled) {
+            const newTrades = await fetchIncrementalTrades(subaccountChunks, latestKnownIdxRef.current);
+            if (!cancelled && newTrades.length > 0) {
+              const merged = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
+              tradesRef.current = merged;
+              seenTradeIdsRef.current = new Set(merged.map(tradeIdentity));
+              latestKnownIdxRef.current = merged[0]?.submission_idx ?? latestKnownIdxRef.current;
+              const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+              const pnl = buildPnlStats(merged, fs?.fundingPaidUsd ?? 0);
+              setData(prev => ({
+                ...prev,
+                trades: merged,
+                stats: prev.stats ? { ...prev.stats, trades: merged, ...pnl } : null,
+              }));
+            }
+          }
+          return;
+        }
+
         let firstPages: MatchesPageResult[];
         try {
           const pages: MatchesPageResult[] = [];
           for (let c = 0; c < subaccountChunks.length; c++) {
             const subChunk = subaccountChunks[c]!;
-            const p = await fetchOnePage(subChunk);
+            const p = await fetchPage(subChunk);
             if (p.rateLimited) throw new Error("RATE_LIMIT");
             pages.push(p);
             if (c < subaccountChunks.length - 1) await sleep(MATCHES_BURST_MS);
@@ -1024,8 +629,8 @@ export function useWalletData(rawAddress: string): WalletData {
         // Global trades are used only for overall wallet PnL stats, not per-position columns.
         // Update data after first-page trades arrive
         setData((prev) => {
-          const fs = useWalletFundingStore.getState();
-          const pnlStats = buildPnlStats(allTrades, fs.fundingPaidUsd);
+          const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+          const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
           return {
           ...prev,
           trades: allTrades,
@@ -1036,8 +641,8 @@ export function useWalletData(rawAddress: string): WalletData {
                 trades_complete: firstPages.every((page) => page.done),
                 ...pnlStats,
                 positions: (() => {
-                  const ef = fs.fundingPayments.length > 0
-                    ? fs.fundingPayments : fs.positionFundingPayments;
+                  const ef = (fs?.fundingPayments.length ?? 0) > 0
+                    ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
                   return applySessionFunding(
                     applyPositionStats(
                       applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -1064,7 +669,7 @@ export function useWalletData(rawAddress: string): WalletData {
             tradesRef.current = allTrades;
             latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
             setData((prev) => {
-              const catchUpStats = buildPnlStats(allTrades, useWalletFundingStore.getState().fundingPaidUsd);
+              const catchUpStats = buildPnlStats(allTrades, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0);
               return {
               ...prev,
               trades: allTrades,
@@ -1087,7 +692,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
             for (let a = 0; a < active.length; a++) {
               const state = active[a]!;
-              const result = await fetchOnePage(
+              const result = await fetchPage(
                 state.chunk,
                 state.nextIdx ?? undefined,
               );
@@ -1124,8 +729,8 @@ export function useWalletData(rawAddress: string): WalletData {
             const allDone = chunkStates.every((state) => state.done);
             tradesCompleteRef.current = allDone || page === MAX_PAGES - 1;
             setData((prev) => {
-              const fs = useWalletFundingStore.getState();
-              const updatedStats = buildPnlStats(allTrades, fs.fundingPaidUsd);
+              const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+              const updatedStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
               return {
               ...prev,
               trades: allTrades,
@@ -1138,8 +743,8 @@ export function useWalletData(rawAddress: string): WalletData {
                     trades_complete: allDone || page === MAX_PAGES - 1,
                     ...updatedStats,
                     positions: (() => {
-                      const ef = fs.fundingPayments.length > 0
-                        ? fs.fundingPayments : fs.positionFundingPayments;
+                      const ef = (fs?.fundingPayments.length ?? 0) > 0
+                        ? (fs?.fundingPayments ?? []) : (fs?.positionFundingPayments ?? []);
                       return applySessionFunding(
                         applyPositionStats(
                           applySnapshotEntryPrices(prev.stats.positions, entryPriceMapRef.current),
@@ -1173,8 +778,18 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // Wait for all background tasks — don't block UI (already rendered at Phase 1)
       await Promise.all([phase2, snapshotsTask, phase3a]).catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
         console.error("[useWalletData] background phase error:", e);
       });
+
+      if (!cancelled && tradesRef.current.length > 0) {
+        useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+          trades: tradesRef.current,
+          latestKnownIdx: latestKnownIdxRef.current,
+          seenTradeIds: new Set(seenTradeIdsRef.current),
+          globalMatchesComplete: tradesCompleteRef.current,
+        });
+      }
 
       // Poll live position marks / unrealized only — subaccount_info only (Gateway).
       // avg_entry (account_snapshots) is cached and only re-fetched when a fill is detected:
@@ -1183,7 +798,7 @@ export function useWalletData(rawAddress: string): WalletData {
       const pollPositionsOnly = async () => {
         try {
           if (cancelled) return;
-          let pd = await fetchAllPositions(
+          let pd = await fetchAllPos(
             subaccountsRef.current,
             isolatedParentNameRef.current,
             isolatedParentSubaccountRef.current,
@@ -1201,7 +816,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const shouldDiscover = hasUnmappedIsolated || pollCountRef.current % 6 === 0;
 
           if (shouldDiscover) {
-            const freshMaps = await fetchIsolatedParentMaps(subaccountsRef.current);
+            const freshMaps = await fetchIsoMaps(subaccountsRef.current);
             if (cancelled) return;
 
             // Rebuild isolated entries: only pockets currently active in isolated_positions.
@@ -1229,7 +844,7 @@ export function useWalletData(rawAddress: string): WalletData {
             isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
 
             if (listChanged || hasUnmappedIsolated) {
-              pd = await fetchAllPositions(
+              pd = await fetchAllPos(
                 subaccountsRef.current,
                 isolatedParentNameRef.current,
                 isolatedParentSubaccountRef.current,
@@ -1261,7 +876,7 @@ export function useWalletData(rawAddress: string): WalletData {
           if (fillDetected) {
             // Refresh snapshot entry prices for avg entry accuracy
             const crossSubs = subaccountsRef.current.filter(s => !s.isolated).map(s => s.subaccount);
-            entryPriceMapRef.current = await fetchSnapshotEntryPrices(crossSubs);
+            entryPriceMapRef.current = await fetchSnapshots(crossSubs);
             if (cancelled) return;
             // Re-fetch position-scoped matches from the session opener (pre_balance=0 boundary).
             // This is the authoritative source for per-position fees and realized PnL.
@@ -1272,6 +887,10 @@ export function useWalletData(rawAddress: string): WalletData {
             await fetchPositionScopedMatches(pd.positions, true);
             if (cancelled) return;
             positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+            usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+              positionTrades: [...positionTradesRef.current],
+              positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+            });
 
             // Also pull new fills into the global trade history (WalletTradeHistory).
             // Redis TTL for first-page is 15s, so this sees fresh data after the fill.
@@ -1290,10 +909,10 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           if (cancelled) return;
           // Use global funding if loaded (CTA clicked), otherwise fall back to position-scoped funding.
-          const fState = useWalletFundingStore.getState();
-          const effectiveFunding = fState.fundingPayments.length > 0
-            ? fState.fundingPayments
-            : fState.positionFundingPayments;
+          const fState = useWalletFundingStore.getState().forAddress(rawAddress);
+          const effectiveFunding = (fState?.fundingPayments.length ?? 0) > 0
+            ? (fState?.fundingPayments ?? [])
+            : (fState?.positionFundingPayments ?? []);
           const pollPositions = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
@@ -1303,10 +922,8 @@ export function useWalletData(rawAddress: string): WalletData {
             effectiveFunding,
           );
           const pollTotals = recomputeUnrealizedTotals(pollPositions, pd.equityUsd, pd.unrealizedTotal);
-          // Rebuild global PnL stats (win_rate, net_pnl_usd, total_fees_usd, volume, etc.)
-          // when new trades were detected so WalletStats and WalletSummary update immediately.
           const tradeStats = tradeHistoryUpdated
-            ? buildPnlStats(tradesRef.current, fState.fundingPaidUsd)
+            ? buildPnlStats(tradesRef.current, fState?.fundingPaidUsd ?? 0)
             : {};
           setData((prev) => ({
             ...prev,
@@ -1329,9 +946,16 @@ export function useWalletData(rawAddress: string): WalletData {
                 }
               : null,
           }));
-          // Poll succeeded — reset error counter
+          if (tradeHistoryUpdated) {
+            useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+              trades: tradesRef.current,
+              latestKnownIdx: latestKnownIdxRef.current,
+              seenTradeIds: new Set(seenTradeIdsRef.current),
+            });
+          }
           pollErrorCountRef.current = 0;
         } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
           console.error('[useWalletData] pollPositionsOnly error:', e);
           pollErrorCountRef.current += 1;
         }
@@ -1356,19 +980,19 @@ export function useWalletData(rawAddress: string): WalletData {
         try {
           // Re-discover subaccounts from Archive — picks up brand-new isolated pockets
           // created after the initial page load.
-          const freshSubs = await fetchSubaccounts();
+          const freshSubs = await fetchSubs();
           if (cancelled) return;
           subaccountsRef.current = freshSubs;
 
           // Re-fetch isolated parent maps with the updated subaccount list.
-          const freshMaps = await fetchIsolatedParentMaps(freshSubs);
+          const freshMaps = await fetchIsoMaps(freshSubs);
           if (!cancelled) {
             isolatedParentNameRef.current = freshMaps.parentNameByIsolatedSubaccount;
             isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
           }
           if (cancelled) return;
 
-          const pd = await fetchAllPositions(
+          const pd = await fetchAllPos(
             subaccountsRef.current,
             isolatedParentNameRef.current,
             isolatedParentSubaccountRef.current,
@@ -1379,7 +1003,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const refreshedCrossSubs = subaccountsRef.current
             .filter((s) => !s.isolated)
             .map((s) => s.subaccount);
-          entryPriceMapRef.current = await fetchSnapshotEntryPrices(refreshedCrossSubs);
+          entryPriceMapRef.current = await fetchSnapshots(refreshedCrossSubs);
           if (cancelled) return;
           // Re-fetch position-scoped matches so position stats reflect the current session
           positionTradesRef.current = [];
@@ -1388,11 +1012,15 @@ export function useWalletData(rawAddress: string): WalletData {
           await fetchPositionScopedMatches(pd.positions);
           if (cancelled) return;
           positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
+          usePositionMatchesCacheStore.getState().setCache(rawAddress, {
+            positionTrades: [...positionTradesRef.current],
+            positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
+          });
 
-          const fStore = useWalletFundingStore.getState();
-          const effectiveFundingR = fStore.fundingPayments.length > 0
-            ? fStore.fundingPayments
-            : fStore.positionFundingPayments;
+          const fStore = useWalletFundingStore.getState().forAddress(rawAddress);
+          const effectiveFundingR = (fStore?.fundingPayments.length ?? 0) > 0
+            ? (fStore?.fundingPayments ?? [])
+            : (fStore?.positionFundingPayments ?? []);
           const refreshPositions = applySessionFunding(
             applyPositionStats(
               applySnapshotEntryPrices(pd.positions, entryPriceMapRef.current),
@@ -1430,7 +1058,7 @@ export function useWalletData(rawAddress: string): WalletData {
         if (cancelled) return;
         setData((prev) => ({ ...prev, spotBalancesRefreshing: true }));
         try {
-          const freshSubs = await fetchSubaccounts();
+          const freshSubs = await fetchSubs();
           if (cancelled) {
             setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
             return;
@@ -1454,7 +1082,7 @@ export function useWalletData(rawAddress: string): WalletData {
             return;
           }
 
-          const pd = await fetchAllPositions(
+          const pd = await fetchAllPos(
             crossSubs,
             isolatedParentNameRef.current,
             isolatedParentSubaccountRef.current,
@@ -1509,7 +1137,7 @@ export function useWalletData(rawAddress: string): WalletData {
           latestKnownIdxRef.current = updatedTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
           setData((prev) => {
             if (!prev.stats) return prev;
-            const pnl = buildPnlStats(updatedTrades, useWalletFundingStore.getState().fundingPaidUsd);
+            const pnl = buildPnlStats(updatedTrades, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0);
             return { ...prev, trades: updatedTrades, stats: { ...prev.stats, trades: updatedTrades, ...pnl } };
           });
         }
@@ -1525,6 +1153,7 @@ export function useWalletData(rawAddress: string): WalletData {
     };
 
     void loadWallet("initial").catch((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       console.error("[useWalletData] loadWallet failed:", e);
       if (!cancelled)
         setData((p) => ({
@@ -1543,16 +1172,6 @@ export function useWalletData(rawAddress: string): WalletData {
     return () => {
       cancelled = true;
       controller.abort();
-      tradesRef.current = [];
-      entryPriceMapRef.current = new Map();
-      positionStatsMapRef.current = new Map();
-      latestKnownIdxRef.current = null;
-      seenTradeIdsRef.current = new Set();
-      isolatedParentNameRef.current = new Map();
-      isolatedParentSubaccountRef.current = new Map();
-      positionTradesRef.current = [];
-      positionOpenTimeMapRef.current = {};
-      positionSeenTradeIdsRef.current = new Set();
       if (intervalRef.current) clearTimeout(intervalRef.current);
     };
   }, [rawAddress]);
@@ -1560,9 +1179,10 @@ export function useWalletData(rawAddress: string): WalletData {
   // Rebuild stats.net_pnl_usd when global funding finishes loading.
   // buildPnlStats only reruns on trade changes — this bridges the gap.
   useEffect(() => {
-    let prev = useWalletFundingStore.getState().fundingPaidUsd;
+    if (!rawAddress) return;
+    let prev = useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0;
     const unsub = useWalletFundingStore.subscribe((state) => {
-      const next = state.fundingPaidUsd;
+      const next = state.forAddress(rawAddress)?.fundingPaidUsd ?? 0;
       if (next === prev) return;
       prev = next;
       if (tradesRef.current.length === 0) return;
@@ -1573,7 +1193,7 @@ export function useWalletData(rawAddress: string): WalletData {
       });
     });
     return unsub;
-  }, []);
+  }, [rawAddress]);
 
   return {
     ...data,

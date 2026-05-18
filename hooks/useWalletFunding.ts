@@ -3,9 +3,11 @@ import { useWalletFundingStore } from '@/store/walletFundingStore'
 
 export function useWalletFunding(address: string): void {
   useEffect(() => {
-    useWalletFundingStore.getState().initForAddress(address)
+    const store = useWalletFundingStore.getState()
+    store.ensureSlot(address)
+    store.setActive(address)
     return () => {
-      useWalletFundingStore.getState().abort()
+      useWalletFundingStore.getState().abortAddress(address)
     }
   }, [address])
 }
