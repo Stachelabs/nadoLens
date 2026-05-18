@@ -125,6 +125,9 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
     if (wallets.has(addr)) {
       abortControllers.get(addr)?.abort()
       abortControllers.set(addr, new AbortController())
+      for (const key of inflight.keys()) {
+        if (key.startsWith(`${addr}:`)) inflight.delete(key)
+      }
       return
     }
     abortControllers.set(addr, new AbortController())
