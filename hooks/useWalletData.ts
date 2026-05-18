@@ -473,6 +473,10 @@ export function useWalletData(rawAddress: string): WalletData {
         [],
       );
       const initTotals = recomputeUnrealizedTotals(initPositions, positionData.equityUsd, positionData.unrealizedTotal);
+      const hasCachedTradesForPhase1 = tradesRef.current.length > 0;
+      const cachedPnlForPhase1 = hasCachedTradesForPhase1
+        ? buildPnlStats(tradesRef.current, useWalletFundingStore.getState().forAddress(rawAddress)?.fundingPaidUsd ?? 0)
+        : initialPnlStats;
       setData({
         stats: {
           address: rawAddress,
@@ -486,18 +490,18 @@ export function useWalletData(rawAddress: string): WalletData {
           spot_balances: positionData.spotBalances,
           spot_balances_by_subaccount: positionData.spotBalancesBySubaccount,
           cross_subaccounts: positionData.crossSubaccounts,
-          trades: [],
-          trades_complete: false,
-          ...initialPnlStats,
+          trades: hasCachedTradesForPhase1 ? tradesRef.current : [],
+          trades_complete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
+          ...cachedPnlForPhase1,
         },
-        trades: [],
+        trades: hasCachedTradesForPhase1 ? tradesRef.current : [],
         loading: false,
         phase1Ready: true,
         snapshotReady: false,
         positionTrades: [],
         positionMatchesComplete: false,
-        globalMatchesComplete: false,
-        tradesComplete: false,
+        globalMatchesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
+        tradesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
         refreshing: false,
         unrealizedRefreshing: false,
         spotBalancesRefreshing: false,
