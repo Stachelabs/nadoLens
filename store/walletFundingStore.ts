@@ -194,8 +194,9 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
         let rateLimited = false
         const updatedCursors = { ...subaccountCursors }
 
-        for (const sub of subaccounts) {
+        for (let i = 0; i < subaccounts.length; i++) {
           if (abortControllers.get(addr)?.signal.aborted) break
+          const sub = subaccounts[i]!
           const cursor = subaccountCursors[sub]
           if (cursor === null) continue
 
@@ -218,6 +219,9 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
 
           if (!result.complete) allComplete = false
           if (result.rateLimited) { rateLimited = true; break }
+          if (i < subaccounts.length - 1) {
+            await new Promise(r => setTimeout(r, 220))
+          }
         }
 
         if (!get().wallets.has(addr)) return
