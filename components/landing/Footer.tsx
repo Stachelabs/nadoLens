@@ -103,7 +103,7 @@ export function Footer() {
                   {link.soon ? (
                     <span className="flex items-center gap-1.5 text-sm text-muted-foreground/40">
                       {link.label}
-                      <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                         Soon
                       </span>
                     </span>

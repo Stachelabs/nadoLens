@@ -141,8 +141,17 @@ export function useWalletData(rawAddress: string): WalletData {
     const price = fromX18BigInt(event.price);
     const role = event.is_taker ? "taker" : "maker";
     const toastFn = event.is_bid ? toast.success : toast.error;
+    const fmtQty = Math.abs(qty) < 1
+      ? qty.toLocaleString("en-US", { maximumFractionDigits: 5 })
+      : qty.toLocaleString("en-US", { maximumFractionDigits: 4 });
+    const absPrice = Math.abs(price);
+    const fmtPrice = absPrice > 0 && absPrice < 1
+      ? price.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 6, maximumFractionDigits: 6 })
+      : absPrice < 1000
+        ? price.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 })
+        : price.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
     toastFn(`${pairLabel} — ${direction}`, {
-      description: `${qty.toFixed(4)} @ $${price.toLocaleString("en-US", { maximumFractionDigits: 2 })} · ${role}`,
+      description: `${fmtQty} @ ${fmtPrice} · ${role}`,
     });
   }, []);
   useAccountStream(streamSubaccounts, { onFill: onWsFill });
