@@ -208,14 +208,14 @@ export default function WalletPage() {
       >
         <motion.h1
           variants={heroItemVariants}
-          className="mb-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
+          className="mb-4 mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
         >
           Wallet Explorer
         </motion.h1>
 
         <motion.p
           variants={heroItemVariants}
-          className="mb-10 text-base text-muted-foreground md:text-lg"
+          className="mb-12 text-base text-muted-foreground md:text-lg"
         >
           X-ray any Nado wallet — every position, every trade, every edge.
         </motion.p>
@@ -251,7 +251,7 @@ export default function WalletPage() {
           <motion.div variants={heroItemVariants}>
             <Button
               variant="ghost"
-              className="mt-6 text-sm text-brand hover:text-brand/80"
+              className="mt-6 text-sm text-muted-foreground"
               onClick={() => router.push(`/wallet/${address}`)}
             >
               View my wallet →
@@ -263,7 +263,7 @@ export default function WalletPage() {
       {/* Feature cards */}
       <section className="mx-auto w-full max-w-5xl px-4 pb-24">
         <motion.h2
-          className="mb-8 text-center text-2xl font-bold tracking-tight text-foreground md:text-3xl"
+          className="my-12 text-center text-2xl font-bold tracking-tight text-foreground md:text-3xl"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -273,7 +273,7 @@ export default function WalletPage() {
         </motion.h2>
 
         <motion.div
-          className="pt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3"
+          className="py-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3"
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
