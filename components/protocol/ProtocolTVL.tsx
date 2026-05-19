@@ -1,5 +1,6 @@
 "use client";
 
+import { CHART_PRIMARY } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -73,7 +74,7 @@ const SPOT_COLORS: Record<string, string> = {
   "1": "#c9983a", // kBTC — gold
   "3": "#627eea", // wETH — slate blue
 };
-const FALLBACK_COLORS = ["#8b5cf6", "#a78bfa", "#6d28d9", "#7c3aed", "#60a5fa"];
+const FALLBACK_COLORS = [CHART_PRIMARY, "#a78bfa", "#6d28d9", "#7c3aed", "#60a5fa"];
 const OTHER_COLOR = "#4a5568";
 
 // ─── Formatting ─────────────────────────────────────────────────────────────────

@@ -200,7 +200,7 @@ export function Footer() {
               href="https://x.com/silen7_x"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300"
+              className="text-brand hover:text-brand/80"
             >
               @silen7_x
             </a>

@@ -39,7 +39,7 @@ import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
 const CHART_H = 300;
 
 const DONUT_COLORS = [
-  "#8b5cf6",
+  PURPLE,
   "#a78bfa",
   "#6d28d9",
   "#7c3aed",

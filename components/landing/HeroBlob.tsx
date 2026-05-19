@@ -227,7 +227,7 @@ export function HeroBlob() {
           className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl"
         >
           The cockpit for{" "}
-          <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-brand/70 to-brand bg-clip-text text-transparent">
             Nado
           </span>{" "}
           traders
@@ -249,9 +249,9 @@ export function HeroBlob() {
             href="https://app.nado.xyz?join=ak8qEBT"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-flex items-center gap-2 rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-purple-500 hover:shadow-[0_0_24px_rgba(139,92,246,0.5)]"
+            className="group relative inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground transition-all hover:bg-brand/90 hover:shadow-[0_0_24px_rgba(139,92,246,0.5)]"
           >
-            <span className="pointer-events-none absolute inset-0 rounded-lg bg-purple-500/20 opacity-0 blur-md transition-opacity group-hover:opacity-100" />
+            <span className="pointer-events-none absolute inset-0 rounded-lg bg-brand/20 opacity-0 blur-md transition-opacity group-hover:opacity-100" />
             Trade on Nado & Earn Points
             <svg
               viewBox="0 0 16 16"
