@@ -43,7 +43,7 @@ const cardVariants = {
 };
 
 function MetricIcon({ type }: { type: string }) {
-  const cls = "size-5 text-purple-400";
+  const cls = "size-5 text-brand";
   switch (type) {
     case "chart":
       return (
@@ -106,7 +106,7 @@ export function LiveMetrics() {
           <motion.div
             key={m.key}
             variants={cardVariants}
-            className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-purple-500/30"
+            className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-brand/30"
           >
             <div className="mb-3 flex items-center justify-center gap-2">
               <MetricIcon type={m.icon} />

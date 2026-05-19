@@ -19,7 +19,7 @@ export function WalletButton() {
               onClick={openConnectModal}
               className={cn(
                 buttonVariants({ variant: 'default', size: 'sm' }),
-                'bg-purple-600 hover:bg-purple-700 text-white',
+                'bg-brand hover:bg-brand/90 text-brand-foreground',
               )}
             >
               Connect Wallet

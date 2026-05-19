@@ -35,12 +35,13 @@ import { useProtocolRevenue, type ChartPoint, type MarketSlice } from '@/hooks/u
 import { ChartEmpty } from '@/components/protocol/ChartEmpty'
 import { ErrorBanner } from '@/components/protocol/ErrorBanner'
 
-const PURPLE = '#8b5cf6'
+import { CHART_PRIMARY as PURPLE } from '@/lib/chartColors'
+
 const AMBER = '#f59e0b'
 const CHART_H = 300
 
 const DONUT_COLORS = [
-  '#8b5cf6',
+  PURPLE,
   '#a78bfa',
   '#6d28d9',
   '#7c3aed',

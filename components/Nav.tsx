@@ -55,10 +55,8 @@ export function Nav() {
               href={`/wallet/${address}`}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "border border-purple-500/40 bg-purple-500/20 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:text-purple-600 dark:hover:text-purple-200",
+                "border border-brand/40 bg-brand/20 hover:bg-brand/10 text-brand hover:text-brand/80",
                 pathname === `/wallet/${address}`,
-                // &&
-                // "bg-purple-500/20 text-purple-700",
               )}
             >
               My Wallet

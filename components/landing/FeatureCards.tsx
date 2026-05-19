@@ -89,10 +89,10 @@ export function FeatureCards() {
             >
               <Tag
                 {...(f.href ? { href: f.href } : {})}
-                className="flex h-full flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-purple-500/30"
+                className="flex h-full flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-brand/30"
               >
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
                     {f.icon}
                   </div>
                   <span
