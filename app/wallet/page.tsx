@@ -273,7 +273,7 @@ export default function WalletPage() {
         </motion.h2>
 
         <motion.div
-          className="py-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3"
+          className="py-8 grid grid-cols-1 gap-10 sm:gap-4 sm:grid-cols-2 md:grid-cols-3"
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
