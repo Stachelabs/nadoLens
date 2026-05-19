@@ -54,8 +54,10 @@ About.md
 
 # tools
 .obsidian/
+.cursor/
 # Claude local agent output (plans, MCP config, etc.)
 .claude/
+CLAUDE.local.md
 # Agent skills (installed locally via npx skills — not project dependencies)
 .agents/
 
