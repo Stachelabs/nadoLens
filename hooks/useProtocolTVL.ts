@@ -151,6 +151,7 @@ function buildSpotAssets(
   const prices = latest.oracle_prices ?? {}
 
   return Object.keys(deposits)
+    .filter((productId) => productId in productNames)
     .map((productId) => {
       const price = fromX18BigInt(prices[productId] ?? '0')
       const depositAmt = fromX18BigInt(deposits[productId] ?? '0') * price
