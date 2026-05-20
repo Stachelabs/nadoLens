@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { Github, MessageCircle, ExternalLink } from "lucide-react";
-import { useNadoLensStatus } from "@/hooks/useNadoLensStatus";
+import { ServiceStatus } from "@/components/ServiceStatus";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -37,52 +43,102 @@ const ecosystemLinks = [
 ];
 
 const socialLinks = [
-  { label: "Twitter / X", href: "https://x.com/nadoHQ", icon: XIcon },
+  { label: "Twitter / X", href: "https://x.com/stache_dev", icon: XIcon },
+  { label: "Twitter / X (Nado)", href: "https://x.com/nadoHQ", icon: XIcon },
+  {
+    label: "Discord (Nado)",
+    href: "https://discord.gg/nado",
+    icon: MessageCircle,
+  },
   {
     label: "GitHub",
-    href: "https://github.com/silent7-x/nadoLens",
+    href: "https://github.com/stache-dot-dev/nadoLens",
     icon: Github,
   },
-  { label: "Discord", href: "https://discord.gg/nado", icon: MessageCircle },
 ];
 
-function StatusDot({ color }: { color: "green" | "red" | "orange" | "gray" }) {
-  const colorMap = {
-    green: "bg-emerald-400 shadow-emerald-400/50",
-    red: "bg-red-400 shadow-red-400/50",
-    orange: "bg-orange-400 shadow-orange-400/50",
-    gray: "bg-zinc-500",
-  };
+function ProductLinks() {
   return (
-    <span
-      className={`inline-block size-2 rounded-full shadow-[0_0_6px] ${colorMap[color]}`}
-    />
+    <ul className="flex flex-col gap-2">
+      {productLinks.map((link) => (
+        <li key={link.label}>
+          {link.soon ? (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground/40">
+              {link.label}
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Soon
+              </span>
+            </span>
+          ) : (
+            <Link
+              href={link.href}
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function statusColor(status: string | null, loading: boolean) {
-  if (loading) return "gray" as const;
-  if (status === "online") return "green" as const;
-  if (status === "degraded") return "orange" as const;
-  return "red" as const;
+function EcosystemLinks() {
+  return (
+    <ul className="flex flex-col gap-2">
+      {ecosystemLinks.map((link) => (
+        <li key={link.label}>
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {link.label}
+            <ExternalLink className="size-3 opacity-40" />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function statusLabel(status: string | null, loading: boolean) {
-  if (loading) return "Checking...";
-  if (status === "online") return "Online";
-  if (status === "degraded") return "Degraded";
-  return "Offline";
+function CommunityLinks() {
+  return (
+    <ul className="flex flex-col gap-2">
+      {socialLinks.map((link) => (
+        <li key={link.label}>
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <link.icon className="size-4" />
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function Footer() {
-  const { status, nadoOk, loading } = useNadoLensStatus();
-  const color = statusColor(status, loading);
-
   return (
     <footer className="border-t border-border bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-6">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">
-          {/* Brand */}
+      <div className="mx-auto max-w-6xl px-4 py-2">
+        {/* Brand — always visible */}
+        <div className="flex flex-col items-center gap-1 pb-2 sm:hidden">
+          <span className="text-lg font-bold tracking-tight text-foreground">
+            NadoLens
+          </span>
+          <p className="text-sm text-muted-foreground">
+            Analytics for Nado traders
+          </p>
+        </div>
+
+        {/* ── Desktop: 4-col grid ── */}
+        <div className="hidden gap-8 sm:grid sm:grid-cols-2 md:grid-cols-4">
           <div className="flex flex-col items-center gap-1">
             <span className="text-lg font-bold tracking-tight text-foreground">
               NadoLens
@@ -90,94 +146,57 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               Analytics for Nado traders
             </p>
+            <div className="mt-4 w-full max-w-[175px]">
+              <ServiceStatus />
+            </div>
           </div>
 
-          {/* Product */}
           <div className="flex flex-col gap-3">
             <span className="text-sm font-semibold text-foreground">
               Product
             </span>
-            <ul className="flex flex-col gap-2">
-              {productLinks.map((link) => (
-                <li key={link.label}>
-                  {link.soon ? (
-                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground/40">
-                      {link.label}
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        Soon
-                      </span>
-                    </span>
-                  ) : (
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {link.label}
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <ProductLinks />
           </div>
 
-          {/* Ecosystem */}
           <div className="flex flex-col gap-3">
             <span className="text-sm font-semibold text-foreground">
               Ecosystem
             </span>
-            <ul className="flex flex-col gap-2">
-              {ecosystemLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {link.label}
-                    <ExternalLink className="size-3 opacity-40" />
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <EcosystemLinks />
           </div>
 
-          {/* Community */}
           <div className="flex flex-col gap-3">
             <span className="text-sm font-semibold text-foreground">
               Community
             </span>
-            <ul className="flex flex-col gap-2">
-              {socialLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <link.icon className="size-4" />
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-auto flex flex-col gap-1.5">
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-                <StatusDot color={color} />
-                NadoLens: {statusLabel(status, loading)}
-              </span>
-              <a
-                href="https://nado-xyz.betteruptime.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-              >
-                <StatusDot color={loading ? "gray" : nadoOk ? "green" : "red"} />
-                Nado: {loading ? "Checking..." : nadoOk ? "Online" : "Offline"}
-                <ExternalLink className="size-3 opacity-40" />
-              </a>
-            </div>
+            <CommunityLinks />
+          </div>
+        </div>
+
+        {/* ── Mobile: accordion ── */}
+        <div className="sm:hidden">
+          <Accordion>
+            <AccordionItem value="product">
+              <AccordionTrigger>Product</AccordionTrigger>
+              <AccordionContent>
+                <ProductLinks />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="ecosystem">
+              <AccordionTrigger>Ecosystem</AccordionTrigger>
+              <AccordionContent>
+                <EcosystemLinks />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="community">
+              <AccordionTrigger>Community</AccordionTrigger>
+              <AccordionContent>
+                <CommunityLinks />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          <div className="pt-4">
+            <ServiceStatus horizontal />
           </div>
         </div>
       </div>
@@ -197,12 +216,12 @@ export function Footer() {
             </a>{" "}
             by{" "}
             <a
-              href="https://x.com/silen7_x"
+              href="https://x.com/stache_dev"
               target="_blank"
               rel="noopener noreferrer"
               className="text-brand hover:text-brand/80"
             >
-              @silen7_x
+              @stache.dev
             </a>
           </span>
         </div>

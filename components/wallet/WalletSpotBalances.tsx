@@ -110,7 +110,7 @@ export function WalletSpotBalances({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
           {SPOT_ASSETS.map((asset) => {
             const balance = byId.get(asset.product_id);
             const amount = balance?.amount ?? 0;
@@ -120,7 +120,7 @@ export function WalletSpotBalances({
             return (
               <div
                 key={asset.product_id}
-                className="flex items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[234px]"
+                className="flex flex-1 items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[234px]"
               >
                 <Image
                   src={asset.icon}
