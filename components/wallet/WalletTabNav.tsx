@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { TradeOnNadoButton } from "@/components/TradeOnNadoButton";
 
-type Tab = "trading" | "analytics";
+type Tab = "overview" | "trading" | "analytics";
 
 interface Props {
   activeTab: Tab;
@@ -18,6 +18,7 @@ interface Props {
 }
 
 const TABS: { value: Tab; label: string }[] = [
+  { value: "overview", label: "Overview" },
   { value: "trading", label: "Trading" },
   { value: "analytics", label: "Analytics" },
 ];
