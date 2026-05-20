@@ -1,6 +1,14 @@
 import { defineChain } from 'viem'
-import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { http } from 'wagmi'
+import { connectorsForWallets } from '@rainbow-me/rainbowkit'
+import {
+  injectedWallet,
+  rainbowWallet,
+  coinbaseWallet,
+  metaMaskWallet,
+  walletConnectWallet,
+  phantomWallet,
+} from '@rainbow-me/rainbowkit/wallets'
+import { createConfig, http } from 'wagmi'
 
 // Custom definition (not OP stack variant) — viem's `ink` uses OP stack types
 // incompatible with createNadoClient's publicClient signature
@@ -16,9 +24,28 @@ export const inkL2 = defineChain({
   },
 })
 
-export const wagmiConfig = getDefaultConfig({
-  appName: 'NadoLens',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '',
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Popular',
+      wallets: [
+        injectedWallet,
+        coinbaseWallet,
+        metaMaskWallet,
+        rainbowWallet,
+        phantomWallet,
+        walletConnectWallet,
+      ],
+    },
+  ],
+  {
+    appName: 'NadoLens',
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '',
+  },
+)
+
+export const wagmiConfig = createConfig({
+  connectors,
   chains: [inkL2],
   transports: {
     [inkL2.id]: http(),

@@ -68,9 +68,7 @@ function InkSplatter() {
         {/* Glow behind */}
         <motion.svg
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          width={670}
-          height={670}
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[380px] sm:size-[670px]"
           viewBox="0 0 2933 2933"
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -88,9 +86,7 @@ function InkSplatter() {
 
         {/* Main ink splatter */}
         <motion.svg
-          className="relative"
-          width={580}
-          height={580}
+          className="relative size-[320px] sm:size-[580px]"
           viewBox="0 0 2933 2933"
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -200,7 +196,7 @@ function InkSplatter() {
         transition={{ delay: 0.6, duration: 0.5 }}
       >
         <span
-          className="-ml-6 -mt-6 select-none text-4xl font-bold tracking-tight text-white md:text-5xl"
+          className="-ml-3 -mt-3 select-none text-2xl font-bold tracking-tight text-white sm:-ml-6 sm:-mt-6 sm:text-4xl md:text-5xl"
           style={{ textShadow: "0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.3)" }}
         >
           NadoLens

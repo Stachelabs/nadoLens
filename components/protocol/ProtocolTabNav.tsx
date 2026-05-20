@@ -1,6 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProtocolStore, type ProtocolTab } from "@/store/protocolStore";
 import { TradeOnNadoButton } from "@/components/TradeOnNadoButton";
 
@@ -19,7 +26,30 @@ export function ProtocolTabNav() {
   return (
     <div className="border-b border-border">
       <div className="flex items-center gap-2">
-        <div className="flex flex-1" role="tablist">
+        {/* Mobile tab select */}
+        <div className="flex flex-1 sm:hidden">
+          <Select
+            value={TABS.find((t) => t.value === activeTab)?.label ?? "Overview"}
+            onValueChange={(v) => {
+              const tab = TABS.find((t) => t.label === v);
+              if (tab) setActiveTab(tab.value);
+            }}
+          >
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TABS.map((tab) => (
+                <SelectItem key={tab.value} value={tab.label}>
+                  {tab.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Desktop tabs */}
+        <div className="hidden sm:flex flex-1" role="tablist">
           {TABS.map((tab) => (
             <button
               key={tab.value}
@@ -38,6 +68,7 @@ export function ProtocolTabNav() {
             </button>
           ))}
         </div>
+
         <div className="flex shrink-0 pb-px pr-0.5">
           <TradeOnNadoButton />
         </div>
