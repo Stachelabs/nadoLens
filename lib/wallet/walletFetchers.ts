@@ -55,12 +55,15 @@ export type ParsedPositionsResult = {
   maintenanceMargin: number
   healthScore: number
   unrealizedTotal: number
+  failed?: boolean
 }
 
 export type FetchAllPositionsResult = ParsedPositionsResult & {
   spotBalancesBySubaccount: SpotBalancesGroup[]
   crossSubaccounts: CrossSubaccountEntry[]
   subaccountHealths: SubaccountHealthEntry[]
+  allFailed: boolean
+  anyFailed: boolean
 }
 
 export type IsolatedParentMaps = {
@@ -300,6 +303,11 @@ export async function fetchSnapshotEntryPrices(
   }
 }
 
+const FETCH_FAILED: ParsedPositionsResult = {
+  ...PARSE_FALLBACK,
+  failed: true,
+}
+
 export async function fetchPositions(
   sub: string,
   isolated: boolean,
@@ -310,11 +318,11 @@ export async function fetchPositions(
       cache: 'no-store',
       signal,
     })
-    if (!res.ok) return PARSE_FALLBACK
+    if (!res.ok) return FETCH_FAILED
     const raw: unknown = await res.json()
     return parsePositions(raw, isolated)
   } catch {
-    return PARSE_FALLBACK
+    return FETCH_FAILED
   }
 }
 
@@ -329,6 +337,9 @@ export async function fetchAllPositions(
       fetchPositions(subaccount, isolated, signal),
     ),
   )
+  const allFailed =
+    results.length > 0 && results.every((r) => r.failed === true)
+  const anyFailed = results.some((r) => r.failed === true)
   const subNameBySubaccount = new Map(
     subs.map((s) => [s.subaccount.toLowerCase(), s.subaccount_name ?? 'default']),
   )
@@ -437,6 +448,8 @@ export async function fetchAllPositions(
     healthScore,
     unrealizedTotal,
     subaccountHealths,
+    allFailed,
+    anyFailed,
   }
 }
 
