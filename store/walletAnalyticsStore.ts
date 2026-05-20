@@ -8,7 +8,7 @@ type WalletAnalyticsStore = {
 }
 
 export const useWalletAnalyticsStore = create<WalletAnalyticsStore>((set) => ({
-  activeTab: 'overview',
+  activeTab: 'trading',
   setActiveTab: (activeTab) => set({ activeTab }),
   selectedFundingProductId: null,
   setSelectedFundingProductId: (selectedFundingProductId) => set({ selectedFundingProductId }),
