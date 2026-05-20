@@ -108,26 +108,16 @@ function WalletContent({ address }: { address: string }) {
           {error}
         </div>
       )}
-      <WalletHeader stats={stats} />
       <WalletTabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === "trading" && (
+      {activeTab === "overview" && (
         <>
+          <WalletHeader stats={stats} />
           <WalletSpotBalances
             bySubaccount={stats.spot_balances_by_subaccount}
             mergedBalances={stats.spot_balances}
             onRefreshSpotBalances={refreshSpotBalances}
             spotBalancesRefreshing={spotBalancesRefreshing}
-          />
-          <WalletPositions
-            positions={stats.positions}
-            crossSubaccountLabels={positionCrossSubaccountLabels}
-            subaccountHealths={stats.subaccount_healths}
-            onRefreshUnrealized={refreshUnrealizedPnl}
-            unrealizedRefreshing={unrealizedRefreshing}
-            positionMatchesComplete={positionMatchesComplete}
-            snapshotReady={snapshotReady}
-            loading={!positionMatchesComplete}
           />
           <WalletStats
             stats={stats}
@@ -140,6 +130,22 @@ function WalletContent({ address }: { address: string }) {
             refreshing={refreshing}
             onRefreshUnrealized={refreshUnrealizedPnl}
             unrealizedRefreshing={unrealizedRefreshing}
+          />
+        </>
+      )}
+
+      {activeTab === "trading" && (
+        <>
+          <WalletHeader stats={stats} />
+          <WalletPositions
+            positions={stats.positions}
+            crossSubaccountLabels={positionCrossSubaccountLabels}
+            subaccountHealths={stats.subaccount_healths}
+            onRefreshUnrealized={refreshUnrealizedPnl}
+            unrealizedRefreshing={unrealizedRefreshing}
+            positionMatchesComplete={positionMatchesComplete}
+            snapshotReady={snapshotReady}
+            loading={!positionMatchesComplete}
           />
           <WalletTradeHistory
             trades={trades}
