@@ -10,12 +10,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ThemeToggle } from "./ThemeToggle";
 import { WalletButton } from "./WalletButton";
+import { ServiceStatus } from "./ServiceStatus";
 
 const navLinks = [
   { href: "/protocol", label: "Protocol" },
@@ -94,10 +95,11 @@ export function Nav() {
             <SheetTrigger
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon" }),
-                "size-8",
+                "size-8 border border-border text-foreground",
               )}
             >
-              <Menu className="size-4" />
+              <Menu className={cn("size-4 transition-all duration-200", sheetOpen && "scale-0 opacity-0 absolute")} />
+              <X className={cn("size-4 transition-all duration-200", !sheetOpen && "scale-0 opacity-0 absolute")} />
             </SheetTrigger>
             <SheetContent side="right">
               <SheetHeader className="sr-only">
@@ -146,6 +148,10 @@ export function Nav() {
                   </Link>
                 )}
               </nav>
+
+              <div className="mt-auto border-t border-border px-4 py-3">
+                <ServiceStatus />
+              </div>
             </SheetContent>
           </Sheet>
         </div>

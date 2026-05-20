@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { LayoutDashboard, Wallet } from "lucide-react";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -268,19 +269,15 @@ export function HeroBlob() {
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
           >
             Launch Dashboard
-            <svg
-              className="size-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"
-              />
-            </svg>
+            <LayoutDashboard className="size-4" />
+          </a>
+
+          <a
+            href="/wallet"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
+          >
+            Explore Wallet
+            <Wallet className="size-4" />
           </a>
         </motion.div>
       </motion.div>

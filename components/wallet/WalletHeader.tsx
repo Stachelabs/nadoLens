@@ -36,7 +36,7 @@ export function WalletHeader({ stats }: Props) {
             </div>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex justify-center gap-6 sm:justify-end">
             <div className="text-right">
               <HoverCard>
                 <HoverCardTrigger className="cursor-help">
