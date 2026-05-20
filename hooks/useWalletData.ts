@@ -103,6 +103,7 @@ export function useWalletData(rawAddress: string): WalletData {
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null>(null);
   const pollErrorCountRef = useRef(0);
+  const gatewayStaleToastRef = useRef<string | number | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
   const isolatedParentNameRef = useRef<Map<string, string>>(new Map());
   const isolatedParentSubaccountRef = useRef<Map<string, string>>(new Map());
@@ -471,6 +472,19 @@ export function useWalletData(rawAddress: string): WalletData {
       );
       if (cancelled) return;
 
+      if (positionData.allFailed) {
+        setData((prev) => ({
+          ...prev,
+          loading: false,
+          refreshing: false,
+          error: "Gateway unavailable — retrying…",
+        }));
+        intervalRef.current = setTimeout(() => {
+          if (!cancelled) void loadWallet("refresh");
+        }, POSITIONS_POLL_MS * 2);
+        return;
+      }
+
       // ── Phase 1: positions loaded — render immediately ────────────────────
       const initialPnlStats = buildPnlStats([], 0);
       const initPositions = applySessionFunding(
@@ -814,6 +828,22 @@ export function useWalletData(rawAddress: string): WalletData {
           );
           if (cancelled) return;
 
+          if (pd.anyFailed) {
+            pollErrorCountRef.current += 1;
+            if (pollErrorCountRef.current >= POLL_BACKOFF_THRESHOLD && !gatewayStaleToastRef.current) {
+              gatewayStaleToastRef.current = toast.warning(
+                "Gateway unstable — showing last known data",
+                { duration: Infinity },
+              );
+            }
+            return;
+          }
+
+          if (gatewayStaleToastRef.current) {
+            toast.dismiss(gatewayStaleToastRef.current);
+            gatewayStaleToastRef.current = null;
+          }
+
           // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
           // when a known pocket has no parent mapping.
           // Calls isolated_positions on each cross subaccount — lightweight Gateway query.
@@ -853,12 +883,17 @@ export function useWalletData(rawAddress: string): WalletData {
             isolatedParentSubaccountRef.current = freshMaps.parentSubaccountByIsolatedSubaccount;
 
             if (listChanged || hasUnmappedIsolated) {
-              pd = await fetchAllPos(
+              const refreshed = await fetchAllPos(
                 subaccountsRef.current,
                 isolatedParentNameRef.current,
                 isolatedParentSubaccountRef.current,
               );
               if (cancelled) return;
+              if (refreshed.anyFailed) {
+                pollErrorCountRef.current += 1;
+                return;
+              }
+              pd = refreshed;
             }
           }
 
@@ -1008,6 +1043,11 @@ export function useWalletData(rawAddress: string): WalletData {
           );
           if (cancelled) return;
 
+          if (pd.anyFailed) {
+            setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
+            return;
+          }
+
           // Refresh snapshot entry prices for avg entry accuracy
           const refreshedCrossSubs = subaccountsRef.current
             .filter((s) => !s.isolated)
@@ -1101,6 +1141,11 @@ export function useWalletData(rawAddress: string): WalletData {
             return;
           }
 
+          if (pd.anyFailed) {
+            setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
+            return;
+          }
+
           setData((prev) => ({
             ...prev,
             spotBalancesRefreshing: false,
@@ -1182,6 +1227,10 @@ export function useWalletData(rawAddress: string): WalletData {
       cancelled = true;
       controller.abort();
       if (intervalRef.current) clearTimeout(intervalRef.current);
+      if (gatewayStaleToastRef.current) {
+        toast.dismiss(gatewayStaleToastRef.current);
+        gatewayStaleToastRef.current = null;
+      }
     };
   }, [rawAddress]);
 
