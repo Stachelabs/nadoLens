@@ -843,6 +843,7 @@ export function useWalletData(rawAddress: string): WalletData {
             toast.dismiss(gatewayStaleToastRef.current);
             gatewayStaleToastRef.current = null;
           }
+          pollErrorCountRef.current = 0;
 
           // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
           // when a known pocket has no parent mapping.
@@ -997,7 +998,6 @@ export function useWalletData(rawAddress: string): WalletData {
               seenTradeIds: new Set(seenTradeIdsRef.current),
             });
           }
-          pollErrorCountRef.current = 0;
         } catch (e) {
           if (e instanceof DOMException && e.name === 'AbortError') return;
           console.error('[useWalletData] pollPositionsOnly error:', e);
