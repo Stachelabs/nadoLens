@@ -667,8 +667,8 @@ export function ProtocolOIFunding() {
                         <span
                           className={
                             item.annualizedRate >= 0
-                              ? "text-[var(--bull)] font-mono"
-                              : "text-[var(--bear)] font-mono"
+                              ? "text-bull font-mono"
+                              : "text-bear font-mono"
                           }
                         >
                           {formatPct(item.annualizedRate)}
@@ -688,8 +688,8 @@ export function ProtocolOIFunding() {
                         <span
                           className={
                             item.annualizedRate >= 0
-                              ? "text-[var(--bull)] font-mono"
-                              : "text-[var(--bear)] font-mono"
+                              ? "text-bull font-mono"
+                              : "text-bear font-mono"
                           }
                         >
                           {formatPct(item.annualizedRate)}

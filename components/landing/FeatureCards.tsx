@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 
 const features = [
   {
@@ -79,7 +80,33 @@ export function FeatureCards() {
         viewport={{ once: true, amount: 0.2 }}
       >
         {features.map((f) => {
-          const Tag = f.href ? "a" : "div";
+          const cardClassName =
+            "flex h-full flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-brand/30";
+          const cardContent = (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                  {f.icon}
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                    f.badge === "Live"
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : "bg-amber-500/10 text-amber-400"
+                  }`}
+                >
+                  {f.badge}
+                </span>
+              </div>
+              <h3 className="mb-2 text-lg font-semibold text-foreground">
+                {f.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {f.description}
+              </p>
+            </>
+          );
+
           return (
             <motion.div
               key={f.title}
@@ -87,31 +114,13 @@ export function FeatureCards() {
               whileHover={{ y: -4, transition: { duration: 0.2 } }}
               className="group"
             >
-              <Tag
-                {...(f.href ? { href: f.href } : {})}
-                className="flex h-full flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-brand/30"
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-brand/10 text-brand">
-                    {f.icon}
-                  </div>
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                      f.badge === "Live"
-                        ? "bg-emerald-500/10 text-emerald-400"
-                        : "bg-amber-500/10 text-amber-400"
-                    }`}
-                  >
-                    {f.badge}
-                  </span>
-                </div>
-                <h3 className="mb-2 text-lg font-semibold text-foreground">
-                  {f.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {f.description}
-                </p>
-              </Tag>
+              {f.href ? (
+                <Link href={f.href} className={cardClassName}>
+                  {cardContent}
+                </Link>
+              ) : (
+                <div className={cardClassName}>{cardContent}</div>
+              )}
             </motion.div>
           );
         })}

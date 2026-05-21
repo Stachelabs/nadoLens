@@ -183,7 +183,7 @@ export function WalletSummary({
                 label="Unrealized PnL"
                 value={`${isUnrealizedPositive ? "+" : ""}${fmtUsd.format(unrealizedPnl)}`}
                 valueClass={
-                  isUnrealizedPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                  isUnrealizedPositive ? "text-bull" : "text-bear"
                 }
               />
               <Row
@@ -199,7 +199,7 @@ export function WalletSummary({
                   )
                 }
                 valueClass={
-                  isPerpPnlPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                  isPerpPnlPositive ? "text-bull" : "text-bear"
                 }
               />
               <Row
@@ -215,7 +215,7 @@ export function WalletSummary({
                   )
                 }
                 valueClass={
-                  isAllTimePnlPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                  isAllTimePnlPositive ? "text-bull" : "text-bear"
                 }
               />
             </Section>
@@ -321,7 +321,7 @@ export function WalletSummary({
                   />
                 )
               }
-              valueClass="text-[var(--bear)]"
+              valueClass="text-bear"
             />
             <Row
               label="Total Funding"
@@ -347,8 +347,8 @@ export function WalletSummary({
               }
               valueClass={
                 globalFundingComplete
-                  ? isFundingPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"
-                  : "text-[var(--bull)]"
+                  ? isFundingPositive ? "text-bull" : "text-bear"
+                  : "text-bull"
               }
             />
             <Row
