@@ -1,3 +1,6 @@
+/** Add a product ID here to show it in Protocol TVL + Wallet Spot Balances. */
+export const VISIBLE_SPOT_IDS = new Set(['0', '1', '3', '5', '11'])
+
 export const SPOT_ICON: Record<string, string> = {
   '0': '/icons/spot/usdt0.svg',
   '1': '/icons/spot/kbtc.svg',

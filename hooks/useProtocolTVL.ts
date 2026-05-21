@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { VISIBLE_SPOT_IDS } from '@/lib/spotMeta'
 import { useProtocolStore } from '@/store/protocolStore'
 import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
@@ -152,6 +153,7 @@ function buildSpotAssets(
 
   return Object.keys(deposits)
     .filter((productId) => productId in productNames)
+    .filter((productId) => VISIBLE_SPOT_IDS.has(productId))
     .map((productId) => {
       const price = fromX18BigInt(prices[productId] ?? '0')
       const depositAmt = fromX18BigInt(deposits[productId] ?? '0') * price

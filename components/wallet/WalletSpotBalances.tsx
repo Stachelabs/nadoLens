@@ -24,8 +24,6 @@ const SPOT_ASSETS = [
   { product_id: 3, symbol: "WETH", icon: "/icons/spot/weth.svg" },
   { product_id: 5, symbol: "USDC", icon: "/icons/spot/usdc.svg" },
   { product_id: 11, symbol: "NLP", icon: "/icons/spot/nlp.svg" },
-  { product_id: 115, symbol: "wQQQx", icon: "/icons/spot/wqqqx.svg" },
-  { product_id: 117, symbol: "wSPYx", icon: "/icons/spot/wspyx.svg" },
 ];
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
