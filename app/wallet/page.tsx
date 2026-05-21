@@ -6,6 +6,7 @@ import { isAddress } from "viem";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ScrambleWord } from "@/components/ui/ScrambleWord";
 import { useAccount } from "wagmi";
 
 interface Feature {
@@ -210,7 +211,7 @@ export default function WalletPage() {
           variants={heroItemVariants}
           className="mb-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
         >
-          Wallet Explorer
+          <ScrambleWord text="Wallet Explorer" delay={200} cycles={8} />
         </motion.h1>
 
         <motion.p

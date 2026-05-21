@@ -27,7 +27,7 @@ export function ProtocolTabNav() {
     <div className="border-b border-border">
       <div className="flex items-center gap-2">
         {/* Mobile tab select */}
-        <div className="flex flex-1 sm:hidden">
+        <div className="flex flex-1 md:hidden">
           <Select
             value={TABS.find((t) => t.value === activeTab)?.label ?? "Overview"}
             onValueChange={(v) => {
@@ -49,7 +49,7 @@ export function ProtocolTabNav() {
         </div>
 
         {/* Desktop tabs */}
-        <div className="hidden sm:flex flex-1" role="tablist">
+        <div className="hidden md:flex flex-1" role="tablist">
           {TABS.map((tab) => (
             <button
               key={tab.value}

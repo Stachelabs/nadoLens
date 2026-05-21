@@ -2,6 +2,10 @@
 
 import { motion } from "framer-motion";
 import { LayoutDashboard, Wallet } from "lucide-react";
+import { useScrambleText } from "@/hooks/useScrambleText";
+import { ScrambleWord } from "@/components/ui/ScrambleWord";
+
+const TARGET_TEXT = "NadoLens";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -21,6 +25,31 @@ const itemVariants = {
 };
 
 const INK_TRANSFORM = "matrix(0.13333333,0,0,-0.13333333,0,2933.3333)";
+
+function ScrambleTitle() {
+  const { display, scramble } = useScrambleText(TARGET_TEXT);
+
+  return (
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center"
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 0.6, duration: 0.5 }}
+    >
+      <span
+        onMouseEnter={scramble}
+        className="-ml-3 -mt-3 cursor-pointer select-none text-3xl font-bold tracking-tight text-white sm:-ml-6 sm:-mt-6 sm:text-4xl md:text-5xl"
+        style={{
+          textShadow: "0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.3)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {display}
+      </span>
+    </motion.div>
+  );
+}
+
 
 function InkSplatter() {
   return (
@@ -69,7 +98,7 @@ function InkSplatter() {
         {/* Glow behind */}
         <motion.svg
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[380px] sm:size-[670px]"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[430px] sm:size-[670px]"
           viewBox="0 0 2933 2933"
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -87,7 +116,7 @@ function InkSplatter() {
 
         {/* Main ink splatter */}
         <motion.svg
-          className="relative size-[320px] sm:size-[580px]"
+          className="relative size-[370px] sm:size-[580px]"
           viewBox="0 0 2933 2933"
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -190,19 +219,7 @@ function InkSplatter() {
       </motion.div>
 
       {/* Text overlay — outside animated div to stay crisp */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.6, duration: 0.5 }}
-      >
-        <span
-          className="-ml-3 -mt-3 select-none text-2xl font-bold tracking-tight text-white sm:-ml-6 sm:-mt-6 sm:text-4xl md:text-5xl"
-          style={{ textShadow: "0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.3)" }}
-        >
-          NadoLens
-        </span>
-      </motion.div>
+      <ScrambleTitle />
     </div>
   );
 }
@@ -224,9 +241,11 @@ export function HeroBlob() {
           className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl"
         >
           The cockpit for{" "}
-          <span className="bg-gradient-to-r from-brand/70 to-brand bg-clip-text text-transparent">
-            Nado
-          </span>{" "}
+          <ScrambleWord
+            text="Nado"
+            className="bg-gradient-to-r from-brand/70 to-brand bg-clip-text text-transparent"
+            delay={900}
+          />{" "}
           traders
         </motion.h1>
 
