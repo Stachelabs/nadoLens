@@ -315,7 +315,9 @@ export function WalletPositions({
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent">
                 {[
+                  "_icon",
                   "Pair",
+                  "_badge",
                   ...(hasMultipleSubaccounts ? ["Account"] : []),
                   "Health",
                   "Size",
@@ -327,6 +329,8 @@ export function WalletPositions({
                   "Funding",
                   "Fees",
                 ].map((h) => {
+                  if (h.startsWith("_"))
+                    return <TableHead key={h} className="pb-2 px-1" />;
                   const centered =
                     h === "Health" || h === "Pair" || h === "Account";
                   const description = COLUMN_DESCRIPTIONS[h];
@@ -351,6 +355,7 @@ export function WalletPositions({
                       className={cn(
                         "font-normal text-muted-foreground/70 pb-2",
                         centered ? "text-center pr-2" : "text-right pr-4",
+                        h === "Pair" && "sticky left-0 z-20 bg-card",
                       )}
                     >
                       {description ? (
@@ -415,44 +420,39 @@ export function WalletPositions({
                     key={`${pos.subaccount}-${pos.product_id}-${pos.isolated ? "i" : "c"}`}
                     className="border-border/50"
                   >
-                    <TableCell className="py-2 pr-2">
-                      <div className="flex items-center justify-evenly">
-                        {/* 1 — Avatar */}
-                        <div className="flex shrink-0 items-center justify-center pr-1.25">
-                          <Avatar size="sm">
-                            <AvatarImage
-                              src={perpIconSrcFromPair(pos.pair) ?? undefined}
-                              alt=""
-                            />
-                            <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
-                              {assetInitial(pos.pair)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        {/* 2 — Symbol + type */}
-                        <div className="flex flex-col items-center justify-center min-w-[72px]">
-                          <span className="font-mono text-foreground">
-                            {pos.pair}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/70">
-                            {pos.isolated ? "Isolated" : "Cross"}
-                          </span>
-                        </div>
-                        {/* 3 — Long/Short badge */}
-                        <div className="inline-flex shrink-0 items-center justify-center pl-1.25">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[9px] px-1 py-0.5 h-4 font-bold",
-                              isLong
-                                ? "border-primary/20 bg-primary/10 text-primary"
-                                : "border-destructive/20 bg-destructive/10 text-destructive",
-                            )}
-                          >
-                            {isLong ? "LONG" : "SHORT"}
-                          </Badge>
-                        </div>
+                    <TableCell className="py-2 px-1">
+                      <Avatar size="sm">
+                        <AvatarImage
+                          src={perpIconSrcFromPair(pos.pair) ?? undefined}
+                          alt=""
+                        />
+                        <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
+                          {assetInitial(pos.pair)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TableCell>
+                    <TableCell className="py-2 pr-2 sticky left-0 z-10 bg-card">
+                      <div className="flex flex-col items-center justify-center min-w-[72px]">
+                        <span className="font-mono text-foreground">
+                          {pos.pair}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/70">
+                          {pos.isolated ? "Isolated" : "Cross"}
+                        </span>
                       </div>
+                    </TableCell>
+                    <TableCell className="py-2 px-1">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[9px] px-1 py-0.5 h-4 font-bold",
+                          isLong
+                            ? "border-primary/20 bg-primary/10 text-primary"
+                            : "border-destructive/20 bg-destructive/10 text-destructive",
+                        )}
+                      >
+                        {isLong ? "LONG" : "SHORT"}
+                      </Badge>
                     </TableCell>
                     {hasMultipleSubaccounts ? (
                       <TableCell className="py-2 pr-2 text-center text-foreground/80">

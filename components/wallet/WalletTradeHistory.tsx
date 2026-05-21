@@ -157,7 +157,9 @@ export function WalletTradeHistory({
                         className={cn(
                           "font-normal text-muted-foreground/70 pb-2",
                           i === 0 ? "text-left" : i >= 5 ? (i === 8 ? "text-right pr-2" : "text-right pr-4") : "text-center",
-                          col.key === "icon" && "w-12 px-1",
+                          col.key === "time" && "w-0 whitespace-nowrap",
+                      col.key === "icon" && "w-12 px-1",
+                      col.key === "pair" && "sticky left-0 z-20 bg-card",
                         )}
                       >
                         {col.label === null ? <span className="sr-only">Asset icon</span> : col.label}
@@ -297,7 +299,9 @@ export function WalletTradeHistory({
                             ? "text-right pr-2"
                             : "text-right pr-4"
                           : "text-center",
+                      col.key === "time" && "w-0 whitespace-nowrap",
                       col.key === "icon" && "w-12 px-1",
+                      col.key === "pair" && "sticky left-0 z-20 bg-card",
                     )}
                   >
                     {col.label === null ? (
@@ -364,7 +368,7 @@ export function WalletTradeHistory({
                         </Avatar>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2 text-center align-middle">
+                    <TableCell className="py-2 text-center align-middle sticky left-0 z-10 bg-card">
                       <div className="flex min-w-[72px] flex-col items-center justify-center">
                         <span className="font-mono text-foreground">{t.pair}</span>
                         <span className="text-[10px] text-muted-foreground/70">
