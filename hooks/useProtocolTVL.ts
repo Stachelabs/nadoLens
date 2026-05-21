@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { fmtDate, fmtHour } from '@/lib/chartFormatters'
 import { VISIBLE_SPOT_IDS } from '@/lib/spotMeta'
 import { useProtocolStore } from '@/store/protocolStore'
 import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
@@ -59,21 +60,6 @@ type Snap = z.infer<typeof MarketSnapshotSchema>
 const TickersArray = z.array(EnrichedTickerSchema)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
-
-function fmtDate(ts: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(ts * 1000))
-}
-
-function fmtHour(ts: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(ts * 1000))
-}
 
 function annualizeRate(dailyRate: number): number {
   return Math.pow(1 + dailyRate, 365) - 1

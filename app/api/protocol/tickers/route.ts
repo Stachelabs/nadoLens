@@ -14,6 +14,15 @@ type TickerApiResponse = EnrichedTicker[] | { error: string }
 const TICKERS_REVALIDATE_SECONDS = 300
 let lastGoodTickers: EnrichedTicker[] | null = null
 
+function staleFallbackOrError(message: string, status = 502): NextResponse<TickerApiResponse> {
+  if (lastGoodTickers) {
+    return NextResponse.json(lastGoodTickers, {
+      headers: { 'x-nadolens-fallback': 'stale-tickers-cache' },
+    })
+  }
+  return NextResponse.json({ error: message }, { status })
+}
+
 function enrichTickers(
   tickers: Record<string, TickerData>,
   assets: V2Asset[] | null,
@@ -66,12 +75,7 @@ export async function GET(): Promise<NextResponse<TickerApiResponse>> {
     ])
 
     if (tickersRes.status === 'rejected' || !tickersRes.value.ok) {
-      if (lastGoodTickers) {
-        return NextResponse.json(lastGoodTickers, {
-          headers: { 'x-nadolens-fallback': 'stale-tickers-cache' },
-        })
-      }
-      return NextResponse.json({ error: 'Failed to fetch tickers' }, { status: 502 })
+      return staleFallbackOrError('Failed to fetch tickers')
     }
 
     const tickersRaw = (await tickersRes.value.json()) as unknown
@@ -82,12 +86,7 @@ export async function GET(): Promise<NextResponse<TickerApiResponse>> {
 
     const tickersParsed = TickersResponseSchema.safeParse(tickersRaw)
     if (!tickersParsed.success) {
-      if (lastGoodTickers) {
-        return NextResponse.json(lastGoodTickers, {
-          headers: { 'x-nadolens-fallback': 'stale-tickers-cache' },
-        })
-      }
-      return NextResponse.json({ error: 'Invalid tickers response' }, { status: 502 })
+      return staleFallbackOrError('Invalid tickers response')
     }
 
     const assetsParsed = assetsRaw ? V2AssetsResponseSchema.safeParse(assetsRaw) : null
@@ -98,22 +97,12 @@ export async function GET(): Promise<NextResponse<TickerApiResponse>> {
 
     const parsed = EnrichedTickersResponseSchema.safeParse(enriched)
     if (!parsed.success) {
-      if (lastGoodTickers) {
-        return NextResponse.json(lastGoodTickers, {
-          headers: { 'x-nadolens-fallback': 'stale-tickers-cache' },
-        })
-      }
-      return NextResponse.json({ error: 'Enrichment schema mismatch' }, { status: 502 })
+      return staleFallbackOrError('Enrichment schema mismatch')
     }
 
     lastGoodTickers = parsed.data
     return NextResponse.json(parsed.data)
   } catch {
-    if (lastGoodTickers) {
-      return NextResponse.json(lastGoodTickers, {
-        headers: { 'x-nadolens-fallback': 'stale-tickers-cache' },
-      })
-    }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return staleFallbackOrError('Internal server error', 500)
   }
 }

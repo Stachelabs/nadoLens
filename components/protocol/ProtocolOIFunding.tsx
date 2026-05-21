@@ -35,8 +35,7 @@ import {
 
 import { ChartEmpty } from "@/components/protocol/ChartEmpty";
 import { ErrorBanner } from "@/components/protocol/ErrorBanner";
-import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
-const CHART_H = 300;
+import { CHART_PRIMARY as PURPLE, CHART_HEIGHT } from "@/lib/chartColors";
 
 const DONUT_COLORS = [
   PURPLE,
@@ -506,9 +505,9 @@ export function ProtocolOIFunding() {
             {oiLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : oiHistory.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={oiHistory}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -593,7 +592,7 @@ export function ProtocolOIFunding() {
             {oiLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : oiDonutSlices.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
               <div className="flex items-center gap-4">
                 <div className="flex-1 flex justify-center">
@@ -651,7 +650,7 @@ export function ProtocolOIFunding() {
             {fundingLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : topFunding.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
               <div className="flex-1 flex items-center">
                 <div className="grid grid-cols-2 gap-x-6 w-full">
@@ -855,9 +854,9 @@ export function ProtocolOIFunding() {
             {liqLoading ? (
               <Skeleton className="h-[300px] w-full rounded-lg" />
             ) : chartLiqHistory.length === 0 ? (
-              <ChartEmpty height={CHART_H} message="Liquidation history unavailable for this timeframe" />
+              <ChartEmpty height={CHART_HEIGHT} message="Liquidation history unavailable for this timeframe" />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <ComposedChart
                   data={chartLiqHistory}
                   margin={{ top: 4, right: 56, left: 0, bottom: 8 }}

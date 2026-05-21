@@ -43,42 +43,17 @@ import {
 
 import { ChartEmpty } from "@/components/protocol/ChartEmpty";
 import { ErrorBanner } from "@/components/protocol/ErrorBanner";
-import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
+import { CHART_PRIMARY as PURPLE, CHART_HEIGHT, OTHER_COLOR } from "@/lib/chartColors";
+import { fmtCompact, fmtCompact2, fmtAxis, fmtDateShort, weekLabel } from "@/lib/chartFormatters";
 import { SPOT_COLOR, SPOT_ICON } from "@/lib/spotMeta";
 const GREEN = "#34d399";
 const RED = "#f87171";
-const CHART_H = 300;
 
 const NLP_PRODUCT_ID = "11";
 
 const FALLBACK_COLORS = [PURPLE, "#a78bfa", "#6d28d9", "#7c3aed", "#60a5fa"];
-const OTHER_COLOR = "#4a5568";
 
 // ─── Formatting ─────────────────────────────────────────────────────────────────
-
-const fmtCompact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-const fmtCompact2 = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function fmtAxis(v: number | string): string {
-  const n = typeof v === "string" ? parseFloat(v) : v;
-  const abs = Math.abs(n);
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-}
 
 function fmtAPR(rate: number): string {
   return (rate * 100).toFixed(4) + "%";
@@ -87,17 +62,6 @@ function fmtAPR(rate: number): string {
 function fmtAPRAxis(v: number | string): string {
   const n = typeof v === "string" ? parseFloat(v) : v;
   return (n * 100).toFixed(2) + "%";
-}
-
-function fmtDateShort(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function weekLabel(ts: number): string {
-  return `${fmtDateShort(ts - 7 * 86400)} – ${fmtDateShort(ts)}`;
 }
 
 function downsampleWeekly(points: AssetRatePoint[]): AssetRatePoint[] {
@@ -152,267 +116,117 @@ function StatItem({
   );
 }
 
+// ─── Tooltip primitives ────────────────────────────────────────────────────────
+
+const TOOLTIP_BASE: React.CSSProperties = {
+  backgroundColor: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  fontSize: 12,
+  color: "var(--foreground)",
+};
+
+function TooltipShell({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div style={{ ...TOOLTIP_BASE, ...style }}>{children}</div>;
+}
+
+function ColorDot({ color }: { color: string }) {
+  return (
+    <span
+      style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color, display: "inline-block", flexShrink: 0 }}
+    />
+  );
+}
+
+function TooltipRow({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <ColorDot color={color} />
+        {label}
+      </span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
 // ─── Tooltips ───────────────────────────────────────────────────────────────────
 
-function TVLTooltip({
-  active,
-  payload,
-  label,
-  weekly = false,
-}: {
-  active?: boolean;
-  payload?: { payload: TVLChartPoint }[];
-  label?: string;
-  weekly?: boolean;
+function TVLTooltip({ active, payload, label, weekly = false }: {
+  active?: boolean; payload?: { payload: TVLChartPoint }[]; label?: string; weekly?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const { ts, tvl } = payload[0]!.payload;
   return (
-    <div
-      style={{
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "8px 12px",
-        fontSize: 12,
-        color: "var(--foreground)",
-      }}
-    >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
-        {weekly ? weekLabel(ts) : label}
-      </p>
-      <p
-        style={{
-          fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            backgroundColor: PURPLE,
-            display: "inline-block",
-            flexShrink: 0,
-          }}
-        />
+    <TooltipShell>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
+      <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        <ColorDot color={PURPLE} />
         TVL: {fmtCompact.format(tvl)}
       </p>
-    </div>
+    </TooltipShell>
   );
 }
 
-function FlowsTooltip({
-  active,
-  payload,
-  label,
-  weekly = false,
-}: {
-  active?: boolean;
-  payload?: { payload: TVLChartPoint }[];
-  label?: string;
-  weekly?: boolean;
+function FlowsTooltip({ active, payload, label, weekly = false }: {
+  active?: boolean; payload?: { payload: TVLChartPoint }[]; label?: string; weekly?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const { ts, inflows, outflows, netFlows } = payload[0]!.payload;
   return (
-    <div
-      style={{
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "8px 12px",
-        fontSize: 12,
-        color: "var(--foreground)",
-        minWidth: 220,
-      }}
-    >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>
-        {weekly ? weekLabel(ts) : label}
-      </p>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 3,
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: GREEN,
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          Deposits
-        </span>
-        <span style={{ fontWeight: 600 }}>{fmtCompact.format(inflows)}</span>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 3,
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: RED,
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          Withdrawals
-        </span>
-        <span style={{ fontWeight: 600 }}>
-          {fmtCompact.format(Math.abs(outflows))}
-        </span>
-      </div>
-      <div
-        style={{ display: "flex", justifyContent: "space-between", gap: 16 }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "rgba(255,255,255,0.7)",
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          Net
-        </span>
-        <span style={{ fontWeight: 600 }}>{fmtCompact.format(netFlows)}</span>
-      </div>
-    </div>
+    <TooltipShell style={{ minWidth: 220 }}>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>{weekly ? weekLabel(ts) : label}</p>
+      <TooltipRow color={GREEN} label="Deposits" value={fmtCompact.format(inflows)} />
+      <TooltipRow color={RED} label="Withdrawals" value={fmtCompact.format(Math.abs(outflows))} />
+      <TooltipRow color="rgba(255,255,255,0.7)" label="Net" value={fmtCompact.format(netFlows)} />
+    </TooltipShell>
   );
 }
 
-function AreaTooltip({
-  active,
-  payload,
-  label,
-  weekly = false,
-  title,
-}: {
-  active?: boolean;
-  payload?: { payload: TVLChartPoint }[];
-  label?: string;
-  weekly?: boolean;
-  title: string;
+function AreaTooltip({ active, payload, label, weekly = false, title }: {
+  active?: boolean; payload?: { payload: TVLChartPoint }[]; label?: string; weekly?: boolean; title: string;
 }) {
   if (!active || !payload?.length) return null;
   const pt = payload[0]!.payload;
   const val = title === "Deposits" ? pt.deposits : pt.borrows;
   return (
-    <div
-      style={{
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "8px 12px",
-        fontSize: 12,
-        color: "var(--foreground)",
-      }}
-    >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
-        {weekly ? weekLabel(pt.ts) : label}
-      </p>
+    <TooltipShell>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(pt.ts) : label}</p>
       <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        <ColorDot color={PURPLE} />
         {title}: {fmtCompact.format(val)}
       </p>
-    </div>
+    </TooltipShell>
   );
 }
 
-function DonutTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { value: number; payload: { name: string; color: string } }[];
+function DonutTooltip({ active, payload }: {
+  active?: boolean; payload?: { value: number; payload: { name: string; color: string } }[];
 }) {
   if (!active || !payload?.length) return null;
   const { name, color } = payload[0]!.payload;
   return (
-    <div
-      style={{
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "6px 10px",
-        fontSize: 12,
-        color: "var(--foreground)",
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          backgroundColor: color,
-          flexShrink: 0,
-          display: "inline-block",
-        }}
-      />
-      <span>
-        {name}: {fmtCompact.format(payload[0]!.value)}
-      </span>
-    </div>
+    <TooltipShell style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+      <ColorDot color={color} />
+      <span>{name}: {fmtCompact.format(payload[0]!.value)}</span>
+    </TooltipShell>
   );
 }
 
-function APRTooltip({
-  active,
-  payload,
-  label,
-  weekly = false,
-}: {
-  active?: boolean;
-  payload?: { payload: AssetRatePoint }[];
-  label?: string;
-  weekly?: boolean;
+function APRTooltip({ active, payload, label, weekly = false }: {
+  active?: boolean; payload?: { payload: AssetRatePoint }[]; label?: string; weekly?: boolean;
 }) {
   if (!active || !payload?.length) return null;
   const { ts, rate } = payload[0]!.payload;
   return (
-    <div
-      style={{
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "8px 12px",
-        fontSize: 12,
-        color: "var(--foreground)",
-      }}
-    >
-      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
-        {weekly ? weekLabel(ts) : label}
-      </p>
+    <TooltipShell>
+      <p style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>{weekly ? weekLabel(ts) : label}</p>
       <p style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: PURPLE, display: "inline-block", flexShrink: 0 }} />
+        <ColorDot color={PURPLE} />
         APR: {fmtAPR(rate)}
       </p>
-    </div>
+    </TooltipShell>
   );
 }
 
@@ -482,17 +296,27 @@ export function ProtocolTVL() {
       timeframe !== "30 Days" &&
       timeframe !== "24 Hours" &&
       timeframe !== "7 Days");
+
+  const SLICE_MAP: Record<TVLTimeframe, number | null> = {
+    "24 Hours": null,
+    "7 Days": -7,
+    "30 Days": -30,
+    "60 Days": -60,
+    "90 Days": 0,
+    "All Time": null,
+  };
+
+  function sliceDaily<T>(data: T[]): T[] {
+    const n = SLICE_MAP[timeframe];
+    if (n === null) return data;
+    return n === 0 ? data : data.slice(n);
+  }
+
   const chartData = isAllTime
     ? weeklyChartData
     : timeframe === "24 Hours"
       ? hourlyChartData
-      : timeframe === "7 Days"
-        ? dailyChartData.slice(-7)
-        : timeframe === "60 Days"
-          ? dailyChartData.slice(-60)
-          : timeframe === "90 Days"
-            ? dailyChartData
-            : dailyChartData.slice(-30);
+      : sliceDaily(dailyChartData);
 
   const depositDonut = buildDonut(spotAssets, "deposits");
   const borrowDonut = buildDonut(spotAssets, "borrows");
@@ -504,26 +328,17 @@ export function ProtocolTVL() {
   const depositAssetData = spotAssets.find((a) => a.productId === depositAsset);
   const borrowAssetData = spotAssets.find((a) => a.productId === borrowAsset);
 
-  const sliceHistory = (history: AssetRatePoint[]): AssetRatePoint[] => {
-    if (isAllTime) return history;
-    if (timeframe === "24 Hours") return history.slice(-24);
-    if (timeframe === "7 Days") return history.slice(-7);
-    if (timeframe === "60 Days") return history.slice(-60);
-    if (timeframe === "90 Days") return history;
-    return history.slice(-30);
-  };
+  const depositRateHistory = !depositAssetData
+    ? []
+    : isAllTime
+      ? depositAssetData.depositHistoryWeekly
+      : sliceDaily(depositAssetData.depositHistory);
 
-  const depositRateHistory = (() => {
-    if (!depositAssetData) return [];
-    if (isAllTime) return depositAssetData.depositHistoryWeekly;
-    return sliceHistory(depositAssetData.depositHistory);
-  })();
-
-  const borrowRateHistory = (() => {
-    if (!borrowAssetData) return [];
-    if (isAllTime) return borrowAssetData.borrowHistoryWeekly;
-    return sliceHistory(borrowAssetData.borrowHistory);
-  })();
+  const borrowRateHistory = !borrowAssetData
+    ? []
+    : isAllTime
+      ? borrowAssetData.borrowHistoryWeekly
+      : sliceDaily(borrowAssetData.borrowHistory);
 
   const topDepositAPRs = [...spotAssets]
     .filter((a) => a.depositAPR > 0)
@@ -579,11 +394,11 @@ export function ProtocolTVL() {
               The total value locked over time.
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={chartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -672,11 +487,11 @@ export function ProtocolTVL() {
                 : "The daily deposits, withdrawals and net flows, calculated using the average oracle price between two adjacent data points."}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <ComposedChart
                   data={chartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -738,9 +553,9 @@ export function ProtocolTVL() {
               Breakdown of total deposits across individual assets.
             </p>
             {loading ? (
-              <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+              <Skeleton className="mt-3 w-full" style={{ height: CHART_HEIGHT }} />
             ) : depositDonut.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -818,9 +633,9 @@ export function ProtocolTVL() {
               Breakdown of total borrows across individual assets.
             </p>
             {loading ? (
-              <Skeleton className="mt-3 w-full" style={{ height: CHART_H }} />
+              <Skeleton className="mt-3 w-full" style={{ height: CHART_HEIGHT }} />
             ) : borrowDonut.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
               <div className="flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -900,11 +715,11 @@ export function ProtocolTVL() {
                 : "The daily total deposits."}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={chartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -965,11 +780,11 @@ export function ProtocolTVL() {
                 : "The daily total borrows."}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={chartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -1184,11 +999,11 @@ export function ProtocolTVL() {
               </div>
             )}
             {loading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : !depositAssetData || depositRateHistory.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <LineChart
                   data={depositRateHistory}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -1291,11 +1106,11 @@ export function ProtocolTVL() {
               </div>
             )}
             {loading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : !borrowAssetData || borrowRateHistory.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <LineChart
                   data={borrowRateHistory}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}

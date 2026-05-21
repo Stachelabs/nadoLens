@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { MarketSnapshotSchema, EnrichedTickerSchema } from '@/lib/schemas/nado'
 import { fromX18BigInt } from '@/types/nado'
+import { fmtDate, fmtHour } from '@/lib/chartFormatters'
 import { useProtocolStore } from '@/store/protocolStore'
 import { fetchCachedSnapshots } from '@/lib/fetchCachedSnapshots'
 
@@ -42,21 +43,6 @@ export type ProtocolRevenueData = {
 type MarketSnapshotType = z.infer<typeof MarketSnapshotSchema>
 
 const EnrichedTickersArraySchema = z.array(EnrichedTickerSchema)
-
-function fmtDate(ts: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(ts * 1000))
-}
-
-function fmtHour(ts: number): string {
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(ts * 1000))
-}
 
 function netTakerFees(snap: MarketSnapshotType): Record<string, number> {
   const takerFees = snap.cumulative_taker_fees ?? {}
