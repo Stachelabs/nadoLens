@@ -19,7 +19,7 @@ import {
   type OverviewTimeframe,
 } from "@/store/protocolStore";
 import { fromX18BigInt } from "@/types/nado";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -236,13 +236,12 @@ export function ProtocolOverview() {
   const timeframe = useProtocolStore((s) => s.overviewTimeframe);
   const setTimeframe = useProtocolStore((s) => s.setOverviewTimeframe);
   const [allTimeEnabled, setAllTimeEnabled] = useState(false);
-
-  useEffect(() => {
-    if (timeframe === "All Time") setAllTimeEnabled(true);
-  }, [timeframe]);
+  if (timeframe === "All Time" && !allTimeEnabled) {
+    setAllTimeEnabled(true);
+  }
 
   const { snapshots, loading, error } = useProtocolMarketSnapshots(90);
-  const { snapshots: hourlySnapshots, loading: hourlyLoading } = useProtocolMarketSnapshots(25, 3600);
+  const { snapshots: hourlySnapshots } = useProtocolMarketSnapshots(25, 3600);
   const { snapshots: weeklySnapshots, loading: weeklyLoading } = useProtocolMarketSnapshots(24, 604800, allTimeEnabled);
 
   const latest = snapshots[0];

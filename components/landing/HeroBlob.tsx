@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { LayoutDashboard, Wallet } from "lucide-react";
+import Link from "next/link";
 import { useScrambleText } from "@/hooks/useScrambleText";
 import { ScrambleWord } from "@/components/ui/ScrambleWord";
 
@@ -243,7 +244,7 @@ export function HeroBlob() {
           The cockpit for{" "}
           <ScrambleWord
             text="Nado"
-            className="bg-gradient-to-r from-brand/70 to-brand bg-clip-text text-transparent"
+            className="bg-linear-to-r from-brand/70 to-brand bg-clip-text text-transparent"
             delay={900}
           />{" "}
           traders
@@ -283,21 +284,21 @@ export function HeroBlob() {
             </svg>
           </a>
 
-          <a
+          <Link
             href="/protocol"
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
           >
             Launch Dashboard
             <LayoutDashboard className="size-4" />
-          </a>
+          </Link>
 
-          <a
+          <Link
             href="/wallet"
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
           >
             Explore Wallet
             <Wallet className="size-4" />
-          </a>
+          </Link>
         </motion.div>
       </motion.div>
     </section>
