@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { SpotBalance, SpotBalancesGroup } from "@/types/nado";
 import { RefreshCw } from "lucide-react";
+import { VISIBLE_SPOT_ASSETS } from "@/lib/spotMeta";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 
@@ -18,13 +19,7 @@ type Props = {
   spotBalancesRefreshing?: boolean;
 };
 
-const SPOT_ASSETS = [
-  { product_id: 0, symbol: "USDT0", icon: "/icons/spot/usdt0.svg" },
-  { product_id: 1, symbol: "KBTC", icon: "/icons/spot/kbtc.svg" },
-  { product_id: 3, symbol: "WETH", icon: "/icons/spot/weth.svg" },
-  { product_id: 5, symbol: "USDC", icon: "/icons/spot/usdc.svg" },
-  { product_id: 11, symbol: "NLP", icon: "/icons/spot/nlp.svg" },
-];
+const SPOT_ASSETS = VISIBLE_SPOT_ASSETS;
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",

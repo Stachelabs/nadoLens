@@ -193,11 +193,12 @@ export function useProtocolVolumes(): ProtocolVolumesData {
 
         const allTimeVol = snap30d.length > 0 ? sumRecord(snap30d[0]!.cumulative_volumes) : 0
 
+        const knownProduct = (s: MarketSlice) => s.productId in productNames
         const donut24h =
           snap24h.length >= 2
-            ? buildDeltaSlices(snap24h[0]!.cumulative_volumes, snap24h[1]!.cumulative_volumes)
+            ? buildDeltaSlices(snap24h[0]!.cumulative_volumes, snap24h[1]!.cumulative_volumes).filter(knownProduct)
             : snap24h.length === 1
-              ? buildAllTimeSlices(snap24h[0]!)
+              ? buildAllTimeSlices(snap24h[0]!).filter(knownProduct)
               : []
 
         setData((prev) => ({
@@ -207,7 +208,7 @@ export function useProtocolVolumes(): ProtocolVolumesData {
           hourlyChartData: buildChartPoints(snapHourly, spotIds, fmtHour),
           dailyChartData: buildChartPoints(snap30d, spotIds),
           donut24h,
-          donut30d: build30dSlices(snap30d.slice(0, 31)),
+          donut30d: build30dSlices(snap30d.slice(0, 31)).filter(knownProduct),
           productNames,
           loading: false,
           backgroundLoading: true,
@@ -224,16 +225,16 @@ export function useProtocolVolumes(): ProtocolVolumesData {
 
         const donut7d =
           snap7d.length >= 2
-            ? buildDeltaSlices(snap7d[0]!.cumulative_volumes, snap7d[1]!.cumulative_volumes)
+            ? buildDeltaSlices(snap7d[0]!.cumulative_volumes, snap7d[1]!.cumulative_volumes).filter(knownProduct)
             : snap7d.length === 1
-              ? buildAllTimeSlices(snap7d[0]!)
+              ? buildAllTimeSlices(snap7d[0]!).filter(knownProduct)
               : []
 
         const donut90d =
           snap90d.length >= 2
-            ? buildDeltaSlices(snap90d[0]!.cumulative_volumes, snap90d[1]!.cumulative_volumes)
+            ? buildDeltaSlices(snap90d[0]!.cumulative_volumes, snap90d[1]!.cumulative_volumes).filter(knownProduct)
             : snap90d.length === 1
-              ? buildAllTimeSlices(snap90d[0]!)
+              ? buildAllTimeSlices(snap90d[0]!).filter(knownProduct)
               : []
 
         setData((prev) => ({
@@ -242,9 +243,9 @@ export function useProtocolVolumes(): ProtocolVolumesData {
           dailyChartData: buildChartPoints(snap91d, spotIds),
           weeklyChartData: buildChartPoints(snapAllTime, spotIds),
           donut7d,
-          donut60d: build30dSlices(snap91d.slice(0, 61)),
+          donut60d: build30dSlices(snap91d.slice(0, 61)).filter(knownProduct),
           donut90d,
-          donutAllTime: snapAllTime.length > 0 ? buildAllTimeSlices(snapAllTime[0]!) : [],
+          donutAllTime: snapAllTime.length > 0 ? buildAllTimeSlices(snapAllTime[0]!).filter(knownProduct) : [],
           backgroundLoading: false,
         }))
       } catch (e) {

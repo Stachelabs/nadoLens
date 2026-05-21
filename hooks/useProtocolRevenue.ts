@@ -197,7 +197,8 @@ export function useProtocolRevenue(): ProtocolRevenueData {
         const traders24h = snap24h[0]?.daily_active_users ?? 0
         const avgFeesPerUser = totalUsers > 0 ? totalFees / totalUsers : 0
 
-        const feeDonutSlices = latestSnap ? buildFeeDonutSlices(latestSnap) : []
+        const knownProduct = (s: MarketSlice) => s.productId in productNames
+        const feeDonutSlices = latestSnap ? buildFeeDonutSlices(latestSnap).filter(knownProduct) : []
 
         setData((prev) => ({
           ...prev,
@@ -230,7 +231,7 @@ export function useProtocolRevenue(): ProtocolRevenueData {
         const updatedMakerRebates = latestAllTime ? Math.abs(sumMakerRebates(latestAllTime)) : makerRebates
         const updatedTotalUsers = latestAllTime?.cumulative_users ?? totalUsers
         const updatedAvgFees = updatedTotalUsers > 0 ? updatedTotalFees / updatedTotalUsers : 0
-        const updatedFeeDonut = latestAllTime ? buildFeeDonutSlices(latestAllTime) : feeDonutSlices
+        const updatedFeeDonut = latestAllTime ? buildFeeDonutSlices(latestAllTime).filter(knownProduct) : feeDonutSlices
 
         setData((prev) => ({
           ...prev,
