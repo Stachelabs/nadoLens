@@ -1,7 +1,7 @@
 import type { SpotBalance } from "@/types/nado";
+import { TRACKED_SPOT_PRODUCT_IDS } from "@/lib/spotMeta";
 
-/** Product IDs shown in Spot Balances UI — same as SPOT_ASSETS in WalletSpotBalances. */
-export const TRACKED_SPOT_PRODUCT_IDS = [0, 1, 3, 5, 11] as const;
+export { TRACKED_SPOT_PRODUCT_IDS };
 
 /**
  * True when every tracked product has strictly zero balance (missing = zero).
