@@ -35,10 +35,10 @@ import { useProtocolRevenue, type ChartPoint, type MarketSlice } from '@/hooks/u
 import { ChartEmpty } from '@/components/protocol/ChartEmpty'
 import { ErrorBanner } from '@/components/protocol/ErrorBanner'
 
-import { CHART_PRIMARY as PURPLE } from '@/lib/chartColors'
+import { CHART_PRIMARY as PURPLE, CHART_HEIGHT, OTHER_COLOR } from '@/lib/chartColors'
+import { fmtCompact, fmtCompact2, fmtAxis, fmtDateShort, weekLabel } from '@/lib/chartFormatters'
 
 const AMBER = '#f59e0b'
-const CHART_H = 300
 
 const DONUT_COLORS = [
   PURPLE,
@@ -57,39 +57,13 @@ const DONUT_COLORS = [
   '#0ea5e9',
   '#d946ef',
 ]
-const OTHER_COLOR = '#4a5568'
-
 // ─── Formatting ────────────────────────────────────────────────────────────────
-
-const fmtCompact = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
-
-const fmtCompact2 = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
 
 const fmtUsdFull = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
   maximumFractionDigits: 2,
 })
-
-function fmtAxis(v: number | string): string {
-  const n = typeof v === 'string' ? parseFloat(v) : v
-  const abs = Math.abs(n)
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`
-  return `$${n.toFixed(0)}`
-}
 
 function fmtUsers(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -102,17 +76,6 @@ function fmtUsersAxis(v: number | string): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`
   return String(Math.round(n))
-}
-
-function fmtDateShort(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function weekLabel(ts: number): string {
-  return `${fmtDateShort(ts - 7 * 86400)} – ${fmtDateShort(ts)}`
 }
 
 // ─── Timeframe ─────────────────────────────────────────────────────────────────
@@ -409,11 +372,11 @@ export function ProtocolRevenue() {
               {isAllTime ? 'Weekly trading fees and cumulative fees.' : timeframe === '24 Hours' ? 'Hourly trading fees and cumulative fees.' : 'Daily trading fees and cumulative fees.'}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
                   <defs>
                     <linearGradient id="feeBarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -447,9 +410,9 @@ export function ProtocolRevenue() {
               </StatItem>
             </div>
             {loading ? (
-              <Skeleton className="mt-auto w-full" style={{ height: CHART_H }} />
+              <Skeleton className="mt-auto w-full" style={{ height: CHART_HEIGHT }} />
             ) : donutSlices.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
               <div className="mt-auto flex flex-1 items-center gap-6">
                 <div className="flex flex-1 justify-center">
@@ -498,11 +461,11 @@ export function ProtocolRevenue() {
             Taker fees (positive), maker rebates (negative), and net fees over time.
           </p>
           {chartLoading ? (
-            <Skeleton className="w-full" style={{ height: CHART_H }} />
+            <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
           ) : chartData.length === 0 ? (
-            <ChartEmpty height={CHART_H} />
+            <ChartEmpty height={CHART_HEIGHT} />
           ) : (
-            <ResponsiveContainer width="100%" height={CHART_H}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
                 <defs>
                   <linearGradient id="netFeeGrad" x1="0" y1="0" x2="0" y2="1">
@@ -560,11 +523,11 @@ export function ProtocolRevenue() {
               {isAllTime ? 'Weekly new users and cumulative total.' : timeframe === '24 Hours' ? 'Hourly new users and cumulative total.' : 'Daily new users and cumulative total.'}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <ComposedChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
                   <defs>
                     <linearGradient id="userBarGrad" x1="0" y1="0" x2="0" y2="1">
@@ -593,11 +556,11 @@ export function ProtocolRevenue() {
               {isAllTime ? 'Active traders per week.' : 'Active traders per day.'}
             </p>
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.3} vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={55} tickMargin={8} />

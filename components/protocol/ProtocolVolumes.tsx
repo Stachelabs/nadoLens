@@ -36,8 +36,8 @@ import {
 
 import { ChartEmpty } from "@/components/protocol/ChartEmpty";
 import { ErrorBanner } from "@/components/protocol/ErrorBanner";
-import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
-const CHART_H = 300;
+import { CHART_PRIMARY as PURPLE, CHART_HEIGHT, OTHER_COLOR } from "@/lib/chartColors";
+import { fmtCompact, fmtAxis, fmtDateShort, weekLabel } from "@/lib/chartFormatters";
 
 const DONUT_COLORS = [
   "#7c5cbf", // muted purple
@@ -51,40 +51,11 @@ const DONUT_COLORS = [
   "#5ab5bf", // muted cyan
   "#a07850", // muted brown
 ];
-const OTHER_COLOR = "#4a5568";
-
-const fmtCompact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0,
 });
-
-function fmtAxis(v: number | string): string {
-  const n = typeof v === "string" ? parseFloat(v) : v;
-  const abs = Math.abs(n);
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
-  if (abs >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-}
-
-function fmtDateShort(ts: number): string {
-  return new Date(ts * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function weekLabel(ts: number): string {
-  return `${fmtDateShort(ts - 7 * 86400)} – ${fmtDateShort(ts)}`;
-}
 
 function DonutTooltip({
   active,
@@ -456,11 +427,11 @@ export function ProtocolVolumes() {
             </p>
           </div>
           {chartLoading ? (
-            <Skeleton className="w-full" style={{ height: CHART_H }} />
+            <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
           ) : chartData.length === 0 ? (
-            <ChartEmpty height={CHART_H} />
+            <ChartEmpty height={CHART_HEIGHT} />
           ) : (
-            <ResponsiveContainer width="100%" height={CHART_H}>
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <ComposedChart
                 data={chartData}
                 margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -538,9 +509,9 @@ export function ProtocolVolumes() {
           </div>
 
           {chartLoading ? (
-            <Skeleton className="w-full" style={{ height: CHART_H }} />
+            <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
           ) : donutSlices.length === 0 ? (
-            <ChartEmpty height={CHART_H} />
+            <ChartEmpty height={CHART_HEIGHT} />
           ) : (
             <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-center lg:justify-center">
               <div className="shrink-0">
@@ -628,11 +599,11 @@ export function ProtocolVolumes() {
             </p>
             <CardDivider />
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : chartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <BarChart
                   data={chartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -698,11 +669,11 @@ export function ProtocolVolumes() {
             </p>
             <CardDivider />
             {chartLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : cumChartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={cumChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}

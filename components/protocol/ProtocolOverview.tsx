@@ -54,15 +54,8 @@ const TIMEFRAME_SLICE: Record<OverviewTimeframe, number | null> = {
 
 import { ChartEmpty } from "@/components/protocol/ChartEmpty";
 import { ErrorBanner } from "@/components/protocol/ErrorBanner";
-import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
-const CHART_H = 300;
-
-const fmtCompact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
+import { CHART_PRIMARY as PURPLE, CHART_HEIGHT } from "@/lib/chartColors";
+import { fmtCompact, fmtAxis, fmtDate, fmtHour } from "@/lib/chartFormatters";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -74,29 +67,6 @@ const fmtUsers = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-
-function fmtDate(ts: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(ts * 1000));
-}
-
-function fmtHour(ts: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(ts * 1000));
-}
-
-function fmtAxis(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-  if (abs >= 1e3) return `$${(v / 1e3).toFixed(0)}k`;
-  return `$${v.toFixed(0)}`;
-}
 
 function sumRecord(rec: Record<string, string>): number {
   return Object.values(rec).reduce((s, v) => s + fromX18BigInt(v), 0);
@@ -360,11 +330,11 @@ export function ProtocolOverview() {
                 : "The daily trading volume and the cumulative volume."}
             </p>
             {isLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : volumeChartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <ComposedChart
                   data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -451,11 +421,11 @@ export function ProtocolOverview() {
               The open interest over time.
             </p>
             {isLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : volumeChartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -549,11 +519,11 @@ export function ProtocolOverview() {
               The total value locked over time.
             </p>
             {isLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : volumeChartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <AreaChart
                   data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
@@ -630,11 +600,11 @@ export function ProtocolOverview() {
               The daily active traders.
             </p>
             {isLoading ? (
-              <Skeleton className="w-full" style={{ height: CHART_H }} />
+              <Skeleton className="w-full" style={{ height: CHART_HEIGHT }} />
             ) : volumeChartData.length === 0 ? (
-              <ChartEmpty height={CHART_H} />
+              <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <ResponsiveContainer width="100%" height={CHART_H}>
+              <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
                 <LineChart
                   data={volumeChartData}
                   margin={{ top: 4, right: 16, left: 0, bottom: 8 }}
