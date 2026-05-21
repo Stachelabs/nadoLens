@@ -6,6 +6,7 @@ import { ProtocolRevenue } from "@/components/protocol/ProtocolRevenue";
 import { ProtocolTabNav } from "@/components/protocol/ProtocolTabNav";
 import { ProtocolTVL } from "@/components/protocol/ProtocolTVL";
 import { ProtocolVolumes } from "@/components/protocol/ProtocolVolumes";
+import { ScrambleWord } from "@/components/ui/ScrambleWord";
 import { useProtocolData } from "@/hooks/useProtocolData";
 import { useProtocolStore } from "@/store/protocolStore";
 
@@ -16,8 +17,8 @@ export default function ProtocolPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <h1 className="text-2xl font-bold tracking-tight text-foreground mb-6">
-        Protocol statistics
+      <h1 className="text-xl font-bold tracking-tight text-foreground mb-6 sm:text-3xl">
+        <ScrambleWord text="Protocol Statistics" delay={200} cycles={8} />
       </h1>
 
       <ProtocolTabNav />

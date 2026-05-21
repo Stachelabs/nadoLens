@@ -36,15 +36,19 @@ export function WalletHeader({ stats }: Props) {
             </div>
           </div>
 
-          <div className="flex justify-center gap-6 sm:justify-end">
+          <div className="flex justify-center gap-6 sm:justify-end mt-2.5">
             <div className="text-right">
               <HoverCard>
                 <HoverCardTrigger className="cursor-help">
-                  <div className="flex items-center justify-end gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
                     Equity
                   </div>
                 </HoverCardTrigger>
-                <HoverCardContent side="top" align="end" className="w-56 text-xs">
+                <HoverCardContent
+                  side="top"
+                  align="end"
+                  className="w-56 text-xs"
+                >
                   <p className="font-medium text-foreground mb-1">Equity</p>
                   <p className="text-muted-foreground leading-relaxed">
                     Total value of all spot assets + unrealized PnL from open
@@ -60,12 +64,18 @@ export function WalletHeader({ stats }: Props) {
             <div className="text-right">
               <HoverCard>
                 <HoverCardTrigger className="cursor-help">
-                  <div className="flex items-center justify-end gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
                     Available
                   </div>
                 </HoverCardTrigger>
-                <HoverCardContent side="top" align="end" className="w-56 text-xs">
-                  <p className="font-medium text-foreground mb-1">Available margin</p>
+                <HoverCardContent
+                  side="top"
+                  align="end"
+                  className="w-56 text-xs"
+                >
+                  <p className="font-medium text-foreground mb-1">
+                    Available margin
+                  </p>
                   <p className="text-muted-foreground leading-relaxed">
                     Equity minus initial margin used by open positions. The
                     amount free to open new trades.

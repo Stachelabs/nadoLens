@@ -34,7 +34,7 @@ export function Nav() {
       <div className="mx-auto hidden h-14 max-w-7xl items-center gap-6 px-4 sm:flex">
         <Link
           href="/"
-          className="font-bold leading-none tracking-tight text-foreground uppercase"
+          className="font-bold leading-none tracking-tight text-foreground uppercase text-lg"
         >
           NadoLens
         </Link>
@@ -83,7 +83,7 @@ export function Nav() {
       <div className="flex h-14 items-center justify-between px-3 sm:hidden">
         <Link
           href="/"
-          className="font-bold leading-none tracking-tight text-foreground uppercase"
+          className="font-bold leading-none tracking-tight text-foreground uppercase "
         >
           NadoLens
         </Link>
@@ -98,8 +98,18 @@ export function Nav() {
                 "size-8 border border-border text-foreground",
               )}
             >
-              <Menu className={cn("size-4 transition-all duration-200", sheetOpen && "scale-0 opacity-0 absolute")} />
-              <X className={cn("size-4 transition-all duration-200", !sheetOpen && "scale-0 opacity-0 absolute")} />
+              <Menu
+                className={cn(
+                  "size-4 transition-all duration-200",
+                  sheetOpen && "scale-0 opacity-0 absolute",
+                )}
+              />
+              <X
+                className={cn(
+                  "size-4 transition-all duration-200",
+                  !sheetOpen && "scale-0 opacity-0 absolute",
+                )}
+              />
             </SheetTrigger>
             <SheetContent side="right">
               <SheetHeader className="sr-only">
