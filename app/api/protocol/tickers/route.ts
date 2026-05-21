@@ -19,8 +19,9 @@ function enrichTickers(
   assets: V2Asset[] | null,
 ): EnrichedTicker[] {
   const assetsByProductId = new Map(assets?.map((a) => [a.product_id, a]) ?? [])
+  const contractProductIds = new Set(Object.values(tickers).map((t) => t.product_id))
 
-  return Object.values(tickers).map((ticker) => {
+  const enriched: EnrichedTicker[] = Object.values(tickers).map((ticker) => {
     const asset = assetsByProductId.get(ticker.product_id)
     const marketType = asset?.market_type ?? (ticker.product_type === 'perpetual' ? 'perp' : null)
     return {
@@ -31,6 +32,24 @@ function enrichTickers(
       market_type: marketType,
     }
   })
+
+  // Spot-only assets from /v2/assets that have no matching contract entry
+  if (assets) {
+    for (const asset of assets) {
+      if (contractProductIds.has(asset.product_id)) continue
+      enriched.push({
+        product_id: asset.product_id,
+        ticker_id: asset.ticker_id ?? asset.symbol,
+        last_price: 0,
+        symbol: asset.symbol,
+        maker_fee: asset.maker_fee != null ? Number(asset.maker_fee) : null,
+        taker_fee: asset.taker_fee != null ? Number(asset.taker_fee) : null,
+        market_type: asset.market_type ?? 'spot',
+      })
+    }
+  }
+
+  return enriched
 }
 
 export async function GET(): Promise<NextResponse<TickerApiResponse>> {

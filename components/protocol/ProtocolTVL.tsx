@@ -1,6 +1,5 @@
 "use client";
 
-import { CHART_PRIMARY } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -45,36 +44,14 @@ import {
 import { ChartEmpty } from "@/components/protocol/ChartEmpty";
 import { ErrorBanner } from "@/components/protocol/ErrorBanner";
 import { CHART_PRIMARY as PURPLE } from "@/lib/chartColors";
+import { SPOT_COLOR, SPOT_ICON } from "@/lib/spotMeta";
 const GREEN = "#34d399";
 const RED = "#f87171";
 const CHART_H = 300;
 
-const SPOT_META: Record<string, { symbol: string; icon: string }> = {
-  "0": { symbol: "USDT0", icon: "/icons/spot/usdt0.svg" },
-  "1": { symbol: "kBTC", icon: "/icons/spot/kbtc.svg" },
-  "3": { symbol: "wETH", icon: "/icons/spot/weth.svg" },
-  "5": { symbol: "USDC", icon: "/icons/spot/usdc.svg" },
-  "11": { symbol: "NLP", icon: "/icons/spot/nlp.svg" },
-};
-
 const NLP_PRODUCT_ID = "11";
 
-function spotName(productId: string): string {
-  return SPOT_META[productId]?.symbol ?? `Product ${productId}`;
-}
-
-function spotIcon(productId: string): string | null {
-  return SPOT_META[productId]?.icon ?? null;
-}
-
-const SPOT_COLORS: Record<string, string> = {
-  "11": "#6b5b95", // NLP — muted purple
-  "5": "#2775ca", // USDC — blue
-  "0": "#26a17b", // USDT0 — teal
-  "1": "#c9983a", // kBTC — gold
-  "3": "#627eea", // wETH — slate blue
-};
-const FALLBACK_COLORS = [CHART_PRIMARY, "#a78bfa", "#6d28d9", "#7c3aed", "#60a5fa"];
+const FALLBACK_COLORS = [PURPLE, "#a78bfa", "#6d28d9", "#7c3aed", "#60a5fa"];
 const OTHER_COLOR = "#4a5568";
 
 // ─── Formatting ─────────────────────────────────────────────────────────────────
@@ -453,10 +430,10 @@ function buildDonut(
   const rest = filtered.slice(10);
   let fallbackIdx = 0;
   const slices = top.map((a) => ({
-    name: spotName(a.productId),
+    name: a.name,
     value: a[field],
     color:
-      SPOT_COLORS[a.productId] ??
+      SPOT_COLOR[a.productId] ??
       FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length]!,
     productId: a.productId,
   }));
@@ -1065,7 +1042,7 @@ export function ProtocolTVL() {
             ) : (
               <div className="space-y-2.5">
                 {topDepositAPRs.map((a) => {
-                  const icon = spotIcon(a.productId);
+                  const icon = SPOT_ICON[a.productId];
                   return (
                     <div
                       key={a.productId}
@@ -1075,13 +1052,13 @@ export function ProtocolTVL() {
                         {icon && (
                           <Image
                             src={icon}
-                            alt={spotName(a.productId)}
+                            alt={a.name}
                             width={16}
                             height={16}
                             className="shrink-0 rounded-full"
                           />
                         )}
-                        {spotName(a.productId)}
+                        {a.name}
                       </span>
                       <span className="font-mono text-sm text-primary">
                         {fmtAPR(a.depositAPR)}
@@ -1114,7 +1091,7 @@ export function ProtocolTVL() {
             ) : (
               <div className="space-y-2.5">
                 {lowestBorrowAPRs.map((a) => {
-                  const icon = spotIcon(a.productId);
+                  const icon = SPOT_ICON[a.productId];
                   return (
                     <div
                       key={a.productId}
@@ -1124,13 +1101,13 @@ export function ProtocolTVL() {
                         {icon && (
                           <Image
                             src={icon}
-                            alt={spotName(a.productId)}
+                            alt={a.name}
                             width={16}
                             height={16}
                             className="shrink-0 rounded-full"
                           />
                         )}
-                        {spotName(a.productId)}
+                        {a.name}
                       </span>
                       <span className="font-mono text-sm text-amber-400">
                         {fmtAPR(a.borrowAPR)}
@@ -1171,16 +1148,16 @@ export function ProtocolTVL() {
                     className="w-[160px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
                   >
                     <span className="flex items-center gap-2">
-                      {spotIcon(depositAsset) && (
+                      {SPOT_ICON[depositAsset] && (
                         <Image
-                          src={spotIcon(depositAsset)!}
+                          src={SPOT_ICON[depositAsset]!}
                           alt=""
                           width={16}
                           height={16}
                           className="shrink-0 rounded-full"
                         />
                       )}
-                      {spotName(depositAsset)}
+                      {depositAssetData?.name ?? depositAsset}
                     </span>
                   </SelectTrigger>
                   <SelectContent align="start">
@@ -1188,16 +1165,16 @@ export function ProtocolTVL() {
                       {rateAssets.map((a) => (
                         <SelectItem key={a.productId} value={a.productId}>
                           <span className="flex items-center gap-2">
-                            {spotIcon(a.productId) && (
+                            {SPOT_ICON[a.productId] && (
                               <Image
-                                src={spotIcon(a.productId)!}
+                                src={SPOT_ICON[a.productId]!}
                                 alt=""
                                 width={16}
                                 height={16}
                                 className="shrink-0 rounded-full"
                               />
                             )}
-                            {spotName(a.productId)}
+                            {a.name}
                           </span>
                         </SelectItem>
                       ))}
@@ -1278,16 +1255,16 @@ export function ProtocolTVL() {
                     className="w-[160px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
                   >
                     <span className="flex items-center gap-2">
-                      {spotIcon(borrowAsset) && (
+                      {SPOT_ICON[borrowAsset] && (
                         <Image
-                          src={spotIcon(borrowAsset)!}
+                          src={SPOT_ICON[borrowAsset]!}
                           alt=""
                           width={16}
                           height={16}
                           className="shrink-0 rounded-full"
                         />
                       )}
-                      {spotName(borrowAsset)}
+                      {borrowAssetData?.name ?? borrowAsset}
                     </span>
                   </SelectTrigger>
                   <SelectContent align="start">
@@ -1295,16 +1272,16 @@ export function ProtocolTVL() {
                       {rateAssets.map((a) => (
                         <SelectItem key={a.productId} value={a.productId}>
                           <span className="flex items-center gap-2">
-                            {spotIcon(a.productId) && (
+                            {SPOT_ICON[a.productId] && (
                               <Image
-                                src={spotIcon(a.productId)!}
+                                src={SPOT_ICON[a.productId]!}
                                 alt=""
                                 width={16}
                                 height={16}
                                 className="shrink-0 rounded-full"
                               />
                             )}
-                            {spotName(a.productId)}
+                            {a.name}
                           </span>
                         </SelectItem>
                       ))}
