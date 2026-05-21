@@ -83,7 +83,7 @@ export function Nav() {
       <div className="flex h-14 items-center justify-between px-3 sm:hidden">
         <Link
           href="/"
-          className="font-bold leading-none tracking-tight text-foreground uppercase "
+          className="font-bold leading-none tracking-tight text-foreground uppercase"
         >
           NadoLens
         </Link>
