@@ -506,13 +506,17 @@ export function WalletTradeHistory({
                   >
                     <TableCell className="py-0 pr-4 text-muted-foreground whitespace-nowrap">
                       <div className="flex items-center gap-1">
-                        {expandable && (
+                        {expandable ? (
                           <ChevronDown
                             className={cn(
-                              "size-3 shrink-0 text-muted-foreground transition-transform duration-150",
+                              "size-3 shrink-0 text-foreground transition-transform duration-150",
                               !expanded && "-rotate-90",
                             )}
                           />
+                        ) : (
+                          viewMode === "aggregated" && (
+                            <span className="inline-block w-3 shrink-0" />
+                          )
                         )}
                         <span className="sm:hidden text-[11px] leading-tight text-center">
                           <span>{fmtDate(row.timestamp)}</span>
@@ -520,7 +524,7 @@ export function WalletTradeHistory({
                           <span>{fmtHour(row.timestamp)}</span>
                         </span>
                         <span className="hidden sm:inline">
-                          {fmtDate(row.timestamp)} {fmtHour(row.timestamp)}
+                          {fmtDate(row.timestamp)}, {fmtHour(row.timestamp)}
                         </span>
                       </div>
                     </TableCell>
@@ -639,7 +643,7 @@ export function WalletTradeHistory({
                               <span>{fmtHour(fill.timestamp)}</span>
                             </span>
                             <span className="hidden sm:inline">
-                              {fmtDate(fill.timestamp)}{" "}
+                              {fmtDate(fill.timestamp)},{" "}
                               {fmtHour(fill.timestamp)}
                             </span>
                           </span>

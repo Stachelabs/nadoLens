@@ -161,5 +161,7 @@ export type WalletStats = {
   spot_trades_count: number
   first_trade_at: string | null
   last_trade_at: string | null
+  best_trade: { pnl: number; pair: string; side: 'long' | 'short'; closed_at: string | null } | null
+  worst_trade: { pnl: number; pair: string; side: 'long' | 'short'; closed_at: string | null } | null
   trades_complete: boolean
 }

@@ -210,6 +210,79 @@ describe('computeTradeMetrics — aggregated win rate', () => {
   })
 })
 
+// ─── best_trade / worst_trade ────────────────────────────────────────────────
+
+function perpCloseWith(
+  idx: string,
+  timestampSec: number,
+  realizedPnlUsd: number,
+  overrides: Partial<TradeMatch> = {},
+): TradeMatch {
+  return {
+    ...perpClose(idx, timestampSec, realizedPnlUsd, 1, 500),
+    ...overrides,
+  }
+}
+
+describe('computeTradeMetrics — best_trade / worst_trade', () => {
+  it('returns null for both when no closing trades', () => {
+    const trades = [perpOpen('1', 1_000_000, 5, 1000)]
+    const m = computeTradeMetrics(trades)
+    expect(m.best_trade).toBeNull()
+    expect(m.worst_trade).toBeNull()
+  })
+
+  it('returns null for both when empty', () => {
+    const m = computeTradeMetrics([])
+    expect(m.best_trade).toBeNull()
+    expect(m.worst_trade).toBeNull()
+  })
+
+  it('single closing trade → both point to same order', () => {
+    const trades = [perpCloseWith('1', 1_000_000, 50, { pair: 'ETH-PERP', side: 'long' })]
+    const m = computeTradeMetrics(trades)
+    expect(m.best_trade).not.toBeNull()
+    expect(m.worst_trade).not.toBeNull()
+    expect(m.best_trade!.pnl).toBeCloseTo(50, 2)
+    expect(m.worst_trade!.pnl).toBeCloseTo(50, 2)
+    expect(m.best_trade!.pair).toBe('ETH-PERP')
+    expect(m.best_trade!.side).toBe('long')
+  })
+
+  it('picks highest pnl as best, lowest as worst', () => {
+    const trades = [
+      perpCloseWith('1', 1_000_000, 200, { pair: 'BTC-PERP' }),
+      perpCloseWith('2', 1_000_001, -100, { pair: 'ETH-PERP' }),
+      perpCloseWith('3', 1_000_002, 50, { pair: 'HYPE-PERP' }),
+    ]
+    const m = computeTradeMetrics(trades)
+    expect(m.best_trade!.pnl).toBeCloseTo(200, 2)
+    expect(m.best_trade!.pair).toBe('BTC-PERP')
+    expect(m.worst_trade!.pnl).toBeCloseTo(-100, 2)
+    expect(m.worst_trade!.pair).toBe('ETH-PERP')
+  })
+
+  it('multi-fill order uses aggregated pnl, not individual fills', () => {
+    const trades = [
+      perpCloseWith('1', 1_000_000, 80, { digest: '0xagg', pair: 'SOL-PERP' }),
+      perpCloseWith('2', 1_000_001, 120, { digest: '0xagg', pair: 'SOL-PERP' }),
+      perpCloseWith('3', 1_000_002, -50, { pair: 'ETH-PERP' }),
+    ]
+    const m = computeTradeMetrics(trades)
+    // Aggregated: 0xagg = 80+120=200, no-digest ETH = -50
+    expect(m.best_trade!.pnl).toBeCloseTo(200, 2)
+    expect(m.best_trade!.pair).toBe('SOL-PERP')
+    expect(m.worst_trade!.pnl).toBeCloseTo(-50, 2)
+    expect(m.worst_trade!.pair).toBe('ETH-PERP')
+  })
+
+  it('includes closed_at as ISO string', () => {
+    const trades = [perpCloseWith('1', 1_700_000_000, 100)]
+    const m = computeTradeMetrics(trades)
+    expect(m.best_trade!.closed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+})
+
 // ─── mergePnl ────────────────────────────────────────────────────────────────
 
 describe('mergePnl', () => {

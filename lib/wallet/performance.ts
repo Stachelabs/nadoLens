@@ -3,6 +3,13 @@ import { fromX18BigInt } from "@/types/nado";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import { aggregateByDigest } from "./aggregateTrades";
 
+export type BiggestTrade = {
+  pnl: number;
+  pair: string;
+  side: "long" | "short";
+  closed_at: string | null;
+};
+
 export type TradeMetrics = {
   win_rate: number;
   trading_pnl_usd: number;
@@ -15,6 +22,8 @@ export type TradeMetrics = {
   spot_trades_count: number;
   first_trade_at: string | null;
   last_trade_at: string | null;
+  best_trade: BiggestTrade | null;
+  worst_trade: BiggestTrade | null;
 };
 
 export function isClosingTrade(trade: TradeMatch): boolean {
@@ -92,6 +101,25 @@ export function computeTradeMetrics(trades: TradeMatch[]): TradeMetrics {
     last_trade_at = pickTs(maxTrade);
   }
 
+  let best_trade: BiggestTrade | null = null;
+  let worst_trade: BiggestTrade | null = null;
+  for (const order of aggregatedClosing) {
+    const ts = nanoStringToMs(order.timestamp);
+    const closed_at = ts !== null ? new Date(ts).toISOString() : null;
+    const entry: BiggestTrade = {
+      pnl: order.realized_pnl,
+      pair: order.pair,
+      side: order.side,
+      closed_at,
+    };
+    if (best_trade === null || order.realized_pnl > best_trade.pnl) {
+      best_trade = entry;
+    }
+    if (worst_trade === null || order.realized_pnl < worst_trade.pnl) {
+      worst_trade = entry;
+    }
+  }
+
   return {
     win_rate:
       aggregatedClosing.length > 0
@@ -107,6 +135,8 @@ export function computeTradeMetrics(trades: TradeMatch[]): TradeMetrics {
     spot_trades_count,
     last_trade_at,
     first_trade_at,
+    best_trade,
+    worst_trade,
   };
 }
 

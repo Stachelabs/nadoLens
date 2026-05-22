@@ -24,6 +24,7 @@ const productLinks = [
   { label: "Wallet Explorer", href: "/wallet" },
   { label: "Protocol Analytics", href: "/protocol" },
   { label: "Airdrop Tracker", href: "#", soon: true },
+  { label: "TG Notifications", href: "#", soon: true },
 ];
 
 const ecosystemLinks = [
@@ -52,7 +53,7 @@ const socialLinks = [
   },
   {
     label: "GitHub",
-    href: "https://github.com/stache-dot-dev/nadoLens",
+    href: "https://github.com/stachelabs",
     icon: Github,
   },
 ];
@@ -146,7 +147,7 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               Analytics for Nado traders
             </p>
-            <div className="mt-4 w-full max-w-[175px]">
+            <div className="mt-10 w-full max-w-[175px]">
               <ServiceStatus />
             </div>
           </div>

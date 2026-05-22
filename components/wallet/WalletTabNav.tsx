@@ -18,8 +18,8 @@ interface Props {
 }
 
 const TABS: { value: Tab; label: string }[] = [
-  { value: "overview", label: "Overview" },
   { value: "trading", label: "Trading" },
+  { value: "overview", label: "Overview" },
   { value: "analytics", label: "Analytics" },
 ];
 
