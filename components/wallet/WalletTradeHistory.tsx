@@ -26,6 +26,7 @@ import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
 import { RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { aggregateByDigest, type AggregatedTrade } from "@/lib/wallet/aggregateTrades";
 
 const PAGE_SIZE = 50;
 
@@ -84,6 +85,58 @@ function assetInitial(pair: string): string {
   return (pair.split("-")[0]?.[0] ?? pair[0] ?? "?").toUpperCase();
 }
 
+type DisplayRow = {
+  key: string;
+  timestamp: string;
+  pair: string;
+  side: "long" | "short";
+  is_taker?: boolean;
+  isolated?: boolean;
+  price: number;
+  qty: number;
+  pnl: number;
+  fee: number;
+  hasPnl: boolean;
+  fillCount: number;
+};
+
+function tradeToRow(t: TradeMatch, i: number): DisplayRow {
+  const pnl = fromX18BigInt(t.realized_pnl);
+  return {
+    key: `ind-${i}`,
+    timestamp: t.timestamp,
+    pair: t.pair,
+    side: t.side,
+    is_taker: t.is_taker,
+    isolated: t.isolated,
+    price: fromX18BigInt(t.price),
+    qty: Math.abs(fromX18BigInt(t.amount)),
+    pnl,
+    fee: Math.abs(fromX18BigInt(t.fee)),
+    hasPnl: Math.abs(pnl) > 0.001,
+    fillCount: 1,
+  };
+}
+
+function aggToRow(a: AggregatedTrade): DisplayRow {
+  return {
+    key: a.digest,
+    timestamp: a.timestamp,
+    pair: a.pair,
+    side: a.side,
+    is_taker: a.is_taker,
+    isolated: a.isolated,
+    price: a.price,
+    qty: a.amount,
+    pnl: a.realized_pnl,
+    fee: a.fee,
+    hasPnl: Math.abs(a.realized_pnl) > 0.001 || a.closed_amount > 0,
+    fillCount: a.fillCount,
+  };
+}
+
+type ViewMode = "aggregated" | "individual";
+
 const TRADE_TABLE_COLUMNS: readonly { key: string; label: string | null }[] = [
   { key: "time", label: "Time" },
   { key: "icon", label: null },
@@ -119,6 +172,7 @@ export function WalletTradeHistory({
   globalMatchesComplete = true,
 }: Props) {
   const [page, setPage] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>("aggregated");
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
   const displayFilter = useMemo(
@@ -137,6 +191,14 @@ export function WalletTradeHistory({
         tradeMatchesSubaccountFilter(t, subaccountLabelByHex, displayFilter),
       ),
     [trades, subaccountLabelByHex, displayFilter],
+  );
+
+  const displayRows = useMemo(
+    () =>
+      viewMode === "aggregated"
+        ? aggregateByDigest(filteredTrades).map(aggToRow)
+        : filteredTrades.map(tradeToRow),
+    [filteredTrades, viewMode],
   );
 
   if (trades.length === 0) {
@@ -213,14 +275,19 @@ export function WalletTradeHistory({
 
   // Once we have any trades, render the table even if global pagination is still running.
 
-  const totalPages = Math.max(1, Math.ceil(filteredTrades.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(displayRows.length / PAGE_SIZE));
   const maxPage = Math.max(0, totalPages - 1);
   const safePage = Math.min(page, maxPage);
   const pageStart = safePage * PAGE_SIZE;
-  const pageTrades = filteredTrades.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageRows = displayRows.slice(pageStart, pageStart + PAGE_SIZE);
 
   const handleSubaccountFilter = (label: string) => {
     setSelectedFilter(label);
+    setPage(0);
+  };
+
+  const handleViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
     setPage(0);
   };
 
@@ -228,11 +295,31 @@ export function WalletTradeHistory({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
-            Trade History
-            <span className="ml-1.5 text-muted-foreground/50 normal-case tracking-normal">
-              {filteredTrades.length} total
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+              Trade History
+              <span className="ml-1.5 text-muted-foreground/50 normal-case tracking-normal">
+                {displayRows.length}{viewMode === "aggregated" ? " orders" : " fills"}
+              </span>
+            </div>
+            <div className="flex rounded-md border border-border overflow-hidden" role="tablist">
+              {(["aggregated", "individual"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  role="tab"
+                  aria-selected={viewMode === mode}
+                  onClick={() => handleViewMode(mode)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-medium capitalize transition-colors",
+                    viewMode === mode
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground/60 hover:text-muted-foreground",
+                  )}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <AccountFilterSelect
@@ -245,7 +332,7 @@ export function WalletTradeHistory({
                 variant="outline"
                 size="icon-xs"
                 onClick={() => setPage(Math.max(0, safePage - 1))}
-                disabled={safePage === 0 || filteredTrades.length === 0}
+                disabled={safePage === 0 || displayRows.length === 0}
                 aria-label="Previous page"
               >
                 ←
@@ -258,7 +345,7 @@ export function WalletTradeHistory({
                 size="icon-xs"
                 onClick={() => setPage(Math.min(maxPage, safePage + 1))}
                 disabled={
-                  safePage === totalPages - 1 || filteredTrades.length === 0
+                  safePage === totalPages - 1 || displayRows.length === 0
                 }
                 aria-label="Next page"
               >
@@ -314,7 +401,7 @@ export function WalletTradeHistory({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTrades.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={TRADE_TABLE_COL_COUNT}
@@ -324,71 +411,72 @@ export function WalletTradeHistory({
                   </TableCell>
                 </TableRow>
               ) : null}
-              {pageTrades.map((t, i) => {
-                const pnl = fromX18BigInt(t.realized_pnl);
-                const price = fromX18BigInt(t.price);
-                const qty = Math.abs(fromX18BigInt(t.amount));
-                const fee = fromX18BigInt(t.fee);
-                const hasPnl = Math.abs(pnl) > 0.001;
-                // Fill side is opposite of the position being reduced on close:
-                // long fill → closing a short | short fill → closing a long
+              {pageRows.map((row) => {
                 const closePositionLabel =
-                  t.side === "long" ? "CLOSE SHORT" : "CLOSE LONG";
+                  row.side === "long" ? "CLOSE SHORT" : "CLOSE LONG";
                 const openPositionLabel =
-                  t.side === "long" ? "OPEN LONG" : "OPEN SHORT";
-                const directionLabel = hasPnl
+                  row.side === "long" ? "OPEN LONG" : "OPEN SHORT";
+                const directionLabel = row.hasPnl
                   ? closePositionLabel
                   : openPositionLabel;
-                const pnlColor = pnl >= 0 ? "text-primary" : "text-destructive";
+                const pnlColor =
+                  row.pnl >= 0 ? "text-primary" : "text-destructive";
                 const role =
-                  t.is_taker === true
+                  row.is_taker === true
                     ? "TAKER"
-                    : t.is_taker === false
+                    : row.is_taker === false
                       ? "MAKER"
                       : "UNKNOWN";
 
                 return (
                   <TableRow
-                    key={pageStart + i}
+                    key={row.key}
                     className="border-border/50 hover:bg-muted/20"
                   >
                     <TableCell className="py-2 pr-4 text-muted-foreground whitespace-nowrap">
-                      {fmtTime(t.timestamp)}
+                      {fmtTime(row.timestamp)}
                     </TableCell>
                     <TableCell className="py-2 px-1 align-middle">
                       <div className="flex justify-center">
                         <Avatar size="sm" className="shrink-0">
                           <AvatarImage
-                            src={perpIconSrcFromPair(t.pair) ?? undefined}
+                            src={perpIconSrcFromPair(row.pair) ?? undefined}
                             alt=""
                           />
                           <AvatarFallback className="bg-muted text-[10px] font-semibold text-foreground/70">
-                            {assetInitial(t.pair)}
+                            {assetInitial(row.pair)}
                           </AvatarFallback>
                         </Avatar>
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center align-middle sticky left-0 z-10 bg-card">
                       <div className="flex min-w-[72px] flex-col items-center justify-center">
-                        <span className="font-mono text-foreground">{t.pair}</span>
+                        <span className="font-mono text-foreground">
+                          {row.pair}
+                        </span>
                         <span className="text-[10px] text-muted-foreground/70">
-                          {t.isolated ? "Isolated" : "Cross"}
+                          {row.isolated ? "Isolated" : "Cross"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center align-middle">
-                      <div className="flex justify-center">
+                      <div className="flex justify-center gap-1">
                         <Badge
                           variant="outline"
                           className={cn(
                             "px-2 py-1 text-[10px] font-bold whitespace-nowrap",
-                            t.side === "long"
+                            row.side === "long"
                               ? "border-primary/20 bg-primary/10 text-primary"
                               : "border-destructive/20 bg-destructive/10 text-destructive",
                           )}
                         >
                           {directionLabel}
                         </Badge>
+                        {row.fillCount > 1 && (
+                          <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-muted-foreground">
+                            ×{row.fillCount}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center">
@@ -407,23 +495,23 @@ export function WalletTradeHistory({
                       </Badge>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {fmtPrice(price)}
+                      {fmtPrice(row.price)}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {fmtQty(qty)}
+                      {fmtQty(row.qty)}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        hasPnl ? pnlColor : "text-muted-foreground/70",
+                        row.hasPnl ? pnlColor : "text-muted-foreground/70",
                       )}
                     >
-                      {hasPnl
-                        ? `${pnl >= 0 ? "+" : ""}${fmtUsd.format(pnl)}`
+                      {row.hasPnl
+                        ? `${row.pnl >= 0 ? "+" : ""}${fmtUsd.format(row.pnl)}`
                         : "—"}
                     </TableCell>
                     <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
-                      {fmtFee(fee)}
+                      {fmtFee(row.fee)}
                     </TableCell>
                   </TableRow>
                 );
@@ -433,13 +521,13 @@ export function WalletTradeHistory({
         </div>
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
           <span className="text-[11px] text-muted-foreground/50 tabular-nums">
-            {filteredTrades.length === 0 ? (
+            {displayRows.length === 0 ? (
               <>0 of 0</>
             ) : (
               <>
                 {pageStart + 1}–
-                {Math.min(pageStart + PAGE_SIZE, filteredTrades.length)} of{" "}
-                {filteredTrades.length}
+                {Math.min(pageStart + PAGE_SIZE, displayRows.length)} of{" "}
+                {displayRows.length}
               </>
             )}
           </span>
@@ -448,7 +536,7 @@ export function WalletTradeHistory({
               variant="outline"
               size="icon-xs"
               onClick={() => setPage(0)}
-              disabled={safePage === 0 || filteredTrades.length === 0}
+              disabled={safePage === 0 || displayRows.length === 0}
               aria-label="First page"
             >
               «
@@ -457,7 +545,7 @@ export function WalletTradeHistory({
               variant="outline"
               size="icon-xs"
               onClick={() => setPage(Math.max(0, safePage - 1))}
-              disabled={safePage === 0 || filteredTrades.length === 0}
+              disabled={safePage === 0 || displayRows.length === 0}
               aria-label="Previous page"
             >
               ←
@@ -470,7 +558,7 @@ export function WalletTradeHistory({
               size="icon-xs"
               onClick={() => setPage(Math.min(maxPage, safePage + 1))}
               disabled={
-                safePage === totalPages - 1 || filteredTrades.length === 0
+                safePage === totalPages - 1 || displayRows.length === 0
               }
               aria-label="Next page"
             >
@@ -481,7 +569,7 @@ export function WalletTradeHistory({
               size="icon-xs"
               onClick={() => setPage(totalPages - 1)}
               disabled={
-                safePage === totalPages - 1 || filteredTrades.length === 0
+                safePage === totalPages - 1 || displayRows.length === 0
               }
               aria-label="Last page"
             >

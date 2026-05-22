@@ -156,6 +156,60 @@ describe('computeTradeMetrics', () => {
   })
 })
 
+// ─── aggregated win rate ─────────────────────────────────────────────────────
+
+describe('computeTradeMetrics — aggregated win rate', () => {
+  it('1 order with 5 winning fills (same digest) = 100% win rate, not 5/5 per fill', () => {
+    const trades = Array.from({ length: 5 }, (_, i) => ({
+      ...perpClose(String(i + 1), 1_000_000 + i, 20, 1, 200),
+      digest: '0xorder1',
+    }))
+    const m = computeTradeMetrics(trades)
+    expect(m.win_rate).toBe(100)
+  })
+
+  it('1 winning order (3 fills) + 1 losing order (2 fills) = 50%', () => {
+    const wins = Array.from({ length: 3 }, (_, i) => ({
+      ...perpClose(String(i + 1), 1_000_000 + i, 30, 1, 300),
+      digest: '0xwin',
+    }))
+    const losses = Array.from({ length: 2 }, (_, i) => ({
+      ...perpClose(String(i + 10), 1_000_010 + i, -20, 1, 200),
+      digest: '0xloss',
+    }))
+    const m = computeTradeMetrics([...wins, ...losses])
+    expect(m.win_rate).toBe(50)
+  })
+
+  it('fills without digest count individually (legacy fallback)', () => {
+    const trades = [
+      perpClose('1', 1_000_000, 100, 5, 1000),  // win, no digest
+      perpClose('2', 1_000_001, -50, 5, 1000),   // loss, no digest
+    ]
+    const m = computeTradeMetrics(trades)
+    expect(m.win_rate).toBe(50)
+  })
+
+  it('net-positive aggregated order with mixed individual fills = 1 win', () => {
+    const trades = [
+      { ...perpClose('1', 1_000_000, 200, 1, 500), digest: '0xmixed' },
+      { ...perpClose('2', 1_000_001, -50, 1, 500), digest: '0xmixed' },
+    ]
+    const m = computeTradeMetrics(trades)
+    // Sum = 200 + (-50) = 150 > 0 → 1 win out of 1 order
+    expect(m.win_rate).toBe(100)
+  })
+
+  it('trade counts still use individual fills, not aggregated orders', () => {
+    const trades = Array.from({ length: 5 }, (_, i) => ({
+      ...perpClose(String(i + 1), 1_000_000 + i, 20, 1, 200),
+      digest: '0xorder1',
+    }))
+    const m = computeTradeMetrics(trades)
+    expect(m.perp_trades_count).toBe(5)
+  })
+})
+
 // ─── mergePnl ────────────────────────────────────────────────────────────────
 
 describe('mergePnl', () => {
