@@ -1,6 +1,14 @@
 import type { TradeMatch } from "@/types/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
+import { aggregateByDigest } from "./aggregateTrades";
+
+export type BiggestTrade = {
+  pnl: number;
+  pair: string;
+  side: "long" | "short";
+  closed_at: string | null;
+};
 
 export type TradeMetrics = {
   win_rate: number;
@@ -14,6 +22,8 @@ export type TradeMetrics = {
   spot_trades_count: number;
   first_trade_at: string | null;
   last_trade_at: string | null;
+  best_trade: BiggestTrade | null;
+  worst_trade: BiggestTrade | null;
 };
 
 export function isClosingTrade(trade: TradeMatch): boolean {
@@ -28,9 +38,8 @@ export function computeTradeMetrics(trades: TradeMatch[]): TradeMetrics {
   const perpTrades = trades.filter((trade) => trade.is_perp);
   const spotTrades = trades.filter((trade) => !trade.is_perp);
   const perpClosingTrades = perpTrades.filter(isClosingTrade);
-  const winningTrades = perpClosingTrades.filter(
-    (trade) => fromX18BigInt(trade.realized_pnl) > 0,
-  );
+  const aggregatedClosing = aggregateByDigest(perpClosingTrades);
+  const winningOrders = aggregatedClosing.filter((o) => o.realized_pnl > 0);
 
   // PnL only from perp trades.
   const trading_pnl_usd = perpClosingTrades.reduce(
@@ -92,10 +101,29 @@ export function computeTradeMetrics(trades: TradeMatch[]): TradeMetrics {
     last_trade_at = pickTs(maxTrade);
   }
 
+  let best_trade: BiggestTrade | null = null;
+  let worst_trade: BiggestTrade | null = null;
+  for (const order of aggregatedClosing) {
+    const ts = nanoStringToMs(order.timestamp);
+    const closed_at = ts !== null ? new Date(ts).toISOString() : null;
+    const entry: BiggestTrade = {
+      pnl: order.realized_pnl,
+      pair: order.pair,
+      side: order.side,
+      closed_at,
+    };
+    if (best_trade === null || order.realized_pnl > best_trade.pnl) {
+      best_trade = entry;
+    }
+    if (worst_trade === null || order.realized_pnl < worst_trade.pnl) {
+      worst_trade = entry;
+    }
+  }
+
   return {
     win_rate:
-      perpClosingTrades.length > 0
-        ? (winningTrades.length / perpClosingTrades.length) * 100
+      aggregatedClosing.length > 0
+        ? (winningOrders.length / aggregatedClosing.length) * 100
         : 0,
     trading_pnl_usd,
     total_fees_usd,
@@ -107,6 +135,8 @@ export function computeTradeMetrics(trades: TradeMatch[]): TradeMetrics {
     spot_trades_count,
     last_trade_at,
     first_trade_at,
+    best_trade,
+    worst_trade,
   };
 }
 
