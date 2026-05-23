@@ -73,8 +73,8 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - SSE via `EventSource` to WS Proxy (`NEXT_PUBLIC_WS_PROXY_URL`)
 
 **Next.js server (Vercel)**
-- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]`
-- Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/liquidations` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates`
+- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]` · `/api/status`
+- Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/liquidations` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates` · `/api/protocol/insurance-fund`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 - **ALWAYS** wrap API route handlers in `try/catch` → `{ error: "Internal server error" }` with 500
 - **ALWAYS** use `withArchiveRetry()` for direct Archive fetches (handles 429 + backoff)
@@ -234,9 +234,9 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 4. ❌ Survival Cockpit — **removed** (see PRD.md § 10 roadmap)
 5. ✅ Wallet Explorer
 6. ✅ Protocol Analytics Dashboard — 5 tabs: Overview · Volumes · OI & Funding · Revenue · TVL
-7. **→ Deploy & Polish** (README, GIF, GitHub public, email Frank)
+7. ✅ Deploy & Polish — partially done (codebase audit done, README redesign in progress)
 8. Orderbook depth (post-polish)
 
 ---
 
-_CLAUDE.md v4.2 — NadoLens — updated 2026-05-07 (codebase audit)_
+_CLAUDE.md v4.3 — NadoLens — updated 2026-05-22_

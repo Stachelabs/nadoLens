@@ -1,5 +1,5 @@
 # PRD — NadoLens
-> Full technical spec. Version 2.0.
+> Full technical spec. Version 2.4.
 
 ---
 
@@ -45,12 +45,13 @@ Next.js Backend (Vercel) — pnpm
   ├── /api/matches                        → proxy archive matches (Zod validation)
   ├── /api/funding                        → proxy archive interest_and_funding (Zod validation)
   ├── /api/snapshots                      → proxy archive account_snapshots (avg entry prices)
+  ├── /api/status                          → health check endpoint
   ├── /api/protocol/tickers               → enriched ticker list (Gateway v2)
   ├── /api/protocol/market-snapshots      → edge_market_snapshots (count + granularity)
   ├── /api/protocol/products              → spot_ids + perp_ids from edge_all_products
-  ├── /api/protocol/liquidations          → liquidation feed (Archive)
   ├── /api/protocol/candlesticks          → OHLCV candlesticks per product
-  └── /api/protocol/funding-rates         → funding rate history per product
+  ├── /api/protocol/funding-rates         → funding rate history per product
+  └── /api/protocol/insurance-fund        → insurance fund balance history
 
 nado-matches (Fly.io fra) — Bun  [min_machines_running=1]
   ├── POST /matches   →  Archive proxy + Upstash Redis cache
@@ -62,8 +63,8 @@ nado-matches (Fly.io fra) — Bun  [min_machines_running=1]
 **EIP-712 signing client-side only via wagmi/viem.**
 Private key never leaves the wallet. Orders sent directly to Nado Gateway.
 
-> Heatmap, dashboard, orderbook features: removed from current build to focus on MVP Wallet Explorer.
-> Specs kept in section 8 (roadmap) for future implementation if needed.
+> Heatmap, survival cockpit, orderbook features: removed from current build.
+> Specs kept in section 10 (post-MVP roadmap) for future implementation if needed.
 
 ---
 
@@ -129,15 +130,18 @@ nadolens/
 ├── tsconfig.json                     ← ws-proxy/ and services/ excluded
 ├── app/
 │   ├── layout.tsx                    ← ThemeProvider (next-themes) + Providers + Nav
-│   ├── page.tsx                      ← redirect to /wallet
+│   ├── page.tsx                      ← landing page (HeroBlob, LiveMetrics, FeatureCards, Footer)
 │   ├── providers.tsx                 ← WagmiProvider + QueryClient + RainbowKitProvider
 │   ├── globals.css                   ← Tailwind v4
+│   ├── not-found.tsx                 ← custom 404
+│   ├── error.tsx                     ← global error boundary
 │   ├── wallet/
-│   │   ├── page.tsx                  ← wallet search
+│   │   ├── page.tsx                  ← wallet search + feature cards
 │   │   └── [address]/page.tsx        ← wallet detail (client component)
 │   ├── protocol/
 │   │   └── page.tsx                  ← Protocol Analytics Dashboard (5 tabs)
 │   └── api/
+│       ├── status/route.ts                         ← health check
 │       ├── pairs/route.ts                          ← Nado pairs list
 │       ├── wallet/[address]/route.ts               ← Gateway proxy (subaccount_info, etc.)
 │       ├── subaccounts/[address]/route.ts          ← address → bytes32 resolution (Archive)
@@ -148,14 +152,15 @@ nadolens/
 │           ├── tickers/route.ts                    ← enriched ticker list
 │           ├── market-snapshots/route.ts           ← edge_market_snapshots (count + granularity)
 │           ├── products/route.ts                   ← spot_ids + perp_ids
-│           ├── liquidations/route.ts               ← liquidation feed
 │           ├── candlesticks/route.ts               ← OHLCV per product
-│           └── funding-rates/route.ts              ← funding rate history
+│           ├── funding-rates/route.ts              ← funding rate history
+│           └── insurance-fund/route.ts             ← insurance fund balance
 ├── components/
 │   ├── Nav.tsx                       ← sticky nav, connect button, theme toggle
 │   ├── ThemeToggle.tsx               ← next-themes toggle
+│   ├── landing/                      ← 4 landing components (HeroBlob, LiveMetrics, FeatureCards, Footer)
 │   ├── wallet/                       ← 11 wallet components
-│   ├── protocol/                     ← 6 protocol components (ProtocolOverview, ProtocolVolumes, ProtocolOIFunding, ProtocolRevenue, ProtocolTVL, ProtocolTabNav)
+│   ├── protocol/                     ← 8 protocol components (Overview, Volumes, OIFunding, Revenue, TVL, TabNav, ChartEmpty, ErrorBanner)
 │   └── ui/                           ← shadcn components (button, card, badge, input, table, separator, avatar)
 ├── hooks/
 │   ├── useWalletData.ts
@@ -174,8 +179,16 @@ nadolens/
 │   ├── wagmi.ts                      ← inkL2 defineChain (id: 57073) + wagmiConfig
 │   ├── nado.ts                       ← NADO_GATEWAY / NADO_ARCHIVE constants
 │   ├── utils.ts                      ← cn()
+│   ├── api/validateResponse.ts       ← shared API response validation helper
+│   ├── wallet/                       ← wallet domain logic (aggregateTrades, buildEquityCurve, performance, etc.)
+│   ├── docs-rag/                     ← RAG pipeline (crawl, chunk, embed, query)
 │   └── schemas/nado.ts               ← Zod schemas (source of truth for types)
 ├── types/nado.ts                     ← interfaces + fromX18BigInt
+├── scripts/
+│   ├── icons-sync/                   ← Playwright CDP icon scraper
+│   └── docs-rag/                     ← RAG build/index/query scripts
+├── nado-rag/                         ← crawled docs (pages-json, pages-md, reports)
+├── docs/api/                         ← local Nado API reference docs
 ├── services/
 │   ├── nado-matches/                 ← Bun, Fly.io fra — /matches proxy + /sse WS relay
 │   └── nado-funding/                 ← Bun, Fly.io ams — /funding proxy
@@ -231,15 +244,39 @@ Fresh install Next.js 16 + Turbopack + Tailwind v4 + shadcn/ui + wagmi v2 + Rain
 - **Revenue** — protocol fee revenue over time
 - **TVL** — total value locked trend
 
-Key files: `components/protocol/` (6 components) · `hooks/useProtocolVolumes.ts` · `hooks/useProtocolMarketSnapshots.ts` · `hooks/useProtocolData.ts` · `store/protocolStore.ts` · `app/api/protocol/` (6 routes)
+Key files: `components/protocol/` (8 components) · `hooks/useProtocolVolumes.ts` · `hooks/useProtocolMarketSnapshots.ts` · `hooks/useProtocolData.ts` · `store/protocolStore.ts` · `app/api/protocol/` (6 routes)
 
 Progressive fetch strategy: 30d view renders immediately (Wave 1), other timeframes load in background (Wave 2). `backgroundLoading` flag gates non-30d skeletons.
 
-### → Phase Deploy & Polish
+### ⏳ Phase Deploy & Polish — IN PROGRESS
+Codebase audit done. README redesign and demo assets pending.
+
 - [x] Codebase audit: API error handling, Zod coverage, UI/UX patterns, React/Next.js best practices (2026-05-07)
 - [ ] README + screenshots + demo GIF
 - [ ] Prod tests (wallet connection, address search, live positions)
 - [ ] Push public GitHub + email Frank
+
+---
+
+## Feature Status
+
+| Feature | Status | Location | Notes |
+|---------|--------|----------|-------|
+| Landing Page | ✅ Shipped | `/` | HeroBlob, LiveMetrics, FeatureCards |
+| Wallet Explorer | ✅ Shipped | `/wallet/[address]` | 3 tabs, 11 components, 6s position polling |
+| Protocol Dashboard | ✅ Shipped | `/protocol` | 5 tabs: Overview · Volumes · OI & Funding · Revenue · TVL |
+| WS Proxy + SSE | ✅ Shipped | `services/nado-matches` | Fly.io fra, always-on, fill + position_change events |
+| Funding Service | ✅ Shipped | `services/nado-funding` | Fly.io ams, 6h Redis cache TTL |
+| Docs RAG Pipeline | ✅ Shipped | `lib/docs-rag/` | Crawl + chunk + embed + query (Ollama/OpenAI) |
+| Icon Sync Script | ✅ Shipped | `scripts/icons-sync/` | Playwright CDP, Brave profile |
+| Open Orders | 🔜 Planned | — | Gateway stub exists (`subaccount_orders`) |
+| Share PnL | 🔜 Planned | — | Screenshot/export feature |
+| Chart Tracking | 🔜 Planned | — | Real-time price chart with position overlays |
+| TG Notifications | 🔜 Planned | — | Telegram bot for alerts |
+| Liquidation Heatmap | ❌ Removed | — | Descoped from MVP (see § 10 roadmap) |
+| Survival Cockpit | ❌ Removed | — | Descoped from MVP (see § 10 roadmap) |
+
+---
 
 ### Phase Orderbook Depth (post-polish)
 - [ ] Snapshot `/v2/orderbook` + `book_depth` stream + diff reconstruction
@@ -273,4 +310,4 @@ Opens modal: size/leverage params → wagmi signs → sends to Nado Gateway.
 
 ---
 
-*PRD v2.3 — NadoLens*
+*PRD v2.4 — NadoLens — updated 2026-05-22*

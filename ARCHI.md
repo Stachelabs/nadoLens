@@ -152,6 +152,31 @@ Triggered: on fill detection (prevAmount changed) — not every poll.
 Key field: net_entry_unrealized (x18) → avg entry price per product per parent subaccount.
 ```
 
+### `/api/protocol/insurance-fund/route.ts`
+Gateway proxy for insurance fund balance. Returns total insurance fund value in USD.
+
+```
+GET /api/protocol/insurance-fund
+  → POST https://gateway.prod.nado.xyz/v1/query
+     body: { type: "insurance" }
+  → { total: number }
+
+Zod validation: InsuranceFundResponseSchema
+ISR cache: revalidate: 60 (1min)
+```
+
+### `/api/status/route.ts`
+Health check endpoint. Pings WS Proxy and Nado Gateway, returns aggregate status.
+
+```
+GET /api/status
+  → Parallel ping: WS Proxy /health + Nado Gateway
+  → { status: "online"|"degraded"|"offline", services: { api, wsProxy, nado }, timestamp }
+
+Zod validation: StatusResponseSchema (inline)
+Cache: force-dynamic (no ISR) — Nado ping cached in-memory 5min
+```
+
 ---
 
 ## 4. pairsStore — Dynamic assets
@@ -222,8 +247,12 @@ store/
                              → fundingPayments[] + fundingPaidUsd
                              Delta fetch with per-subaccount cursors, inflight dedup
                              Used by: WalletSummary, WalletEquityCurve, WalletFundingByProductChart
-  pairsStore.ts        ← Zustand + persist — V2 assets, byId Map, perp[], spot[]
-  accountStore.ts      ← Zustand — connected wallet state
+  pairsStore.ts                ← Zustand + persist — V2 assets, byId Map, perp[], spot[]
+  protocolStore.ts             ← Zustand — protocol tab state, tickers, liquidations feed
+  protocolCacheStore.ts        ← Zustand — market snapshot cache with TTL (5min), inflight dedup
+  walletMatchesCacheStore.ts   ← Zustand — per-wallet trade matches cache (LRU, max 2 wallets)
+  positionMatchesCacheStore.ts ← Zustand — per-wallet position-scoped matches + open-time map (LRU, max 2 wallets)
+  walletAnalyticsStore.ts      ← Zustand — wallet tab state + selected funding product filter
 
 lib/wallet/
   fetchWalletFunding.ts ← pure fetch functions: fetchFundingBySubaccount, fetchFundingAllSubaccounts, fetchPositionScopedFunding
@@ -373,11 +402,11 @@ All API routes follow these error patterns (established in codebase audit 2026-0
 
 ## 12. Known Issues
 
-No known bugs at this time.
+No known bugs. Last reviewed: 2026-05-22.
 
 ---
 
-*ARCHI.md v4.0 — NadoLens — updated 2026-05-07*
+*ARCHI.md v4.1 — NadoLens — updated 2026-05-22*
 
 ---
 
