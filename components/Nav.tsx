@@ -243,13 +243,10 @@ export function Nav() {
                     My Wallet
                   </Link>
                 )}
-              </nav>
-
-              <div className="mt-4 px-2">
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none w-full justify-start gap-1.5 text-muted-foreground/40",
+                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/40",
                   )}
                 >
                   Airdrop
@@ -257,9 +254,9 @@ export function Nav() {
                     Soon
                   </span>
                 </span>
-              </div>
+              </nav>
 
-              <div className="mt-2 flex flex-col gap-1 border-t border-border px-2 pt-3">
+              <div className="mt-4 flex flex-col gap-1 border-t border-border px-2 pt-3">
                 <p className="mb-1 px-4 text-xs font-medium text-muted-foreground">
                   Feedback
                 </p>
