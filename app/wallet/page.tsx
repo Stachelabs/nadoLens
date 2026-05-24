@@ -332,17 +332,6 @@ export default function WalletPage() {
         )}
       </motion.section>
 
-      {/* Scroll indicator — mobile only */}
-      <motion.div
-        className="flex justify-center pb-4 sm:hidden"
-        initial={{ opacity: 1 }}
-        animate={{ opacity: hasScrolled ? 0 : 1 }}
-        transition={{ duration: 0.3 }}
-        style={{ pointerEvents: hasScrolled ? "none" : "auto" }}
-      >
-        <ChevronDown className="size-5 animate-bounce text-muted-foreground/50" />
-      </motion.div>
-
       {/* Feature cards */}
       <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:pt-8">
         <motion.h2
@@ -354,6 +343,17 @@ export default function WalletPage() {
         >
           What you unlock
         </motion.h2>
+
+        {/* Scroll indicator — mobile only */}
+        <motion.div
+          className="mb-6 flex justify-center sm:hidden"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: hasScrolled ? 0 : 1 }}
+          transition={{ duration: 0.3 }}
+          style={{ pointerEvents: hasScrolled ? "none" : "auto" }}
+        >
+          <ChevronDown className="size-7 animate-bounce text-muted-foreground/50" />
+        </motion.div>
 
         <motion.div
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 auto-rows-[1fr]"
