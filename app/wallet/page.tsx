@@ -3,7 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrambleWord } from "@/components/ui/ScrambleWord";
-import { motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
+import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { isAddress } from "viem";
@@ -249,8 +250,14 @@ const cardVariants = {
 export default function WalletPage() {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
+  const [hasScrolled, setHasScrolled] = useState(false);
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { scrollY } = useScroll();
+
+  useMotionValueEvent(scrollY, "change", (y) => {
+    if (y > 20) setHasScrolled(true);
+  });
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -325,6 +332,17 @@ export default function WalletPage() {
         )}
       </motion.section>
 
+      {/* Scroll indicator — mobile only */}
+      <motion.div
+        className="flex justify-center pb-4 sm:hidden"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: hasScrolled ? 0 : 1 }}
+        transition={{ duration: 0.3 }}
+        style={{ pointerEvents: hasScrolled ? "none" : "auto" }}
+      >
+        <ChevronDown className="size-5 animate-bounce text-muted-foreground/50" />
+      </motion.div>
+
       {/* Feature cards */}
       <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:pt-8">
         <motion.h2
@@ -342,7 +360,7 @@ export default function WalletPage() {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0.2 }}
         >
           {features.map((f) => (
             <motion.div
