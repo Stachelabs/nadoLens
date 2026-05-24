@@ -16,7 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -77,7 +77,9 @@ export function Nav() {
 
         <div className="flex items-center gap-1">
           {navLinks.map(({ href, label }) => {
-            const isActive = pathname?.startsWith(href);
+            const onMyWallet =
+              isConnected && address && pathname === `/wallet/${address}`;
+            const isActive = pathname?.startsWith(href) && !onMyWallet;
             return (
               <Link
                 key={href}
@@ -95,27 +97,47 @@ export function Nav() {
             );
           })}
 
-          {isConnected && address && (
-            <Link
-              href={`/wallet/${address}`}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "border border-brand/40 bg-brand/20 hover:bg-brand/10 text-brand hover:text-brand/80",
-                pathname === `/wallet/${address}`,
-              )}
-            >
-              My Wallet
-            </Link>
-          )}
+          {isConnected && address && (() => {
+            const isMyWallet = pathname === `/wallet/${address}`;
+            return (
+              <Link
+                href={`/wallet/${address}`}
+                className={cn(
+                  buttonVariants({
+                    variant: isMyWallet ? "secondary" : "ghost",
+                    size: "sm",
+                  }),
+                  isMyWallet
+                    ? "border border-brand/40 bg-brand/20 text-brand"
+                    : "text-brand hover:text-brand/80",
+                )}
+              >
+                My Wallet
+              </Link>
+            );
+          })()}
+
+          <span
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              "pointer-events-none gap-1.5 text-muted-foreground/40",
+            )}
+          >
+            Airdrop
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              Soon
+            </span>
+          </span>
 
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "text-muted-foreground",
+                "gap-1 text-muted-foreground",
               )}
             >
               Feedback
+              <ChevronDown className="size-3 transition-transform duration-200 [[data-popup-open]_&]:rotate-180" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={8}>
               {socialLinks.map(({ href, label, icon: Icon }) => (
@@ -223,7 +245,21 @@ export function Nav() {
                 )}
               </nav>
 
-              <div className="mt-6 flex flex-col gap-1 border-t border-border px-2 pt-3">
+              <div className="mt-4 px-2">
+                <span
+                  className={cn(
+                    buttonVariants({ variant: "ghost" }),
+                    "pointer-events-none w-full justify-start gap-1.5 text-muted-foreground/40",
+                  )}
+                >
+                  Airdrop
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Soon
+                  </span>
+                </span>
+              </div>
+
+              <div className="mt-2 flex flex-col gap-1 border-t border-border px-2 pt-3">
                 <p className="mb-1 px-4 text-xs font-medium text-muted-foreground">
                   Feedback
                 </p>
