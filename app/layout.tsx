@@ -5,6 +5,8 @@ import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
 import { Toaster } from 'sonner'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 
 const outfit = Outfit({
@@ -44,6 +46,8 @@ export default function RootLayout({
             <Toaster position="bottom-right" theme="dark" richColors />
           </Providers>
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
