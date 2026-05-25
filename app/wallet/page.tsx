@@ -3,7 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrambleWord } from "@/components/ui/ScrambleWord";
-import { motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
+import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { isAddress } from "viem";
@@ -249,8 +250,14 @@ const cardVariants = {
 export default function WalletPage() {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
+  const [hasScrolled, setHasScrolled] = useState(false);
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { scrollY } = useScroll();
+
+  useMotionValueEvent(scrollY, "change", (y) => {
+    if (y > 20) setHasScrolled(true);
+  });
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -336,6 +343,17 @@ export default function WalletPage() {
         >
           What you unlock
         </motion.h2>
+
+        {/* Scroll indicator — mobile only */}
+        <motion.div
+          className="mb-6 flex justify-center sm:hidden"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: hasScrolled ? 0 : 1 }}
+          transition={{ duration: 0.3 }}
+          style={{ pointerEvents: hasScrolled ? "none" : "auto" }}
+        >
+          <ChevronDown className="size-7 animate-bounce text-muted-foreground/50" />
+        </motion.div>
 
         <motion.div
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 auto-rows-[1fr]"

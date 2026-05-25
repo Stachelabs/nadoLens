@@ -3,7 +3,7 @@ import { Outfit, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
-import { Footer } from '@/components/landing/Footer'
+import { Footer } from '@/components/Footer'
 import { Toaster } from 'sonner'
 import './globals.css'
 
