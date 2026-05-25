@@ -16,7 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, Menu, MessageCircle, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
@@ -133,7 +133,7 @@ export function Nav() {
             <DropdownMenuTrigger
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "gap-1 text-muted-foreground",
+                "hidden gap-1 text-muted-foreground min-[860px]:inline-flex",
               )}
             >
               Feedback
@@ -162,6 +162,33 @@ export function Nav() {
         <div className="ml-auto flex items-center gap-2">
           <WalletButton />
           <ThemeToggle />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon" }),
+                "border border-border text-muted-foreground min-[860px]:hidden",
+              )}
+            >
+              <MessageCircle className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={8}>
+              {socialLinks.map(({ href, label, icon: Icon }) => (
+                <DropdownMenuItem
+                  key={label}
+                  render={
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    />
+                  }
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
