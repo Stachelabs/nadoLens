@@ -44,7 +44,7 @@ const ecosystemLinks = [
 ];
 
 const socialLinks = [
-  { label: "Twitter / X", href: "https://x.com/nadolens", icon: XIcon },
+  { label: "Twitter / X", href: "https://x.com/stache_dev", icon: XIcon },
   { label: "Twitter / X (Nado)", href: "https://x.com/nadoHQ", icon: XIcon },
   {
     label: "Discord (Nado)",

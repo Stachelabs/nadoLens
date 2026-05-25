@@ -56,7 +56,7 @@ function XIcon({ className }: { className?: string }) {
 const socialLinks = [
   { href: "https://discord.com/users/889580761349517373", label: "Discord", icon: DiscordIcon },
   { href: "https://t.me/stache_dev", label: "Telegram", icon: TelegramIcon },
-  { href: "https://x.com/nadolens", label: "Twitter", icon: XIcon },
+  { href: "https://x.com/stache_dev", label: "Twitter", icon: XIcon },
 ];
 
 export function Nav() {
