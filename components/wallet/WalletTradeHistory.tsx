@@ -552,7 +552,7 @@ export function WalletTradeHistory({
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center align-middle">
-                      <div className="flex justify-center gap-1">
+                      <div className="flex justify-center">
                         <Badge
                           variant="outline"
                           className={cn(
@@ -563,12 +563,12 @@ export function WalletTradeHistory({
                           )}
                         >
                           {directionLabel}
+                          {row.fillCount > 1 && (
+                            <span className="ml-1 font-medium tabular-nums text-muted-foreground">
+                              ×{row.fillCount}
+                            </span>
+                          )}
                         </Badge>
-                        {row.fillCount > 1 && (
-                          <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium tabular-nums text-muted-foreground">
-                            ×{row.fillCount}
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell className="py-2 text-center">
