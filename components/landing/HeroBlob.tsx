@@ -1,10 +1,10 @@
 "use client";
 
+import { ScrambleWord } from "@/components/ui/ScrambleWord";
+import { useScrambleText } from "@/hooks/useScrambleText";
 import { motion } from "framer-motion";
 import { LayoutDashboard, Wallet } from "lucide-react";
 import Link from "next/link";
-import { useScrambleText } from "@/hooks/useScrambleText";
-import { ScrambleWord } from "@/components/ui/ScrambleWord";
 
 const TARGET_TEXT = "NadoLens";
 
@@ -41,7 +41,8 @@ function ScrambleTitle() {
         onMouseEnter={scramble}
         className="-ml-3 -mt-3 cursor-pointer select-none text-3xl font-bold tracking-tight text-white sm:-ml-6 sm:-mt-6 sm:text-4xl md:text-5xl"
         style={{
-          textShadow: "0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.3)",
+          textShadow:
+            "0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.3)",
           fontVariantNumeric: "tabular-nums",
         }}
       >
@@ -51,7 +52,6 @@ function ScrambleTitle() {
   );
 }
 
-
 function InkSplatter() {
   return (
     <div className="relative">
@@ -59,7 +59,11 @@ function InkSplatter() {
       <svg className="absolute h-0 w-0" aria-hidden>
         <defs>
           <filter id="ink-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="100" result="blur" />
+            <feGaussianBlur
+              in="SourceGraphic"
+              stdDeviation="100"
+              result="blur"
+            />
             <feColorMatrix
               in="blur"
               type="matrix"
@@ -67,7 +71,13 @@ function InkSplatter() {
             />
           </filter>
 
-          <radialGradient id="ink-grad" gradientUnits="userSpaceOnUse" cx="1350" cy="1450" r="1200">
+          <radialGradient
+            id="ink-grad"
+            gradientUnits="userSpaceOnUse"
+            cx="1350"
+            cy="1450"
+            r="1200"
+          >
             <stop offset="0%" stopColor="#C4B5FD" />
             <stop offset="20%" stopColor="#A78BFA" />
             <stop offset="45%" stopColor="#8B5CF6" />
@@ -121,7 +131,12 @@ function InkSplatter() {
           viewBox="0 0 2933 2933"
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 100, damping: 18, delay: 0.1 }}
+          transition={{
+            type: "spring",
+            stiffness: 100,
+            damping: 18,
+            delay: 0.1,
+          }}
           style={{ willChange: "transform" }}
         >
           <g transform={INK_TRANSFORM}>
@@ -168,55 +183,66 @@ function InkSplatter() {
             {/* White highlights — wet ink reflections */}
             <path
               d="m 15617,3487 c -156.2,-368.4 -545.1,-582.3 -932.8,-582.3 727,388.1 818.6,855.6 813.3,1339.9 175.2,-202.4 230.9,-494.5 119.5,-757.6"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 6909.9,19009.2 c 311.19,-116.5 404.56,-492.3 366.1,-864 -236.33,696.1 -713.4,799.1 -1163.79,666.9 136.81,194.8 575.49,280.2 797.69,197.1"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 16765.1,8523.3 c -78.1,-184.2 -272.5,-291.1 -466.4,-291.1 363.5,194 409.3,427.8 406.7,669.9 87.6,-101.2 115.4,-247.2 59.7,-378.8"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 4232.44,7934.3 c -87.61,-172.9 -270.84,-298.1 -470.48,-284.5 -142.52,9.8 -260.24,100.6 -310.89,224.6 214.76,-111.9 443.98,-176.7 781.37,59.9"
-              fill="white" opacity={0.3}
+              fill="white"
+              opacity={0.3}
             />
             <path
               d="m 4500.19,10086.7 c -212.05,-105.9 -483.14,-95.3 -669.34,63.5 -132.83,113.4 -121.57,309.5 -60.51,447 70.61,-290 226.17,-496.9 729.85,-510.5"
-              fill="white" opacity={0.3}
+              fill="white"
+              opacity={0.3}
             />
             <path
               d="m 10492.5,3901.1 c -173.7,-99.4 -393.2,-66.9 -547.62,50.3 406.92,-65.3 584.72,93.1 729.02,287.6 8.7,-133.6 -57.5,-266.7 -181.4,-337.9"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 5052.02,14367 c -89.94,-212.3 -314,-335.8 -537.41,-336.2 418.79,224.3 471.25,493.7 467.89,772.9 101.17,-116.6 133.35,-284.8 69.52,-436.7"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 11219.8,18299.3 c -81.5,-89.3 -213.8,-108 -496,-108 373.7,94.8 475.1,169.8 510.4,439.3 44.1,-106.5 71.2,-237.6 -14.4,-331.3"
-              fill="white" opacity={0.3}
+              fill="white"
+              opacity={0.3}
             />
             <path
               d="m 18308.6,9550.2 c -48.9,-115.4 -170.7,-182.4 -292.2,-182.4 227.8,121.5 256.5,268 254.8,419.7 54.9,-63.4 72.3,-154.9 37.4,-237.3"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
             <path
               d="m 18240.5,13898.4 c 198.8,-164.6 259.2,-444.4 187.6,-683.9 -105.6,520.8 -377.5,663.7 -677.7,749.9 157.4,70.9 348.2,51.4 490.1,-66"
-              fill="white" opacity={0.3}
+              fill="white"
+              opacity={0.3}
             />
             <path
               d="m 14914.4,17841.4 c 173.2,502.2 11.5,763.4 -203.5,990 171.6,-18.8 326.1,-132.4 388.9,-305.7 87.7,-242.7 -2.3,-514.3 -185.4,-684.3"
-              fill="white" opacity={0.3}
+              fill="white"
+              opacity={0.3}
             />
             <path
               d="m 16205.5,15897.3 c -13,-317.4 -242.2,-585 -530.3,-693.4 431.8,491.5 369.1,864.4 229.8,1222.8 186.8,-101.3 309.9,-302.9 300.5,-529.4"
-              fill="white" opacity={0.35}
+              fill="white"
+              opacity={0.35}
             />
           </g>
         </motion.svg>
-
       </motion.div>
 
       {/* Text overlay — outside animated div to stay crisp */}
@@ -252,10 +278,10 @@ export function HeroBlob() {
 
         <motion.p
           variants={itemVariants}
-          className="max-w-lg text-base text-muted-foreground md:text-lg"
+          className="max-w-lg text-base text-muted-foreground max-[359px]:text-[15px] md:text-lg"
         >
           Real-time wallet analytics & protocol dashboards for the Nado CLOB DEX
-          on Ink L2.
+          on Ink L2
         </motion.p>
 
         <motion.div
@@ -266,7 +292,7 @@ export function HeroBlob() {
             href="https://app.nado.xyz?join=ak8qEBT"
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground transition-all hover:bg-brand/90 hover:shadow-[0_0_24px_rgba(139,92,246,0.5)]"
+            className="group relative inline-flex items-center gap-2 rounded-lg bg-brand max-[399px]:px-4 max-[399px]:text-[13px] px-6 py-2.5 text-sm font-semibold text-brand-foreground transition-all hover:bg-brand/90 hover:shadow-[0_0_24px_rgba(139,92,246,0.5)]"
           >
             <span className="pointer-events-none absolute inset-0 rounded-lg bg-brand/20 opacity-0 blur-md transition-opacity group-hover:opacity-100" />
             Trade on Nado & Earn Points
@@ -286,7 +312,7 @@ export function HeroBlob() {
 
           <Link
             href="/protocol"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card max-[399px]:px-4 max-[399px]:text-[13px] px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
           >
             Launch Dashboard
             <LayoutDashboard className="size-4" />
@@ -294,7 +320,7 @@ export function HeroBlob() {
 
           <Link
             href="/wallet"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card max-[399px]:px-4 max-[399px]:text-[13px] px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
           >
             Explore Wallet
             <Wallet className="size-4" />

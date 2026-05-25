@@ -273,14 +273,14 @@ export default function WalletPage() {
     <div className="flex flex-col">
       {/* Hero */}
       <motion.section
-        className="mx-auto flex max-w-2xl flex-col items-center px-4 pt-12 pb-8 text-center"
+        className="mx-auto flex max-w-2xl flex-col items-center px-4 pt-12 pb-12 text-center"
         variants={heroVariants}
         initial="hidden"
         animate="visible"
       >
         <motion.h1
           variants={heroItemVariants}
-          className="mb-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
+          className="mb-8 text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
         >
           <ScrambleWord text="Wallet Explorer" delay={200} cycles={8} />
         </motion.h1>
@@ -335,7 +335,7 @@ export default function WalletPage() {
       {/* Feature cards */}
       <section className="mx-auto w-full max-w-5xl px-4 pb-16 sm:pt-8">
         <motion.h2
-          className="mb-6 text-center text-2xl font-bold tracking-tight text-foreground md:text-3xl"
+          className={`${hasScrolled ? "mb-4" : "mb-8"} text-center text-2xl font-bold tracking-tight text-foreground md:text-3xl`}
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -352,7 +352,7 @@ export default function WalletPage() {
           transition={{ duration: 0.3 }}
           style={{ pointerEvents: hasScrolled ? "none" : "auto" }}
         >
-          <ChevronDown className="size-7 animate-bounce text-muted-foreground/50" />
+          <ChevronDown className="size-7 animate-bounce text-muted-foreground" />
         </motion.div>
 
         <motion.div
