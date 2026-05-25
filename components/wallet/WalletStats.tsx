@@ -159,7 +159,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
                     </AvatarFallback>
                   </Avatar>
                 </div>
-                <div className="flex flex-col items-center leading-tight gap-1">
+                <div className="flex flex-col items-center leading-tight gap-0">
                   <span className="text-muted-foreground font-mono">
                     {trade.pair}
                   </span>
