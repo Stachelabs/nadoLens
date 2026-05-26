@@ -170,7 +170,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
                           month: "short",
                           day: "numeric",
                         })}{" "}
-                        '
+                        &apos;
                         {new Date(trade.closed_at)
                           .getFullYear()
                           .toString()
