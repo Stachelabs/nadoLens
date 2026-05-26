@@ -5,6 +5,7 @@ import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
 import { Toaster } from 'sonner'
+import { ReferralCTA } from '@/components/ReferralCTA'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
@@ -44,6 +45,7 @@ export default function RootLayout({
               <Footer />
             </div>
             <Toaster position="bottom-right" theme="dark" richColors />
+            <ReferralCTA />
           </Providers>
         </ThemeProvider>
         <Analytics />
