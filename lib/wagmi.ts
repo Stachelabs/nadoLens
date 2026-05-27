@@ -8,7 +8,7 @@ import {
   walletConnectWallet,
   phantomWallet,
 } from '@rainbow-me/rainbowkit/wallets'
-import { createConfig, http } from 'wagmi'
+import { createConfig, createStorage, cookieStorage, http } from 'wagmi'
 
 // Custom definition (not OP stack variant) — viem's `ink` uses OP stack types
 // incompatible with createNadoClient's publicClient signature
@@ -51,4 +51,5 @@ export const wagmiConfig = createConfig({
     [inkL2.id]: http(),
   },
   ssr: true,
+  storage: createStorage({ storage: cookieStorage }),
 })
