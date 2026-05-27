@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
+import { JsonLd } from '@/components/seo/JsonLd'
 import { Toaster } from 'sonner'
 import { ReferralCTA } from '@/components/ReferralCTA'
 import { Analytics } from '@vercel/analytics/next'
@@ -23,9 +24,44 @@ const geistMono = Geist_Mono({
   display: 'swap',
 })
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nadolens.xyz'
+
 export const metadata: Metadata = {
-  title: 'NadoLens',
-  description: 'Nado Protocol Analytics',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'NadoLens — Nado Analytics Dashboard | Ink Chain DeFi',
+    template: '%s | NadoLens',
+  },
+  description:
+    'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates — the complete trading dashboard.',
+  openGraph: {
+    type: 'website',
+    siteName: 'NadoLens',
+    locale: 'en_US',
+    url: SITE_URL,
+    title: 'NadoLens — Nado Analytics Dashboard',
+    description:
+      'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates — the complete trading dashboard.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NadoLens — Nado Analytics Dashboard',
+    description:
+      'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates — the complete trading dashboard.',
+  },
+  icons: {
+    icon: '/icon.svg',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 }
 
 export default async function RootLayout({
@@ -42,6 +78,18 @@ export default async function RootLayout({
       className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground">
+        <JsonLd
+          data={{
+            '@type': 'WebApplication',
+            name: 'NadoLens',
+            url: SITE_URL,
+            description:
+              'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates.',
+            applicationCategory: 'FinanceApplication',
+            operatingSystem: 'Any',
+            browserRequirements: 'Requires JavaScript',
+          }}
+        />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <Providers cookie={cookie}>
             <div className="flex min-h-screen flex-col">
