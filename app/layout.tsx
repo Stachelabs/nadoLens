@@ -56,6 +56,9 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-icon',
   },
+  verification: {
+    google: 'bCXyq2MBAsKVlMiXFk0ASR8xD_4Ed9ReJO-KlwCXoX8',
+  },
   robots: {
     index: true,
     follow: true,
