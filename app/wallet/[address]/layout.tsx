@@ -28,6 +28,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${short} — Wallet PnL & Positions | NadoLens`,
       description,
     },
+    alternates: {
+      canonical: `/wallet/${address}`,
+    },
   }
 }
 

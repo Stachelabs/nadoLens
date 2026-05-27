@@ -45,9 +45,14 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
+    site: '@stache_dev',
+    creator: '@stache_dev',
     title: 'NadoLens — Nado Analytics Dashboard',
     description:
       'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates — the complete trading dashboard.',
+  },
+  alternates: {
+    canonical: '/',
   },
   icons: {
     icon: [
@@ -95,6 +100,15 @@ export default async function RootLayout({
             applicationCategory: 'FinanceApplication',
             operatingSystem: 'Any',
             browserRequirements: 'Requires JavaScript',
+          }}
+        />
+        <JsonLd
+          data={{
+            '@type': 'Organization',
+            name: 'NadoLens',
+            url: SITE_URL,
+            logo: `${SITE_URL}/opengraph-image`,
+            sameAs: ['https://x.com/stache_dev'],
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
