@@ -50,7 +50,11 @@ export const metadata: Metadata = {
       'Real-time analytics for Nado Protocol on Ink L2. Track wallet PnL, open interest, volumes, TVL, and funding rates — the complete trading dashboard.',
   },
   icons: {
-    icon: '/icon.svg',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon', type: 'image/png', sizes: '48x48' },
+    ],
+    apple: '/apple-icon',
   },
   robots: {
     index: true,
