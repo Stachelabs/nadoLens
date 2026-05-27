@@ -12,23 +12,9 @@
  * Env:
  *   NADO_GATEWAY_V2      — default https://gateway.prod.nado.xyz/v2
  *   ICONS_OUTPUT_DIR     — default public/icons/perps
- *   PLAYWRIGHT_CDP_URL   — default http://127.0.0.1:9222 (recommended)
- *   PLAYWRIGHT_HEADED    — set to "1" to show browser when not using CDP
- *   ICONS_DELAY_MS       — extra wait after navigation (default 800)
+ *   PLAYWRIGHT_HEADED    — set to "1" to show browser window
+ *   ICONS_DELAY_MS       — extra wait after navigation (default 2000)
  *   ICONS_ONLY           — comma-separated market keys to fetch (e.g. BTC,ETH)
- *
- * Rabby / wallet: Playwright cannot "inject" a browser extension into its bundled Chromium.
- * Use Chrome with remote debugging and connect via CDP so your existing Rabby + site session applies:
- *   1) Close Chrome completely.
- *   2) Start: /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
- *        --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-playwright-profile"
- *   3) Install Rabby in that profile, connect to app.nado.xyz once if needed.
- *   4) PLAYWRIGHT_CDP_URL=http://127.0.0.1:9222 pnpm icons:sync-nado-perps
- *
- * Without CDP, icons often still load on /perpetuals (public page); use CDP if the app blocks assets until connected.
- *
- * Private Alpha access (app.nado.xyz): run this against a browser profile that is already connected
- * and has already passed the alpha gate.
  */
 
 import { createHash } from "crypto";
@@ -453,19 +439,6 @@ async function attachSvgCollector(
 }
 
 async function connectBrowser(): Promise<{ browser: Browser; close: () => Promise<void> }> {
-  const cdp = cfgStr(
-    "PLAYWRIGHT_CDP_URL",
-    nadoPerpIconsDefaults.PLAYWRIGHT_CDP_URL,
-  ).trim();
-  if (cdp) {
-    const browser = await chromium.connectOverCDP(cdp);
-    return {
-      browser,
-      close: async () => {
-        await browser.close();
-      },
-    };
-  }
   const headed =
     cfgStr("PLAYWRIGHT_HEADED", nadoPerpIconsDefaults.PLAYWRIGHT_HEADED) ===
     "1";
@@ -504,14 +477,6 @@ async function isChooseMarketSwitcher(page: Page): Promise<boolean> {
   return /choose\s+market/i.test(text);
 }
 
-async function isPrivateBetaGateVisible(page: Page): Promise<boolean> {
-  const beta = page.getByText(/private\s*beta/i).first();
-  return beta.isVisible().catch(() => false);
-}
-
-/**
- * Ensures this browser profile already has app access (connected + alpha gate cleared).
- */
 async function ensureNadoAppReady(page: Page): Promise<void> {
   await page.goto(`${NADO_APP}/perpetuals?market=BTC`, {
     waitUntil: "domcontentloaded",
@@ -519,16 +484,7 @@ async function ensureNadoAppReady(page: Page): Promise<void> {
   });
   await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
   await sleep(1_000);
-
-  if (!(await isPrivateBetaGateVisible(page))) {
-    console.log("[icons] Browser profile already has app access — continuing.");
-    return;
-  }
-
-  throw new Error(
-    "app.nado.xyz still shows the alpha gate in this browser profile. Open the same profile manually, connect Rabby, " +
-      "pass the gate, then rerun icons sync with PLAYWRIGHT_CDP_URL.",
-  );
+  console.log("[icons] App loaded — continuing.");
 }
 
 async function main(): Promise<void> {
