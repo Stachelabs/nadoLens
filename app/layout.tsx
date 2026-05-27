@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Outfit, Geist_Mono } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
+import { headers } from 'next/headers'
 import { Providers } from './providers'
 import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
@@ -13,11 +14,13 @@ import './globals.css'
 const outfit = Outfit({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+  display: 'swap',
 })
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -25,11 +28,13 @@ export const metadata: Metadata = {
   description: 'Nado Protocol Analytics',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const cookie = (await headers()).get('cookie')
+
   return (
     <html
       lang="en"
@@ -38,7 +43,7 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-          <Providers>
+          <Providers cookie={cookie}>
             <div className="flex min-h-screen flex-col">
               <Nav />
               <main className="flex-1">{children}</main>

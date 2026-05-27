@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, cookieToInitialState } from "wagmi";
 import {
   RainbowKitProvider,
   darkTheme,
@@ -9,7 +9,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import { wagmiConfig } from "@/lib/wagmi";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePairs } from "@/hooks/usePairs";
 import { useProtocolPrefetch } from "@/hooks/useProtocolPrefetch";
 import { useConnectedWalletPrefetch } from "@/hooks/useConnectedWalletPrefetch";
@@ -31,19 +31,19 @@ function ConnectedWalletPrefetchInitializer() {
 
 import "@rainbow-me/rainbowkit/styles.css";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  cookie,
+}: {
+  children: React.ReactNode;
+  cookie?: string | null;
+}) {
   const [queryClient] = useState(() => new QueryClient());
-  const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
-
-  useEffect(() => {
-    // This hydration guard is intentional for next-themes/RainbowKit.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-  }, []);
+  const initialState = cookieToInitialState(wagmiConfig, cookie ?? undefined);
 
   return (
-    <WagmiProvider config={wagmiConfig}>
+    <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           locale="en"
@@ -57,7 +57,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <PairsInitializer />
           <ProtocolPrefetchInitializer />
           <ConnectedWalletPrefetchInitializer />
-          {mounted ? children : null}
+          {children}
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
