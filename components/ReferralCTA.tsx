@@ -54,11 +54,11 @@ export function ReferralCTA() {
   return (
     <Dialog>
       <DialogTrigger
-        className="group fixed bottom-6 right-6 z-40 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+        className="fixed bottom-6 right-6 z-40 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
         aria-label="Support NadoLens — trade with our referral"
       >
         <motion.div
-          className="flex size-12 items-center justify-center rounded-full bg-card/80 backdrop-blur-sm border border-border/50 sm:size-14"
+          className="group flex size-12 items-center justify-center rounded-full bg-card/80 backdrop-blur-sm border border-border/50 sm:size-14"
           animate={{
             y: [0, -3, 0],
             boxShadow: [
