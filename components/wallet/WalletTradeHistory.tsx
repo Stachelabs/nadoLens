@@ -541,7 +541,7 @@ export function WalletTradeHistory({
                         </Avatar>
                       </div>
                     </TableCell>
-                    <TableCell className="py-2 text-center align-middle sticky left-0 z-10 bg-card">
+                    <TableCell className="py-2 text-center align-middle sticky left-0 z-10 bg-card transition-colors group-hover:bg-transparent">
                       <div className="flex min-w-[72px] flex-col items-center justify-center">
                         <span className="font-mono text-foreground">
                           {row.pair}
@@ -650,7 +650,7 @@ export function WalletTradeHistory({
                         </div>
                       </TableCell>
                       <TableCell className="py-1.5 px-1" />
-                      <TableCell className="py-1.5 text-center align-middle sticky left-0 z-10 bg-card">
+                      <TableCell className="py-1.5 text-center align-middle sticky left-0 z-10 bg-card transition-colors group-hover:bg-transparent">
                         <span className="text-[11px] sm:text-xs text-muted-foreground/90 font-mono">
                           fill {fi + 1}/{row.fillCount}
                         </span>
