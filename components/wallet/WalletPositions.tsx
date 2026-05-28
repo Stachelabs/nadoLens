@@ -431,7 +431,7 @@ export function WalletPositions({
                         </AvatarFallback>
                       </Avatar>
                     </TableCell>
-                    <TableCell className="py-2 pr-2 sticky left-0 z-10 bg-card">
+                    <TableCell className="py-2 pr-2 sticky left-0 z-10 bg-card transition-colors group-hover:bg-[color-mix(in_srgb,var(--muted)_50%,var(--card))]">
                       <div className="flex flex-col items-center justify-center min-w-[72px]">
                         <span className="font-mono text-foreground">
                           {pos.pair}

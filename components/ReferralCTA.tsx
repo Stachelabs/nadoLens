@@ -54,7 +54,7 @@ export function ReferralCTA() {
   return (
     <Dialog>
       <DialogTrigger
-        className="fixed bottom-6 right-6 z-40 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+        className="group fixed bottom-6 right-6 z-40 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
         aria-label="Support NadoLens — trade with our referral"
       >
         <motion.div
@@ -78,7 +78,7 @@ export function ReferralCTA() {
           }}
           whileTap={{ scale: 0.95 }}
         >
-          <LensIcon className="size-6 sm:size-7" />
+          <LensIcon className="size-6 sm:size-7 transition-transform duration-300 group-hover:scale-125" />
         </motion.div>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md pb-6 sm:pb-4">
