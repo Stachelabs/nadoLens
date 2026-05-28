@@ -127,11 +127,17 @@ export function WalletSummary({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
 }: Props) {
-  const globalFundingComplete = useWalletFundingStore((s) => s.forActive()?.globalFundingComplete ?? false);
-  const globalFundingLoading = useWalletFundingStore((s) => s.forActive()?.globalFundingLoading ?? false);
+  const globalFundingComplete = useWalletFundingStore(
+    (s) => s.forActive()?.globalFundingComplete ?? false,
+  );
+  const globalFundingLoading = useWalletFundingStore(
+    (s) => s.forActive()?.globalFundingLoading ?? false,
+  );
   const activeAddress = useWalletFundingStore((s) => s.activeAddress);
   const loadGlobalFunding = useWalletFundingStore((s) => s.loadGlobalFunding);
-  const fundingPaidUsd = useWalletFundingStore((s) => s.forActive()?.fundingPaidUsd ?? 0);
+  const fundingPaidUsd = useWalletFundingStore(
+    (s) => s.forActive()?.fundingPaidUsd ?? 0,
+  );
   const unrealizedPnl = stats.unrealized_pnl_usd;
   const isUnrealizedPositive = unrealizedPnl >= 0;
   const isPerpPnlPositive = stats.trading_pnl_usd >= 0;
@@ -182,9 +188,7 @@ export function WalletSummary({
               <Row
                 label="Unrealized PnL"
                 value={`${isUnrealizedPositive ? "+" : ""}${fmtUsd.format(unrealizedPnl)}`}
-                valueClass={
-                  isUnrealizedPositive ? "text-bull" : "text-bear"
-                }
+                valueClass={isUnrealizedPositive ? "text-bull" : "text-bear"}
               />
               <Row
                 label="Perp PnL"
@@ -198,9 +202,7 @@ export function WalletSummary({
                     />
                   )
                 }
-                valueClass={
-                  isPerpPnlPositive ? "text-bull" : "text-bear"
-                }
+                valueClass={isPerpPnlPositive ? "text-bull" : "text-bear"}
               />
               <Row
                 label="All Time PnL"
@@ -214,9 +216,7 @@ export function WalletSummary({
                     />
                   )
                 }
-                valueClass={
-                  isAllTimePnlPositive ? "text-bull" : "text-bear"
-                }
+                valueClass={isAllTimePnlPositive ? "text-bull" : "text-bear"}
               />
             </Section>
           </div>
@@ -329,7 +329,7 @@ export function WalletSummary({
                 globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(fundingPaidUsd)}`
                 ) : globalFundingLoading ? (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
+                  <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/50">
                     <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
                     Funding loading ...
                   </span>
@@ -339,7 +339,9 @@ export function WalletSummary({
                     variant="outline"
                     size="sm"
                     className="h-5 text-[10px] px-2"
-                    onClick={() => activeAddress && void loadGlobalFunding?.(activeAddress)}
+                    onClick={() =>
+                      activeAddress && void loadGlobalFunding?.(activeAddress)
+                    }
                   >
                     Add funding history
                   </Button>
@@ -347,7 +349,9 @@ export function WalletSummary({
               }
               valueClass={
                 globalFundingComplete
-                  ? isFundingPositive ? "text-bull" : "text-bear"
+                  ? isFundingPositive
+                    ? "text-bull"
+                    : "text-bear"
                   : "text-bull"
               }
             />
