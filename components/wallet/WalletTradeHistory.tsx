@@ -353,7 +353,7 @@ export function WalletTradeHistory({
           <div className="flex flex-col justify-between sm:flex-row sm:items-center sm:gap-3">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 pt-1 sm:pt-0">
               Trade History
-              <span className="ml-1.5 text-muted-foreground/50 normal-case tracking-normal">
+              <span className="ml-1.5 text-muted-foreground/60 normal-case tracking-normal">
                 {displayRows.length}
                 {viewMode === "aggregated" ? " orders" : " fills"}
               </span>
@@ -703,7 +703,7 @@ export function WalletTradeHistory({
           </Table>
         </div>
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
-          <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+          <span className="text-[11px] text-muted-foreground/60 tabular-nums">
             {displayRows.length === 0 ? (
               <>0 of 0</>
             ) : (

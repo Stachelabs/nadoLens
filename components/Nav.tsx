@@ -109,7 +109,7 @@ export function Nav() {
                   }),
                   isMyWallet
                     ? "border border-brand/40 bg-brand/20 text-brand"
-                    : "text-brand hover:text-brand/80",
+                    : "text-brand hover:text-brand/90",
                 )}
               >
                 My Wallet
@@ -120,7 +120,7 @@ export function Nav() {
           <span
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
-              "pointer-events-none gap-1.5 text-muted-foreground/40",
+              "pointer-events-none gap-1.5 text-muted-foreground/60",
             )}
           >
             Airdrop
@@ -263,7 +263,7 @@ export function Nav() {
                     onClick={() => setSheetOpen(false)}
                     className={cn(
                       buttonVariants({ variant: "ghost" }),
-                      "justify-start text-brand hover:text-brand/80",
+                      "justify-start text-brand hover:text-brand/90",
                       pathname === `/wallet/${address}` && "bg-brand/10",
                     )}
                   >
@@ -273,7 +273,7 @@ export function Nav() {
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/40",
+                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/60",
                   )}
                 >
                   Airdrop

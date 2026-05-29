@@ -10,7 +10,7 @@ export function TradeOnNadoButton({ className }: { className?: string }) {
       rel="noopener noreferrer"
       className={cn(
         buttonVariants({ variant: "ghost", size: "sm" }),
-        "border border-brand/40 bg-brand/20 hover:bg-brand/10 text-brand hover:text-brand/80",
+        "border border-brand/40 bg-brand/20 hover:bg-brand/10 text-brand hover:text-brand/90",
         className,
       )}
     >

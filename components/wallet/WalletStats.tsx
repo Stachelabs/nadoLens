@@ -117,7 +117,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
             {subSkeleton ? (
               <Skeleton className="h-3 w-24 mx-auto mt-0.5" />
             ) : sub ? (
-              <div className="text-[11px] tabular-nums text-muted-foreground/50 mt-0.5">
+              <div className="text-[11px] tabular-nums text-muted-foreground/60 mt-0.5">
                 {sub}
               </div>
             ) : null}
@@ -139,7 +139,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
                   {fmtPnl.format(trade.pnl)}
                 </span>
               ) : (
-                <span className="text-base font-bold text-muted-foreground/50">
+                <span className="text-base font-bold text-muted-foreground/60">
                   —
                 </span>
               )}

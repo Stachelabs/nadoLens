@@ -279,7 +279,7 @@ export function WalletPositions({
         <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
             Open Positions{" "}
-            <span className="ml-1 text-muted-foreground/50">
+            <span className="ml-1 text-muted-foreground/70">
               ({orderedPositions.length})
             </span>
           </div>
@@ -340,7 +340,7 @@ export function WalletPositions({
                     !positionFundingComplete ? (
                       <div className="flex flex-col items-end gap-0.5 leading-tight">
                         <span>{h}</span>
-                        <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5 font-normal normal-case tracking-normal">
+                        <span className="text-[9px] text-muted-foreground/70 flex items-center gap-0.5 font-normal normal-case tracking-normal">
                           <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
                           Funding loading ...
                         </span>
@@ -505,7 +505,7 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        snapshotReady ? pnlColor : "text-muted-foreground/40",
+                        snapshotReady ? pnlColor : "text-muted-foreground/70",
                       )}
                     >
                       {!snapshotReady ? (
@@ -522,7 +522,7 @@ export function WalletPositions({
                         "py-2 pr-4 text-right tabular-nums",
                         positionMatchesComplete && realizedNet != null
                           ? realizedColor
-                          : "text-muted-foreground/40",
+                          : "text-muted-foreground/70",
                       )}
                     >
                       {!positionMatchesComplete ? (
@@ -539,7 +539,7 @@ export function WalletPositions({
                         positionFundingComplete &&
                           pos.funding_cumulative != null
                           ? fundingColor
-                          : "text-muted-foreground/40",
+                          : "text-muted-foreground/70",
                       )}
                     >
                       {!positionFundingComplete ? (
@@ -550,7 +550,7 @@ export function WalletPositions({
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/60">
+                    <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/70">
                       {!positionMatchesComplete ? (
                         <Skeleton className="h-3.5 w-12 ml-auto rounded-sm" />
                       ) : pos.fees_cumulative != null ? (

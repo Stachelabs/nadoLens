@@ -323,7 +323,7 @@ export default function WalletPage() {
           <motion.div variants={heroItemVariants}>
             <Button
               variant="ghost"
-              className="mt-6 text-sm text-brand hover:text-brand/80"
+              className="mt-6 text-sm text-brand hover:text-brand/90"
               onClick={() => router.push(`/wallet/${address}`)}
             >
               View my wallet →

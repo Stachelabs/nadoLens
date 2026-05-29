@@ -329,7 +329,7 @@ export function WalletSummary({
                 globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(fundingPaidUsd)}`
                 ) : globalFundingLoading ? (
-                  <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/50">
+                  <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/60">
                     <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
                     Funding loading ...
                   </span>
