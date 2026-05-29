@@ -28,7 +28,7 @@ export function WalletHeader({ stats }: Props) {
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-1">
               Wallet
             </div>
             <div className="font-mono text-sm text-foreground break-all">
@@ -40,7 +40,7 @@ export function WalletHeader({ stats }: Props) {
             <div className="text-right">
               <HoverCard>
                 <HoverCardTrigger className="cursor-help">
-                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-0.5">
                     Equity
                   </div>
                 </HoverCardTrigger>
@@ -64,7 +64,7 @@ export function WalletHeader({ stats }: Props) {
             <div className="text-right">
               <HoverCard>
                 <HoverCardTrigger className="cursor-help">
-                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
+                  <div className="flex items-center justify-center sm:justify-start gap-1 text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-0.5">
                     Available
                   </div>
                 </HoverCardTrigger>

@@ -360,6 +360,7 @@ export function ProtocolTVL() {
         >
           <SelectTrigger
             size="sm"
+            aria-label="Select timeframe"
             className="w-[140px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
           >
             <SelectValue />
@@ -960,6 +961,7 @@ export function ProtocolTVL() {
                 >
                   <SelectTrigger
                     size="sm"
+                    aria-label="Select deposit asset"
                     className="w-[160px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
                   >
                     <span className="flex items-center gap-2">
@@ -1067,6 +1069,7 @@ export function ProtocolTVL() {
                 >
                   <SelectTrigger
                     size="sm"
+                    aria-label="Select borrow asset"
                     className="w-[160px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
                   >
                     <span className="flex items-center gap-2">

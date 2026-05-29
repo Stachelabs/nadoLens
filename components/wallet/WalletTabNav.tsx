@@ -36,7 +36,7 @@ export function WalletTabNav({ activeTab, onTabChange }: Props) {
               if (tab) onTabChange(tab.value);
             }}
           >
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger size="sm" aria-label="Select tab" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

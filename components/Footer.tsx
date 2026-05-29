@@ -64,7 +64,7 @@ function ProductLinks() {
       {productLinks.map((link) => (
         <li key={link.label}>
           {link.soon ? (
-            <span className="flex items-center gap-1.5 text-sm text-muted-foreground/70">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground/80">
               {link.label}
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 Soon
@@ -205,7 +205,7 @@ export function Footer() {
       {/* Copyright bar */}
       <div className="border-t border-border">
         <div className="mx-auto max-w-6xl px-4 py-3 text-center">
-          <span className="text-sm text-muted-foreground/70">
+          <span className="text-sm text-muted-foreground/80">
             &copy; {new Date().getFullYear()} NadoLens &middot; Built on{" "}
             <a
               href="https://inkonchain.com"

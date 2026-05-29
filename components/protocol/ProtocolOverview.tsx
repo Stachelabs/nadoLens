@@ -282,6 +282,7 @@ export function ProtocolOverview() {
         >
           <SelectTrigger
             size="sm"
+            aria-label="Select timeframe"
             className="w-[150px] dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
           >
             <SelectValue />

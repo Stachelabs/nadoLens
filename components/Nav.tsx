@@ -120,7 +120,7 @@ export function Nav() {
           <span
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
-              "pointer-events-none gap-1.5 text-muted-foreground/60",
+              "pointer-events-none gap-1.5 text-muted-foreground/80",
             )}
           >
             Airdrop
@@ -273,7 +273,7 @@ export function Nav() {
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/60",
+                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/80",
                   )}
                 >
                   Airdrop
