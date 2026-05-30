@@ -164,6 +164,7 @@ export function Nav() {
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger
+              aria-label="Feedback and social links"
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon" }),
                 "border border-border text-muted-foreground min-[860px]:hidden",
@@ -206,6 +207,7 @@ export function Nav() {
           <ThemeToggle />
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger
+              aria-label={sheetOpen ? "Close menu" : "Open menu"}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon" }),
                 "size-8 border border-border text-foreground",

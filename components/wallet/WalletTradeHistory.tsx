@@ -635,7 +635,9 @@ export function WalletTradeHistory({
                       <TableCell className="py-1.5 pr-4 text-muted-foreground/90 whitespace-nowrap text-[11px] sm:text-xs">
                         <div className="flex items-center gap-1">
                           <span className="inline-block w-3" />
-                          <span className="text-muted-foreground/30">├</span>
+                          <span className="text-muted-foreground/50" aria-hidden>
+                            ├
+                          </span>
                           <span>
                             <span className="sm:hidden leading-tight text-center">
                               <span>{fmtDate(fill.timestamp)}</span>

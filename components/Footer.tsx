@@ -1,14 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { Github, MessageCircle, ExternalLink } from "lucide-react";
 import { ServiceStatus } from "@/components/ServiceStatus";
 import {
   Accordion,
+  AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  AccordionContent,
 } from "@/components/ui/accordion";
+import { ExternalLink, Github, MessageCircle } from "lucide-react";
+import Link from "next/link";
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -44,7 +44,7 @@ const ecosystemLinks = [
 ];
 
 const socialLinks = [
-  { label: "Twitter / X", href: "https://x.com/stache_dev", icon: XIcon },
+  { label: "Twitter / X (Dev)", href: "https://x.com/stache_dev", icon: XIcon },
   { label: "Twitter / X (Nado)", href: "https://x.com/nadoHQ", icon: XIcon },
   {
     label: "Discord (Nado)",
@@ -205,7 +205,10 @@ export function Footer() {
       {/* Copyright bar */}
       <div className="border-t border-border">
         <div className="mx-auto max-w-6xl px-4 py-3 text-center">
-          <span className="text-sm text-muted-foreground/80">
+          <span
+            className="text-sm text-muted-foreground/80"
+            suppressHydrationWarning
+          >
             &copy; {new Date().getFullYear()} NadoLens &middot; Built on{" "}
             <a
               href="https://inkonchain.com"

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -52,6 +53,7 @@ function LensIcon({ className }: { className?: string }) {
 
 export function ReferralCTA() {
   const [open, setOpen] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <>
@@ -60,26 +62,44 @@ export function ReferralCTA() {
         onClick={() => setOpen(true)}
         className="group fixed bottom-6 right-6 z-40 flex size-12 cursor-pointer items-center justify-center rounded-full border border-border/50 bg-card/80 outline-none backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-ring sm:size-14"
         aria-label="Support NadoLens — trade with our referral"
-        animate={{
-          y: [0, -3, 0],
-          boxShadow: [
-            "0 0 8px 2px rgba(139, 92, 246, 0.15)",
-            "0 0 20px 6px rgba(139, 92, 246, 0.35)",
-            "0 0 8px 2px rgba(139, 92, 246, 0.15)",
-          ],
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut",
-        }}
-        whileHover={{
-          scale: 1.1,
-          boxShadow: "0 0 24px 8px rgba(139, 92, 246, 0.45)",
-        }}
-        whileTap={{ scale: 0.95 }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : {
+                y: [0, -3, 0],
+                boxShadow: [
+                  "0 0 8px 2px rgba(139, 92, 246, 0.15)",
+                  "0 0 20px 6px rgba(139, 92, 246, 0.35)",
+                  "0 0 8px 2px rgba(139, 92, 246, 0.15)",
+                ],
+              }
+        }
+        transition={
+          prefersReducedMotion
+            ? undefined
+            : {
+                duration: 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }
+        }
+        whileHover={
+          prefersReducedMotion
+            ? undefined
+            : {
+                scale: 1.1,
+                boxShadow: "0 0 24px 8px rgba(139, 92, 246, 0.45)",
+              }
+        }
+        whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }}
       >
-        <LensIcon className="size-6 sm:size-7 transition-transform duration-300 group-hover:scale-125" />
+        <LensIcon
+          className={cn(
+            "size-6 sm:size-7",
+            !prefersReducedMotion &&
+              "transition-transform duration-300 group-hover:scale-125",
+          )}
+        />
       </motion.button>
       {open && (
         <Dialog open={open} onOpenChange={setOpen}>
