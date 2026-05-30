@@ -196,7 +196,7 @@ export function WalletPositions({
     return (
       <Card className="border-border bg-card">
         <CardContent className="p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
             Open Positions
           </div>
           <div className="space-y-2 py-2">
@@ -219,10 +219,10 @@ export function WalletPositions({
     return (
       <Card className="border-border bg-card">
         <CardContent className="p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
             Open Positions
           </div>
-          <div className="text-sm text-muted-foreground/70 text-center py-6">
+          <div className="text-sm text-muted-foreground/80 text-center py-6">
             No open positions
           </div>
         </CardContent>
@@ -235,7 +235,7 @@ export function WalletPositions({
       <Card className="border-border bg-card">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
               Open Positions
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -265,7 +265,7 @@ export function WalletPositions({
               ) : null}
             </div>
           </div>
-          <div className="text-sm text-muted-foreground/70 text-center py-6">
+          <div className="text-sm text-muted-foreground/80 text-center py-6">
             No open position for this subaccount
           </div>
         </CardContent>
@@ -277,9 +277,9 @@ export function WalletPositions({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
             Open Positions{" "}
-            <span className="ml-1 text-muted-foreground/50">
+            <span className="ml-1 text-muted-foreground/80">
               ({orderedPositions.length})
             </span>
           </div>
@@ -340,7 +340,7 @@ export function WalletPositions({
                     !positionFundingComplete ? (
                       <div className="flex flex-col items-end gap-0.5 leading-tight">
                         <span>{h}</span>
-                        <span className="text-[9px] text-muted-foreground/50 flex items-center gap-0.5 font-normal normal-case tracking-normal">
+                        <span className="text-[9px] text-muted-foreground/80 flex items-center gap-0.5 font-normal normal-case tracking-normal">
                           <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
                           Funding loading ...
                         </span>
@@ -353,7 +353,7 @@ export function WalletPositions({
                     <TableHead
                       key={h}
                       className={cn(
-                        "font-normal text-muted-foreground/70 pb-2",
+                        "font-normal text-muted-foreground/80 pb-2",
                         centered ? "text-center pr-2" : "text-right pr-4",
                         h === "Pair" && "sticky left-0 z-20 bg-card",
                       )}
@@ -436,7 +436,7 @@ export function WalletPositions({
                         <span className="font-mono text-foreground">
                           {pos.pair}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/70">
+                        <span className="text-[10px] text-muted-foreground/80">
                           {pos.isolated ? "Isolated" : "Cross"}
                         </span>
                       </div>
@@ -475,7 +475,7 @@ export function WalletPositions({
                         <span className="leading-none">
                           {fmtQty(Math.abs(pos.amount))}
                         </span>
-                        <span className="text-[10px] leading-none text-muted-foreground/70">
+                        <span className="text-[10px] leading-none text-muted-foreground/80">
                           {pos.mark_price > 0
                             ? fmtUsd.format(positionNotionalUsd(pos))
                             : "—"}
@@ -505,7 +505,7 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        snapshotReady ? pnlColor : "text-muted-foreground/40",
+                        snapshotReady ? pnlColor : "text-muted-foreground/80",
                       )}
                     >
                       {!snapshotReady ? (
@@ -522,7 +522,7 @@ export function WalletPositions({
                         "py-2 pr-4 text-right tabular-nums",
                         positionMatchesComplete && realizedNet != null
                           ? realizedColor
-                          : "text-muted-foreground/40",
+                          : "text-muted-foreground/80",
                       )}
                     >
                       {!positionMatchesComplete ? (
@@ -539,7 +539,7 @@ export function WalletPositions({
                         positionFundingComplete &&
                           pos.funding_cumulative != null
                           ? fundingColor
-                          : "text-muted-foreground/40",
+                          : "text-muted-foreground/80",
                       )}
                     >
                       {!positionFundingComplete ? (
@@ -550,7 +550,7 @@ export function WalletPositions({
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/60">
+                    <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/80">
                       {!positionMatchesComplete ? (
                         <Skeleton className="h-3.5 w-12 ml-auto rounded-sm" />
                       ) : pos.fees_cumulative != null ? (

@@ -222,7 +222,7 @@ export function WalletTradeHistory({
     return (
       <Card className="border-border bg-card">
         <CardContent className="p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-3">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
             Trade History
           </div>
           {!globalMatchesComplete ? (
@@ -234,7 +234,7 @@ export function WalletTradeHistory({
                       <TableHead
                         key={col.key}
                         className={cn(
-                          "font-normal text-muted-foreground/70 pb-2",
+                          "font-normal text-muted-foreground/80 pb-2",
                           i === 0
                             ? "text-left"
                             : i >= 5
@@ -309,7 +309,7 @@ export function WalletTradeHistory({
               </Table>
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground/70 text-center py-6">
+            <div className="text-sm text-muted-foreground/80 text-center py-6">
               No trades found
             </div>
           )}
@@ -351,9 +351,9 @@ export function WalletTradeHistory({
       <CardContent className="p-4">
         <div className="flex gap-3 mb-3 sm:items-center">
           <div className="flex flex-col justify-between sm:flex-row sm:items-center sm:gap-3">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 pt-1 sm:pt-0">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 pt-1 sm:pt-0">
               Trade History
-              <span className="ml-1.5 text-muted-foreground/50 normal-case tracking-normal">
+              <span className="ml-1.5 text-muted-foreground/80 normal-case tracking-normal">
                 {displayRows.length}
                 {viewMode === "aggregated" ? " orders" : " fills"}
               </span>
@@ -382,7 +382,7 @@ export function WalletTradeHistory({
           </div>
           <div className="ml-auto flex items-start gap-0.5 sm:items-center sm:gap-2">
             <div className="flex flex-col items-center justify-between sm:flex-row gap-1.5 pb-1 sm:pb-0 sm:gap-2">
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground/80">
                 <Button
                   variant="outline"
                   size="icon-xs"
@@ -440,7 +440,7 @@ export function WalletTradeHistory({
                   <TableHead
                     key={col.key}
                     className={cn(
-                      "font-normal text-muted-foreground/70 pb-2",
+                      "font-normal text-muted-foreground/80 pb-2",
                       i === 0
                         ? "text-center"
                         : i >= 5
@@ -467,7 +467,7 @@ export function WalletTradeHistory({
                 <TableRow>
                   <TableCell
                     colSpan={TRADE_TABLE_COL_COUNT}
-                    className="py-8 text-center text-sm text-muted-foreground/70"
+                    className="py-8 text-center text-sm text-muted-foreground/80"
                   >
                     No trades for this account filter
                   </TableCell>
@@ -546,7 +546,7 @@ export function WalletTradeHistory({
                         <span className="font-mono text-foreground">
                           {row.pair}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/70">
+                        <span className="text-[10px] text-muted-foreground/80">
                           {row.isolated ? "Isolated" : "Cross"}
                         </span>
                       </div>
@@ -595,7 +595,7 @@ export function WalletTradeHistory({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        row.hasPnl ? pnlColor : "text-muted-foreground/70",
+                        row.hasPnl ? pnlColor : "text-muted-foreground/80",
                       )}
                     >
                       {row.hasPnl
@@ -635,7 +635,9 @@ export function WalletTradeHistory({
                       <TableCell className="py-1.5 pr-4 text-muted-foreground/90 whitespace-nowrap text-[11px] sm:text-xs">
                         <div className="flex items-center gap-1">
                           <span className="inline-block w-3" />
-                          <span className="text-muted-foreground/30">├</span>
+                          <span className="text-muted-foreground/50" aria-hidden>
+                            ├
+                          </span>
                           <span>
                             <span className="sm:hidden leading-tight text-center">
                               <span>{fmtDate(fill.timestamp)}</span>
@@ -703,7 +705,7 @@ export function WalletTradeHistory({
           </Table>
         </div>
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
-          <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+          <span className="text-[11px] text-muted-foreground/80 tabular-nums">
             {displayRows.length === 0 ? (
               <>0 of 0</>
             ) : (
@@ -714,7 +716,7 @@ export function WalletTradeHistory({
               </>
             )}
           </span>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground/80">
             <Button
               variant="outline"
               size="icon-xs"

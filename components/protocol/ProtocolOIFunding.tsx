@@ -466,6 +466,7 @@ export function ProtocolOIFunding() {
         >
           <SelectTrigger
             size="sm"
+            aria-label="Select timeframe"
             className="w-[140px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
           >
             <SelectValue />
@@ -721,6 +722,7 @@ export function ProtocolOIFunding() {
               >
                 <SelectTrigger
                   size="sm"
+                  aria-label="Select market"
                   className="w-[160px] dark:border-border/40 px-2 text-[13px] font-medium gap-2"
                 >
                   <SelectValue placeholder="Select market">

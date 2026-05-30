@@ -87,12 +87,13 @@ export function WalletFundingByProductChart() {
     <Card>
       <CardContent className="p-4 space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
           Funding by Product
         </div>
         <Select value={period} onValueChange={(v) => handlePeriodChange(v as EquityPeriod)}>
             <SelectTrigger
               size="sm"
+              aria-label="Select period"
               className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
             >
               <SelectValue />

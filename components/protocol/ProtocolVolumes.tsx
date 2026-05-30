@@ -374,6 +374,7 @@ export function ProtocolVolumes() {
         >
           <SelectTrigger
             size="sm"
+            aria-label="Select timeframe"
             className="w-[140px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground"
           >
             <SelectValue />

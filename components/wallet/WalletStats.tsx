@@ -102,7 +102,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
       {items.map(({ label, value, color, sub, skeleton, subSkeleton }) => (
         <Card key={label} className="border-border bg-card min-w-0 flex">
           <CardContent className="p-3 text-center flex flex-col items-center justify-center flex-1">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-1">
               {label}
             </div>
             <div className={cn("min-h-7 flex items-center justify-center")}>
@@ -117,7 +117,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
             {subSkeleton ? (
               <Skeleton className="h-3 w-24 mx-auto mt-0.5" />
             ) : sub ? (
-              <div className="text-[11px] tabular-nums text-muted-foreground/50 mt-0.5">
+              <div className="text-[11px] tabular-nums text-muted-foreground/80 mt-0.5">
                 {sub}
               </div>
             ) : null}
@@ -127,7 +127,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
       {biggestCards.map(({ label, trade, color }) => (
         <Card key={label} className="border-border bg-card min-w-0 flex">
           <CardContent className="p-3 text-center flex flex-col items-center justify-center flex-1 w-full">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-1">
               {label}
             </div>
             <div className={cn("min-h-7 flex items-center justify-center")}>
@@ -139,7 +139,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
                   {fmtPnl.format(trade.pnl)}
                 </span>
               ) : (
-                <span className="text-base font-bold text-muted-foreground/50">
+                <span className="text-base font-bold text-muted-foreground/80">
                   —
                 </span>
               )}
@@ -165,7 +165,7 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
                   </span>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     {trade.closed_at && (
-                      <span className="text-[11px] text-muted-foreground/70">
+                      <span className="text-[11px] text-muted-foreground/80">
                         {new Date(trade.closed_at).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",

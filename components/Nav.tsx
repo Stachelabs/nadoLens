@@ -109,7 +109,7 @@ export function Nav() {
                   }),
                   isMyWallet
                     ? "border border-brand/40 bg-brand/20 text-brand"
-                    : "text-brand hover:text-brand/80",
+                    : "text-brand hover:text-brand/90",
                 )}
               >
                 My Wallet
@@ -120,7 +120,7 @@ export function Nav() {
           <span
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
-              "pointer-events-none gap-1.5 text-muted-foreground/40",
+              "pointer-events-none gap-1.5 text-muted-foreground/80",
             )}
           >
             Airdrop
@@ -164,6 +164,7 @@ export function Nav() {
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger
+              aria-label="Feedback and social links"
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon" }),
                 "border border-border text-muted-foreground min-[860px]:hidden",
@@ -206,6 +207,7 @@ export function Nav() {
           <ThemeToggle />
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger
+              aria-label={sheetOpen ? "Close menu" : "Open menu"}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon" }),
                 "size-8 border border-border text-foreground",
@@ -263,7 +265,7 @@ export function Nav() {
                     onClick={() => setSheetOpen(false)}
                     className={cn(
                       buttonVariants({ variant: "ghost" }),
-                      "justify-start text-brand hover:text-brand/80",
+                      "justify-start text-brand hover:text-brand/90",
                       pathname === `/wallet/${address}` && "bg-brand/10",
                     )}
                   >
@@ -273,7 +275,7 @@ export function Nav() {
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/40",
+                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/80",
                   )}
                 >
                   Airdrop

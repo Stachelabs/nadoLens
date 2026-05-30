@@ -339,7 +339,7 @@ export function ProtocolRevenue() {
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">Timeframe</span>
         <Select value={timeframe} onValueChange={(v) => setTimeframe(v as RevenueTimeframe)}>
-          <SelectTrigger size="sm" className="w-[140px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground">
+          <SelectTrigger size="sm" aria-label="Select timeframe" className="w-[140px] shrink-0 dark:border-border/40 px-2 text-[11px] font-medium text-foreground">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="start">

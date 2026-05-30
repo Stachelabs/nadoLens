@@ -163,7 +163,7 @@ export function WalletEquityCurve({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 text-[11px] uppercase tracking-wider text-muted-foreground/70">
+          <div className="min-w-0 text-[11px] uppercase tracking-wider text-muted-foreground/80">
             Perp Equity Curve
           </div>
           <div className="shrink-0 sm:ml-auto">
@@ -175,6 +175,7 @@ export function WalletEquityCurve({
             >
               <SelectTrigger
                 size="sm"
+                aria-label="Select period"
                 className="w-full min-w-[140px] sm:w-[160px] dark:border-border/40  px-2 text-[11px] font-medium text-foreground"
               >
                 <SelectValue />
@@ -276,11 +277,11 @@ export function WalletEquityCurve({
         ) : periodDataPending ? (
           <LoadingShimmer text="Loading PnL curve..." />
         ) : emptyInPeriod ? (
-          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/70">
+          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/80">
             No trades in this period
           </div>
         ) : (
-          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/70">
+          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground/80">
             Not enough trade data to plot curve
           </div>
         )}

@@ -35,7 +35,7 @@ export function ProtocolTabNav() {
               if (tab) setActiveTab(tab.value);
             }}
           >
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger size="sm" aria-label="Select tab" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

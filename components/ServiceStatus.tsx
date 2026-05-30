@@ -38,7 +38,7 @@ export function ServiceStatus({ horizontal = false }: { horizontal?: boolean }) 
 
   return (
     <div className={horizontal ? "flex flex-row items-center justify-center gap-4" : "flex flex-col gap-1.5"}>
-      <span className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
         <StatusDot color={resolveColor(status, loading)} />
         NadoLens: {resolveLabel(status, loading)}
       </span>
@@ -46,7 +46,7 @@ export function ServiceStatus({ horizontal = false }: { horizontal?: boolean }) 
         href="https://nado-xyz.betteruptime.com/"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+        className="flex items-center gap-1.5 text-xs text-muted-foreground/80 transition-colors hover:text-muted-foreground"
       >
         <StatusDot color={loading ? "gray" : nadoOk ? "green" : "red"} />
         Nado: {loading ? "Checking..." : nadoOk ? "Online" : "Offline"}

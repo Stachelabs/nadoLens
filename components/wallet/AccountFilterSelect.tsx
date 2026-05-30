@@ -38,6 +38,7 @@ export function AccountFilterSelect({
     >
       <SelectTrigger
         size="sm"
+        aria-label="Filter by account"
         className={cn(
           "max-w-30 min-w-14 dark:border-border/40 px-2 text-[11px] font-medium text-muted-foreground",
           "[&_svg]:size-3 [&_svg]:opacity-60",

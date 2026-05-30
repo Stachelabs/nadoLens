@@ -75,7 +75,7 @@ export function WalletSpotBalances({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="mb-3 flex flex-wrap  items-center gap-2 min-h-6">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
             Spot Balances
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
