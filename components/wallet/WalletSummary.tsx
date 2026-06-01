@@ -331,10 +331,10 @@ export function WalletSummary({
                 ) : globalFundingLoading ? (
                   <span
                     role="status"
-                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-sans text-[11px] font-normal leading-normal text-muted-foreground/80"
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-sans text-xs font-normal leading-normal text-muted-foreground/80"
                   >
                     <span
-                      className="size-1.5 shrink-0 rounded-full bg-muted-foreground/40 animate-pulse"
+                      className="size-2 shrink-0 rounded-full bg-muted-foreground/40 animate-pulse"
                       aria-hidden
                     />
                     Funding loading ...
