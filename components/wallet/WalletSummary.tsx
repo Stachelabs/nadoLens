@@ -74,13 +74,13 @@ function Row({
   valueClass?: string;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-border/30 last:border-0">
+    <div className="flex items-center justify-between gap-4 py-1.5 border-b border-border/30 last:border-0">
       <span className="text-[11px] uppercase tracking-wider text-muted-foreground/80 shrink-0">
         {label}
       </span>
       <span
         className={cn(
-          "text-sm font-bold tabular-nums font-mono text-right min-h-5 flex items-center justify-end",
+          "flex min-h-6 min-w-32 shrink-0 items-center justify-end overflow-visible text-right text-sm font-bold leading-normal tabular-nums font-mono",
           valueClass ?? "text-foreground",
         )}
       >
@@ -222,7 +222,7 @@ export function WalletSummary({
           </div>
 
           <Section
-            className="min-w-0 w-full lg:flex-1 lg:basis-0"
+            className="min-w-0 w-full overflow-visible lg:flex-1 lg:basis-0"
             title="Overview"
             loading={!globalMatchesComplete}
             action={
@@ -329,8 +329,14 @@ export function WalletSummary({
                 globalFundingComplete ? (
                   `${isFundingPositive ? "+" : ""}${fmtUsd.format(fundingPaidUsd)}`
                 ) : globalFundingLoading ? (
-                  <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/80">
-                    <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/40 animate-pulse" />
+                  <span
+                    role="status"
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-sans text-xs font-normal leading-normal text-muted-foreground/80"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-full bg-muted-foreground/40 animate-pulse"
+                      aria-hidden
+                    />
                     Funding loading ...
                   </span>
                 ) : (
