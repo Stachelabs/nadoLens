@@ -137,7 +137,7 @@ export function Nav() {
               )}
             >
               Feedback
-              <ChevronDown className="size-3 transition-transform duration-200 [[data-popup-open]_&]:rotate-180" />
+              <ChevronDown className="size-3 transition-transform duration-200 in-data-popup-open:rotate-180" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={8}>
               {socialLinks.map(({ href, label, icon: Icon }) => (
