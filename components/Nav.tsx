@@ -133,11 +133,11 @@ export function Nav() {
             <DropdownMenuTrigger
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "hidden gap-1 text-muted-foreground min-[860px]:inline-flex",
+                "hidden gap-1 text-muted-foreground min-[860px]:inline-flex data-popup-open:[&_svg]:rotate-180",
               )}
             >
               Feedback
-              <ChevronDown className="size-3 transition-transform duration-200 in-data-popup-open:rotate-180" />
+              <ChevronDown className="size-3 transition-transform duration-200" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={8}>
               {socialLinks.map(({ href, label, icon: Icon }) => (
