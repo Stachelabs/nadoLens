@@ -1,3 +1,5 @@
+import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
+import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NADO_MATCHES_SERVICE_URL } from "@/lib/nado";
 import {
   ArchiveMatchesResponseSchema,
@@ -15,7 +17,8 @@ export async function POST(
   request: NextRequest,
 ): Promise<NextResponse<z.infer<typeof ArchiveMatchesResponseSchema> | ErrResponse>> {
   try {
-    if (!process.env.SERVICE_SECRET) {
+    const serviceSecret = process.env.SERVICE_SECRET;
+    if (!serviceSecret) {
       return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
@@ -32,15 +35,18 @@ export async function POST(
       );
     }
 
-    const response = await fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Service-Secret": process.env.SERVICE_SECRET,
-      },
-      body: JSON.stringify(bodyResult.data),
-      cache: "no-store",
-    });
+    const response = await withTransientRetry(() =>
+      fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Service-Secret": serviceSecret,
+        },
+        body: JSON.stringify(bodyResult.data),
+        signal: AbortSignal.timeout(10_000),
+        cache: "no-store",
+      }),
+    );
 
     if (!response.ok) {
       return NextResponse.json(
@@ -59,7 +65,7 @@ export async function POST(
     }
 
     return NextResponse.json(parsed.data);
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    return categorizedErrorResponse(e, "[api/matches]");
   }
 }

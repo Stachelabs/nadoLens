@@ -4,6 +4,7 @@ import {
   NadoSubaccountDataSchema,
   SubaccountOrdersDataSchema,
 } from "@/lib/schemas/nado";
+import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { parseGatewayJson } from "@/lib/api/validateResponse";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
@@ -37,6 +38,7 @@ function gatewayParseErrorResponse(parsed: {
 }
 
 export async function GET(request: NextRequest, { params }: Props) {
+  let query: string | undefined;
   try {
     const { address } = await params;
     const { searchParams } = new URL(request.url);
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest, { params }: Props) {
     if (!queryResult.success) {
       return NextResponse.json({ error: "Invalid query type" }, { status: 400 });
     }
-    const query = queryResult.data;
+    query = queryResult.data;
 
     // Accept 20-byte EVM address (via isAddress) or 32-byte subaccount bytes32
     const isBytes32 = /^0x[a-fA-F0-9]{64}$/.test(address);
@@ -59,6 +61,7 @@ export async function GET(request: NextRequest, { params }: Props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: query, subaccount: address }),
+      signal: AbortSignal.timeout(10_000),
       cache: "no-store",
     });
 
@@ -96,7 +99,7 @@ export async function GET(request: NextRequest, { params }: Props) {
     }
 
     return NextResponse.json({ error: "Unhandled query type" }, { status: 400 });
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    return categorizedErrorResponse(e, "[api/wallet]", { query });
   }
 }

@@ -22,6 +22,7 @@ export async function GET() {
   try {
     const res = await fetch(`${NADO_GATEWAY_V2}/assets`, {
       headers: { 'Accept-Encoding': 'gzip' },
+      signal: AbortSignal.timeout(10_000),
       next: { revalidate: 3600 },
     })
     if (!res.ok) throw new Error('failed')
@@ -29,7 +30,9 @@ export async function GET() {
     const result = V2AssetsResponseSchema.safeParse(raw)
     if (!result.success) throw new Error('invalid')
     return NextResponse.json(result.data)
-  } catch {
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    console.error('[api/pairs]', { category: 'fallback', message })
     return NextResponse.json(FALLBACK)
   }
 }

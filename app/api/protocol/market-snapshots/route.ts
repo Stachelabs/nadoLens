@@ -1,3 +1,4 @@
+import { categorizedErrorResponse } from '@/lib/api/apiErrorResponse'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { NADO_ARCHIVE_REST } from '@/lib/nado'
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<MarketSnap
             interval: { count, max_time: maxTime, granularity },
           },
         }),
+        signal: AbortSignal.timeout(10_000),
       }),
     )
 
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<MarketSnap
 
     const snapshots = parsed.data.snapshots['57073'] ?? []
     return NextResponse.json(snapshots)
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (e) {
+    return categorizedErrorResponse(e, '[api/protocol/market-snapshots]')
   }
 }
