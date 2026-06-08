@@ -1,3 +1,4 @@
+import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { NADO_ARCHIVE_REST } from "@/lib/nado";
 import {
   AccountSnapshotsRequestSchema,
@@ -56,41 +57,46 @@ export async function POST(
     },
   };
 
-  const response = await withArchiveRetry(
-    () =>
-      fetch(NADO_ARCHIVE_REST, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept-Encoding": "gzip, br, deflate",
-        },
-        body: JSON.stringify(archiveBody),
-        cache: "no-store",
-      }),
-    { maxAttempts: 5, baseDelayMs: 400, maxDelayMs: 30_000 },
-  );
-
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: "Archive snapshots request failed" },
-      { status: response.status },
-    );
-  }
-
-  const raw: unknown = await response.json();
-  const parsed = parseArchiveJson(AccountSnapshotsResponseSchema, raw);
-  if (!parsed.ok) {
-    return NextResponse.json(
-      { error: "Invalid snapshots response from Archive" },
-      { status: 502 },
-    );
-  }
-
   try {
-    await redis.set(key, parsed.data, { ex: 300 });
-  } catch {
-    // Cache write failure is non-fatal
-  }
+    const response = await withArchiveRetry(
+      () =>
+        fetch(NADO_ARCHIVE_REST, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip, br, deflate",
+          },
+          body: JSON.stringify(archiveBody),
+          signal: AbortSignal.timeout(10_000),
+          cache: "no-store",
+        }),
+      { maxAttempts: 5, baseDelayMs: 400, maxDelayMs: 30_000 },
+    );
 
-  return NextResponse.json(parsed.data);
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: "Archive snapshots request failed" },
+        { status: response.status },
+      );
+    }
+
+    const raw: unknown = await response.json();
+    const parsed = parseArchiveJson(AccountSnapshotsResponseSchema, raw);
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: "Invalid snapshots response from Archive" },
+        { status: 502 },
+      );
+    }
+
+    try {
+      await redis.set(key, parsed.data, { ex: 300 });
+    } catch {
+      // Cache write failure is non-fatal
+    }
+
+    return NextResponse.json(parsed.data);
+  } catch (e) {
+    return categorizedErrorResponse(e, "[api/snapshots]");
+  }
 }

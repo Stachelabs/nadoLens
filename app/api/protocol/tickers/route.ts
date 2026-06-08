@@ -66,10 +66,12 @@ export async function GET(): Promise<NextResponse<TickerApiResponse>> {
     const [tickersRes, assetsRes] = await Promise.allSettled([
       fetch(`${NADO_ARCHIVE_V2}/contracts`, {
         headers: { 'Accept-Encoding': 'gzip' },
+        signal: AbortSignal.timeout(10_000),
         next: { revalidate: TICKERS_REVALIDATE_SECONDS },
       }),
       fetch(`${NADO_GATEWAY_V2}/assets`, {
         headers: { 'Accept-Encoding': 'gzip' },
+        signal: AbortSignal.timeout(10_000),
         next: { revalidate: TICKERS_REVALIDATE_SECONDS },
       }),
     ])
@@ -102,7 +104,9 @@ export async function GET(): Promise<NextResponse<TickerApiResponse>> {
 
     lastGoodTickers = parsed.data
     return NextResponse.json(parsed.data)
-  } catch {
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    console.error('[api/protocol/tickers]', { category: 'fallback', message })
     return staleFallbackOrError('Internal server error', 500)
   }
 }

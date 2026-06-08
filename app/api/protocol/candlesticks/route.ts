@@ -1,3 +1,4 @@
+import { categorizedErrorResponse } from '@/lib/api/apiErrorResponse'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { NADO_ARCHIVE_V2 } from '@/lib/nado'
@@ -24,7 +25,7 @@ export async function GET(
     const res = await withArchiveRetry(() =>
       fetch(
         `${NADO_ARCHIVE_V2}/candlesticks?product_id=${productId}&granularity=86400&limit=${limit}`,
-        { headers: { 'Accept-Encoding': 'gzip' } },
+        { headers: { 'Accept-Encoding': 'gzip' }, signal: AbortSignal.timeout(10_000) },
       ),
     )
 
@@ -40,7 +41,7 @@ export async function GET(
     }
 
     return NextResponse.json(parsed.data.candlesticks)
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  } catch (e) {
+    return categorizedErrorResponse(e, '[api/protocol/candlesticks]')
   }
 }

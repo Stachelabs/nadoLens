@@ -1,3 +1,5 @@
+import { categorizedErrorResponse } from '@/lib/api/apiErrorResponse'
+import { withTransientRetry } from '@/lib/api/withTransientRetry'
 import { NextResponse } from 'next/server'
 import { NADO_GATEWAY_REST } from '@/lib/nado'
 import { InsuranceFundResponseSchema } from '@/lib/schemas/nado'
@@ -5,30 +7,50 @@ import { fromX18BigInt } from '@/types/nado'
 
 export const revalidate = 60
 
-export async function GET(): Promise<NextResponse<{ total: number } | { error: string }>> {
-  try {
-    const res = await fetch(`${NADO_GATEWAY_REST}/query`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept-Encoding': 'gzip',
-      },
-      body: JSON.stringify({ type: 'insurance' }),
+type InsuranceResponse = { total: number }
+
+let lastGoodInsurance: InsuranceResponse | null = null
+
+function staleFallbackOrError(message: string, status: number): NextResponse<InsuranceResponse | { error: string }> {
+  if (lastGoodInsurance) {
+    return NextResponse.json(lastGoodInsurance, {
+      headers: { 'x-nadolens-fallback': 'stale-insurance-cache' },
     })
+  }
+  return NextResponse.json({ error: message }, { status })
+}
+
+export async function GET(): Promise<NextResponse<InsuranceResponse | { error: string }>> {
+  try {
+    const res = await withTransientRetry(() =>
+      fetch(`${NADO_GATEWAY_REST}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Encoding': 'gzip',
+        },
+        body: JSON.stringify({ type: 'insurance' }),
+        signal: AbortSignal.timeout(10_000),
+      }),
+    )
 
     if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to fetch insurance fund' }, { status: 502 })
+      return staleFallbackOrError('Failed to fetch insurance fund', 502)
     }
 
     const raw: unknown = await res.json()
     const parsed = InsuranceFundResponseSchema.safeParse(raw)
 
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid insurance fund response' }, { status: 502 })
+      return staleFallbackOrError('Invalid insurance fund response', 502)
     }
 
-    return NextResponse.json({ total: fromX18BigInt(parsed.data.data.insurance) })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const result: InsuranceResponse = { total: fromX18BigInt(parsed.data.data.insurance) }
+    lastGoodInsurance = result
+    return NextResponse.json(result)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    console.error('[api/protocol/insurance-fund]', { category: 'fallback', message })
+    return staleFallbackOrError('Internal server error', 500)
   }
 }

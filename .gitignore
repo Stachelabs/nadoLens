@@ -17,6 +17,7 @@
 
 # testing
 /coverage
+lib/wallet/snapshotEntryPrice.test.ts
 
 # next.js
 /.next/
