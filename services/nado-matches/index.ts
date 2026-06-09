@@ -239,45 +239,56 @@ async function fetchWithRetry(body: MatchesBody): Promise<Response> {
   const maxAttempts = 8;
   const baseDelayMs = 400;
   const maxDelayMs = 60_000;
-  let last!: Response;
+  let last: Response | undefined;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const res = await fetch(ARCHIVE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Encoding": "gzip, br, deflate",
-      },
-      body: JSON.stringify({
-        matches: {
-          subaccounts: body.subaccounts,
-          limit: body.limit,
-          isolated: body.isolated,
-          ...(body.idx ? { idx: body.idx } : {}),
-          ...(body.product_ids?.length
-            ? { product_ids: body.product_ids }
-            : {}),
+    try {
+      const res = await fetch(ARCHIVE_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Encoding": "gzip, br, deflate",
         },
-      }),
-    });
+        body: JSON.stringify({
+          matches: {
+            subaccounts: body.subaccounts,
+            limit: body.limit,
+            isolated: body.isolated,
+            ...(body.idx ? { idx: body.idx } : {}),
+            ...(body.product_ids?.length
+              ? { product_ids: body.product_ids }
+              : {}),
+          },
+        }),
+      });
 
-    if (res.status !== 429) return res;
-    last = res;
+      if (res.status < 500 && res.status !== 429) return res;
+      last = res;
+      console.warn(`[nado-matches] Archive retry ${attempt + 1}/${maxAttempts} — status ${res.status}`);
+    } catch (e) {
+      lastError = e;
+      const reason = e instanceof Error ? e.message : "unknown";
+      console.warn(`[nado-matches] Archive retry ${attempt + 1}/${maxAttempts} — ${reason}`);
+    }
 
     if (attempt < maxAttempts - 1) {
-      const ra = res.headers.get("Retry-After");
+      const ra = last?.headers.get("Retry-After");
       const retryAfterMs = ra
         ? Math.min(parseInt(ra, 10) * 1000, maxDelayMs)
         : 0;
+      const jitter = 1 + Math.random() * 0.3;
       const delay = Math.min(
-        baseDelayMs * Math.pow(2, attempt) + retryAfterMs,
+        baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs,
         maxDelayMs,
       );
       await sleep(delay);
     }
   }
 
-  return last;
+  if (last) return last;
+  throw lastError;
 }
 
 // ─── HTTP server ───────────────────────────────────────────────────────────────
@@ -389,7 +400,15 @@ const server = Bun.serve({
         }
       }
 
-      const archiveRes = await fetchWithRetry(body);
+      let archiveRes: Response;
+      try {
+        archiveRes = await fetchWithRetry(body);
+      } catch {
+        return Response.json(
+          { error: "Archive temporarily unavailable" },
+          { status: 502 },
+        );
+      }
 
       if (!archiveRes.ok) {
         return new Response(await archiveRes.text(), {

@@ -43,7 +43,7 @@ export async function POST(
           "X-Service-Secret": serviceSecret,
         },
         body: JSON.stringify(bodyResult.data),
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(18_000),
         cache: "no-store",
       }),
     );

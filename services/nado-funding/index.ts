@@ -31,38 +31,48 @@ async function fetchWithRetry(body: FundingBody): Promise<Response> {
   const maxAttempts = 4;
   const baseDelayMs = 350;
   const maxDelayMs = 8_000;
-  let last!: Response;
+  let last: Response | undefined;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const res = await fetch(ARCHIVE_URL, {
-      method: "POST",
-      signal: AbortSignal.timeout(8_000),
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Encoding": "gzip, br, deflate",
-      },
-      body: JSON.stringify({
-        interest_and_funding: {
-          subaccount: body.subaccount,
-          product_ids: body.product_ids,
-          limit: body.limit,
-          ...(body.max_idx ? { max_idx: body.max_idx } : {}),
+    try {
+      const res = await fetch(ARCHIVE_URL, {
+        method: "POST",
+        signal: AbortSignal.timeout(8_000),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Encoding": "gzip, br, deflate",
         },
-      }),
-    });
+        body: JSON.stringify({
+          interest_and_funding: {
+            subaccount: body.subaccount,
+            product_ids: body.product_ids,
+            limit: body.limit,
+            ...(body.max_idx ? { max_idx: body.max_idx } : {}),
+          },
+        }),
+      });
 
-    if (res.status !== 429) return res;
-    last = res;
+      if (res.status < 500 && res.status !== 429) return res;
+      last = res;
+      console.warn(`[nado-funding] Archive retry ${attempt + 1}/${maxAttempts} — status ${res.status}`);
+    } catch (e) {
+      lastError = e;
+      const reason = e instanceof Error ? e.message : "unknown";
+      console.warn(`[nado-funding] Archive retry ${attempt + 1}/${maxAttempts} — ${reason}`);
+    }
 
     if (attempt < maxAttempts - 1) {
-      const ra = res.headers.get("Retry-After");
+      const ra = last?.headers.get("Retry-After");
       const retryAfterMs = ra ? Math.min(parseInt(ra, 10) * 1000, maxDelayMs) : 0;
-      const delay = Math.min(baseDelayMs * Math.pow(2, attempt) + retryAfterMs, maxDelayMs);
+      const jitter = 1 + Math.random() * 0.3;
+      const delay = Math.min(baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs, maxDelayMs);
       await sleep(delay);
     }
   }
 
-  return last;
+  if (last) return last;
+  throw lastError;
 }
 
 const server = Bun.serve({
@@ -99,7 +109,15 @@ const server = Bun.serve({
         // Cache miss on error — proceed to Archive
       }
 
-      const archiveRes = await fetchWithRetry(body);
+      let archiveRes: Response;
+      try {
+        archiveRes = await fetchWithRetry(body);
+      } catch {
+        return Response.json(
+          { error: "Archive temporarily unavailable" },
+          { status: 502 },
+        );
+      }
 
       if (!archiveRes.ok) {
         return new Response(await archiveRes.text(), {
