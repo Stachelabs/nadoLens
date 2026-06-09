@@ -1047,6 +1047,7 @@ export function useWalletData(rawAddress: string): WalletData {
       refreshUnrealizedImplRef.current = async () => {
         if (cancelled) return;
         setData((prev) => ({ ...prev, unrealizedRefreshing: true }));
+        const minSpin = sleep(500);
         try {
           // Re-discover subaccounts from Archive — picks up brand-new isolated pockets
           // created after the initial page load.
@@ -1070,6 +1071,7 @@ export function useWalletData(rawAddress: string): WalletData {
           if (cancelled) return;
 
           if (pd.anyFailed) {
+            await minSpin;
             setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
             return;
           }
@@ -1105,6 +1107,7 @@ export function useWalletData(rawAddress: string): WalletData {
             effectiveFundingR,
           );
           const refreshTotals = recomputeUnrealizedTotals(refreshPositions, pd.equityUsd, pd.unrealizedTotal);
+          await minSpin;
           setData((prev) => ({
             ...prev,
             unrealizedRefreshing: false,
@@ -1125,6 +1128,7 @@ export function useWalletData(rawAddress: string): WalletData {
               : null,
           }));
         } catch {
+          await minSpin;
           setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
         }
       };
