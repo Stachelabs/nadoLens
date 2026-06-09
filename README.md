@@ -144,7 +144,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `pnpm test:watch` | Run Vitest (watch mode) |
 | `pnpm docs:build:nado` | Full RAG pipeline: sync, index, verify |
 | `pnpm docs:query:nado "<question>"` | Semantic search over Nado docs |
-| `pnpm icons:sync-nado-perps` | Sync perp market SVG icons from Nado app |
+| `pnpm icons:sync-nado-perps` | Sync perp + spot market SVG icons from Nado app (Gateway `/v2/assets` → Playwright) |
 
 ---
 
@@ -187,9 +187,10 @@ services/
   nado-funding/             # Bun service (Fly.io ams) — funding proxy
 scripts/
   docs-rag/                 # RAG CLI + config
-  icons-sync/               # Playwright icon scraper
+  icons-sync/               # Playwright icon sync (perp + spot)
 public/
-  icons/perps/              # Market SVG icons + manifest
+  icons/perps/              # Perp SVG icons + manifest.json
+  icons/spot/               # Spot SVG icons + manifest.json (wire up in lib/spotMeta.ts)
 ```
 
 ---
