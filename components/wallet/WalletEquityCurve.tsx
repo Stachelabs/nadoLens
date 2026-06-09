@@ -55,6 +55,7 @@ const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
   { value: "24 Hours", label: "Last 24h" },
   { value: "7 Days", label: "Last 7 days" },
   { value: "30 Days", label: "Last 30 days" },
+  { value: "90 Days", label: "Last 90 days" },
   { value: "All time", label: "All time" },
 ];
 

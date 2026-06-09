@@ -2,7 +2,7 @@ import type { TradeMatch } from '@/types/nado'
 import { nanoStringToUnixSec } from '@/lib/wallet/nanoTime'
 import type { FundingPaymentEntry } from '@/lib/wallet/buildEquityCurve'
 
-export type EquityPeriod = '24 Hours' | '7 Days' | '30 Days' | 'All time'
+export type EquityPeriod = '24 Hours' | '7 Days' | '30 Days' | '90 Days' | 'All time'
 
 /** Inclusive rolling window: [startSec, endSec]. 'all' → no window. */
 export function getPeriodBoundsUtc(
@@ -20,6 +20,8 @@ export function getPeriodBoundsUtc(
       return { startSec: endSec - 7 * 24 * 60 * 60, endSec }
     case '30 Days':
       return { startSec: endSec - 30 * 24 * 60 * 60, endSec }
+    case '90 Days':
+      return { startSec: endSec - 90 * 24 * 60 * 60, endSec }
     default:
       return null
   }
@@ -77,6 +79,8 @@ export function formatEquityPeriodLabel(period: EquityPeriod): string {
       return 'Last 7 days'
     case '30 Days':
       return 'Last 30 days'
+    case '90 Days':
+      return 'Last 90 days'
     case 'All time':
       return 'All time (since first trade)'
     default:
