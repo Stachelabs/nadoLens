@@ -74,11 +74,15 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 
 **Next.js server (Vercel)**
 - Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]` · `/api/status`
-- Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/liquidations` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates` · `/api/protocol/insurance-fund`
+- Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates` · `/api/protocol/insurance-fund`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
-- **ALWAYS** wrap API route handlers in `try/catch` → `{ error: "Internal server error" }` with 500
-- **ALWAYS** use `withArchiveRetry()` for direct Archive fetches (handles 429 + backoff)
+- **ALWAYS** wrap API route handlers in `try/catch` → `categorizedErrorResponse(e, routeLabel)` (timeout→504, network/parse→502, unknown→500)
+- **ALWAYS** add `signal: AbortSignal.timeout(10_000)` to every upstream `fetch()` call
+- **ALWAYS** use `withArchiveRetry()` for direct Archive fetches (handles 429 + exponential backoff)
+- **ALWAYS** use `withTransientRetry()` for Fly.io services (matches, funding) and Gateway one-shots (products, insurance-fund) — 2 attempts, 300ms backoff on 5xx/network/timeout
 - **ALWAYS** fail-fast if required env vars are missing (`SERVICE_SECRET`, etc.) — never `?? ""`
+- Products + insurance-fund routes: stale cache fallback (`lastGood*` module variable) with `x-nadolens-fallback` header on failure
+- Shared utilities: `lib/api/apiErrorResponse.ts` · `lib/api/withTransientRetry.ts` · `lib/archiveRetry.ts` · `lib/api/validateResponse.ts`
 
 **WS Proxy + nado-matches (Fly.io fra — Bun, co-located)**
 - Region **fra** (Frankfurt) — EU IPs required, Nado blocks US East
@@ -233,4 +237,4 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
 ---
 
-_CLAUDE.md v4.3 — NadoLens — updated 2026-05-22_
+_CLAUDE.md v4.4 — NadoLens — updated 2026-06-08_
