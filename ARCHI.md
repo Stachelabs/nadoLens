@@ -377,11 +377,15 @@ Not available via public API. Ignore for MVP → display "—" or hide.
 ## 11. Error Handling & Resilience
 
 ### API Routes
-All API routes follow these error patterns (established in codebase audit 2026-05-07):
-- **try/catch**: Every route wraps its handler in try/catch → `{ error: "Internal server error" }` with 500
+All API routes follow these error patterns (hardened in observability pass 2026-06-08):
+- **try/catch**: Every route wraps its handler in `try/catch` → `categorizedErrorResponse(e, routeLabel)` which maps timeout→504, network/parse→502, unknown→500. Logs structured `console.error(routeLabel, { category, message, ...context })`
+- **Timeout**: `AbortSignal.timeout(10_000)` on every upstream `fetch()` — prevents indefinite hangs
 - **Zod validation**: All external responses validated via `safeParse()` before returning to client
-- **withArchiveRetry**: All direct Archive fetches wrapped in `withArchiveRetry()` (handles 429 + backoff)
+- **withArchiveRetry**: Archive fetches (snapshots, subaccounts, candlesticks, funding-rates, market-snapshots) wrapped in `withArchiveRetry()` — retries on 429, exponential backoff up to 30s, 5 attempts
+- **withTransientRetry**: Fly.io services (matches, funding) + Gateway one-shots (products, insurance-fund) wrapped in `withTransientRetry()` — retries on 5xx/network/timeout, 2 attempts, 300ms backoff
+- **Stale cache fallback**: products + insurance-fund keep `lastGood*` module variable; on failure return cached response with `x-nadolens-fallback` header. Pairs uses hardcoded FALLBACK array. Tickers uses `lastGoodTickers` stale cache
 - **SERVICE_SECRET**: matches/funding routes fail-fast if secret is missing (no silent empty string)
+- Shared utilities: `lib/api/apiErrorResponse.ts` · `lib/api/withTransientRetry.ts` · `lib/archiveRetry.ts` · `lib/api/validateResponse.ts`
 
 ### Client Hooks
 - **AbortController**: `useWalletData` and all protocol hooks pass `signal` to every fetch. Cleanup aborts on unmount.
@@ -406,7 +410,7 @@ No known bugs. Last reviewed: 2026-05-22.
 
 ---
 
-*ARCHI.md v4.1 — NadoLens — updated 2026-05-22*
+*ARCHI.md v4.2 — NadoLens — updated 2026-06-08*
 
 ---
 
@@ -432,16 +436,22 @@ No known bugs. Last reviewed: 2026-05-22.
 
 ## 13. Next.js API route conventions (Zod)
 
-All Nado proxy routes under `app/api/**/` follow the same pattern:
+All Nado proxy routes under `app/api/**/` follow this pattern:
 
 1. **Guard**: Fail-fast if required env vars missing (e.g., `SERVICE_SECRET`).
 2. **Incoming body** (POST): `SomeRequestSchema.safeParse(await request.json())` → `400` if invalid.
-3. **Call**: `withArchiveRetry(() => fetch(NADO_ARCHIVE_REST, ...))` for Archive routes. Direct fetch for Gateway.
-4. **Response**: `parseArchiveJson(ResponseSchema, raw)` (`lib/api/validateResponse.ts`) → `502` if shape invalid.
-5. **Error**: Entire handler wrapped in `try/catch` → `{ error: "Internal server error" }` with `500`.
+3. **Fetch** (with retry + timeout):
+   - Archive routes → `withArchiveRetry(() => fetch(..., { signal: AbortSignal.timeout(10_000) }))` — retries on 429
+   - Fly.io services (matches, funding) → `withTransientRetry(() => fetch(..., { signal: AbortSignal.timeout(10_000) }))` — retries on 5xx/network/timeout
+   - Gateway one-shots (products, insurance-fund) → `withTransientRetry()` + stale cache fallback (`lastGood*` + `x-nadolens-fallback` header)
+   - Fallback routes (pairs, tickers) → direct fetch with timeout, return cached/hardcoded data on failure
+4. **Response**: `parseArchiveJson(ResponseSchema, raw)` or `parseGatewayJson()` → `502` if shape invalid.
+5. **Error**: `try/catch` → `categorizedErrorResponse(e, routeLabel)` — timeout→504, network/parse→502, unknown→500. Structured `console.error` with route label + category.
 6. **Client response**: Already validated JSON (types = `z.infer<>`).
 
 Shared helpers:
+- `lib/api/apiErrorResponse.ts` — `categorizedErrorResponse(e, routeLabel, context?)` — granular status codes + structured logging
+- `lib/api/withTransientRetry.ts` — `withTransientRetry(fn, opts?)` — 2 attempts, 300ms backoff on 5xx/network/timeout
 - `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`, `parseGatewayJson(schema, raw)`
 - `lib/archiveRetry.ts` — `withArchiveRetry(fn)` — exponential backoff on 429, reads `Retry-After` header
 
