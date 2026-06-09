@@ -185,7 +185,7 @@ nadolens/
 │   └── schemas/nado.ts               ← Zod schemas (source of truth for types)
 ├── types/nado.ts                     ← interfaces + fromX18BigInt
 ├── scripts/
-│   ├── icons-sync/                   ← Playwright CDP icon scraper
+│   ├── icons-sync/                   ← Playwright icon sync (perp + spot, Gateway /v2/assets)
 │   └── docs-rag/                     ← RAG build/index/query scripts
 ├── nado-rag/                         ← crawled docs (pages-json, pages-md, reports)
 ├── docs/api/                         ← local Nado API reference docs
@@ -269,7 +269,7 @@ Codebase audit done. API observability hardened. README redesign and demo assets
 | WS Proxy + SSE | ✅ Shipped | `services/nado-matches` | Fly.io fra, always-on, fill + position_change events |
 | Funding Service | ✅ Shipped | `services/nado-funding` | Fly.io ams, 6h Redis cache TTL |
 | Docs RAG Pipeline | ✅ Shipped | `lib/docs-rag/` | Crawl + chunk + embed + query (Ollama/OpenAI) |
-| Icon Sync Script | ✅ Shipped | `scripts/icons-sync/` | Playwright CDP, Brave profile |
+| Icon Sync Script | ✅ Shipped | `scripts/icons-sync/` | Playwright Chromium; perp + spot → `public/icons/{perps,spot}/` + manifests; spot UI registry in `lib/spotMeta.ts` |
 | Open Orders | 🔜 Planned | — | Gateway stub exists (`subaccount_orders`) |
 | Share PnL | 🔜 Planned | — | Screenshot/export feature |
 | Chart Tracking | 🔜 Planned | — | Real-time price chart with position overlays |

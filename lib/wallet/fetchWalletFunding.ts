@@ -157,6 +157,7 @@ export type PositionFundingParams = {
 export async function fetchPositionScopedFunding(
   params: PositionFundingParams,
   signal?: AbortSignal,
+  onSubaccountComplete?: (subaccount: string, batchPayments: FundingPaymentEntry[]) => void,
 ): Promise<FundingPaymentEntry[]> {
   const { subaccountsWithPerps, openPerpProductIds, openTimeKeyByQueryKey, positionOpenTimeMap } = params
 
@@ -168,6 +169,7 @@ export async function fetchPositionScopedFunding(
     if (signal?.aborted) break
     const completedProducts = new Set<number>()
     let nextIdx: string | undefined = undefined
+    const batchStart = accumulated.length
 
     for (let page = 0; page < FUNDING_MAX_PAGES; page++) {
       if (signal?.aborted) break
@@ -223,6 +225,10 @@ export async function fetchPositionScopedFunding(
       if (completedProducts.size >= openPerpProductIds.length) break
 
       await sleep(FUNDING_BURST_MS)
+    }
+
+    if (onSubaccountComplete) {
+      onSubaccountComplete(subaccount, accumulated.slice(batchStart))
     }
   }
 

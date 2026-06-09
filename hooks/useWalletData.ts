@@ -69,6 +69,7 @@ export type WalletData = {
   snapshotReady: boolean;
   positionTrades: TradeMatch[];
   positionMatchesComplete: boolean;
+  matchedPositionKeys: string[];
   globalMatchesComplete: boolean;
   /** @deprecated Use globalMatchesComplete */
   tradesComplete: boolean;
@@ -94,6 +95,7 @@ export function useWalletData(rawAddress: string): WalletData {
     snapshotReady: false,
     positionTrades: [],
     positionMatchesComplete: false,
+    matchedPositionKeys: [],
     globalMatchesComplete: false,
     tradesComplete: false,
     error: null,
@@ -287,6 +289,7 @@ export function useWalletData(rawAddress: string): WalletData {
       }
 
       const completedProducts = new Set<string>();
+      const notifiedProducts = new Set<string>();
       const cursorByPair: Record<string, string | undefined> = {};
 
       let iteration = 0;
@@ -301,47 +304,52 @@ export function useWalletData(rawAddress: string): WalletData {
             [pair.querySubaccount],
             cursorByPair[pairKey],
             [pair.productId],
-            // Bypass Redis cache on first page only (no cursor) when fill-triggered.
-            // Paginated pages are historical — always safe to cache.
             !cursorByPair[pairKey] ? noCache : false,
           );
 
           if (result.rateLimited || result.trades.length === 0) {
             completedProducts.add(pairKey);
-            continue;
-          }
+          } else {
+            for (const trade of result.trades) {
+              const tradeId = `${trade.submission_idx ?? ""}-${trade.subaccount ?? ""}-${trade.product_id}`;
+              if (positionSeenTradeIdsRef.current.has(tradeId)) continue;
+              positionSeenTradeIdsRef.current.add(tradeId);
+              positionTradesRef.current.push(trade);
 
-          for (const trade of result.trades) {
-            const tradeId = `${trade.submission_idx ?? ""}-${trade.subaccount ?? ""}-${trade.product_id}`;
-            if (positionSeenTradeIdsRef.current.has(tradeId)) continue;
-            positionSeenTradeIdsRef.current.add(tradeId);
-            positionTradesRef.current.push(trade);
+              if ((trade.isolated ?? false) !== pair.isIsolated) continue;
+              if (trade.pre_balance_amount === undefined) continue;
 
-            // Only check the session-open boundary for trades matching this position's type.
-            // When querying by parent for isolated, the page may also contain cross fills.
-            if ((trade.isolated ?? false) !== pair.isIsolated) continue;
+              const preBalance = fromX18BigInt(trade.pre_balance_amount);
+              if (Math.abs(preBalance) < 1e-10) {
+                const timeSec = trade.timestamp
+                  ? Number(BigInt(trade.timestamp) / BigInt(1_000_000_000))
+                  : 0;
+                positionOpenTimeMapRef.current[pairKey] = timeSec;
+                completedProducts.add(pairKey);
+                break;
+              }
+            }
 
-            // pre_balance_amount undefined → no boundary data on this trade, keep paginating.
-            if (trade.pre_balance_amount === undefined) continue;
-
-            const preBalance = fromX18BigInt(trade.pre_balance_amount);
-            if (Math.abs(preBalance) < 1e-10) {
-              // Found the session opener: position was flat before this trade.
-              const timeSec = trade.timestamp
-                ? Number(BigInt(trade.timestamp) / BigInt(1_000_000_000))
-                : 0;
-              positionOpenTimeMapRef.current[pairKey] = timeSec;
-              completedProducts.add(pairKey);
-              break;
+            if (!completedProducts.has(pairKey)) {
+              if (result.done) {
+                completedProducts.add(pairKey);
+              } else {
+                cursorByPair[pairKey] = result.nextIdx ?? undefined;
+              }
             }
           }
 
-          if (!completedProducts.has(pairKey)) {
-            if (result.done) {
-              completedProducts.add(pairKey);
-            } else {
-              cursorByPair[pairKey] = result.nextIdx ?? undefined;
-            }
+          if (completedProducts.has(pairKey) && !notifiedProducts.has(pairKey) && !cancelled) {
+            notifiedProducts.add(pairKey);
+            const partialStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
+            positionStatsMapRef.current = partialStatsMap;
+            setData(prev => ({
+              ...prev,
+              matchedPositionKeys: [...notifiedProducts],
+              stats: prev.stats
+                ? { ...prev.stats, positions: applyPositionStats(prev.stats.positions, partialStatsMap) }
+                : null,
+            }));
           }
 
           await new Promise<void>(r => setTimeout(r, MATCHES_BURST_MS));
@@ -349,14 +357,13 @@ export function useWalletData(rawAddress: string): WalletData {
         iteration++;
       }
 
-      // Build and apply stats immediately so Fees + Realized PnL show real values
-      // the moment positionMatchesComplete flips — before Phase 2b (funding) loads.
       const matchStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = matchStatsMap;
       setData(prev => ({
         ...prev,
         positionTrades: [...positionTradesRef.current],
         positionMatchesComplete: true,
+        matchedPositionKeys: [],
         stats: prev.stats
           ? {
               ...prev.stats,
@@ -395,15 +402,33 @@ export function useWalletData(rawAddress: string): WalletData {
           }),
       ));
 
+      const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
+      positionStatsMapRef.current = positionSessionStatsMap;
+
       const accumulated = await fetchPositionScopedFunding({
         subaccountsWithPerps,
         openPerpProductIds,
         openTimeKeyByQueryKey,
         positionOpenTimeMap: positionOpenTimeMapRef.current,
-      }, signal);
+      }, signal, (subaccount, batchPayments) => {
+        if (cancelled) return;
+        useWalletFundingStore.getState().pushSubaccountFunding(rawAddress, subaccount, batchPayments);
+        const partialPayments = useWalletFundingStore.getState().forAddress(rawAddress)?.positionFundingPayments ?? [];
+        setData(prev => ({
+          ...prev,
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                positions: applySessionFunding(
+                  applyPositionStats(prev.stats.positions, positionSessionStatsMap),
+                  positionSessionStatsMap,
+                  partialPayments,
+                ),
+              }
+            : null,
+        }));
+      });
 
-      const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
-      positionStatsMapRef.current = positionSessionStatsMap;
       useWalletFundingStore.getState().setPositionFunding(rawAddress, accumulated, openPerpProductIds);
 
       if (!cancelled) {
@@ -523,6 +548,7 @@ export function useWalletData(rawAddress: string): WalletData {
         snapshotReady: false,
         positionTrades: [],
         positionMatchesComplete: false,
+        matchedPositionKeys: [],
         globalMatchesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
         tradesComplete: hasCachedTradesForPhase1 && tradesCompleteRef.current,
         refreshing: false,

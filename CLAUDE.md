@@ -208,11 +208,21 @@ RainbowKit: accent `#a855f7` · `locale="en"` · `coolMode` · `mounted` guard i
 
 ### `pnpm run icons:sync-nado-perps`
 
-Scrapes perp market SVG icons from app.nado.xyz via headless Playwright (Chromium).
+Syncs perp + spot market SVG icons from app.nado.xyz (Playwright Chromium, headless by default).
+Market list from Gateway `GET /v2/assets`; assets fetched from `/_next/static/media/*.svg`.
 
-No special setup needed — app.nado.xyz is public.
+Outputs:
+- Perps → `public/icons/perps/{BASE}.svg` + `manifest.json`
+- Spot → `public/icons/spot/{symbol.toLowerCase()}.svg` + `manifest.json`
 
-Env overrides (optional): `ICONS_ONLY=BTC,ETH` · `PLAYWRIGHT_HEADED=1` · `ICONS_DELAY_MS=2000`
+Spot app routes use `spotDisplaySymbol` (e.g. Gateway `KBTC` → `?market=kBTC/USDT0`, `wQQQx` → `?market=QQQx/USDT0`).
+After syncing new spot icons, update `lib/spotMeta.ts` manually (`visible`, icon paths, colors).
+
+First run may need `pnpm exec playwright install chromium`.
+
+Env overrides (optional):
+`ICONS_KIND=perp|spot|all` (default `all`) · `ICONS_ONLY=BTC,wQQQx` · `NADO_GATEWAY_V2` ·
+`ICONS_OUTPUT_DIR` · `ICONS_SPOT_OUTPUT_DIR` · `PLAYWRIGHT_HEADED=1` · `ICONS_DELAY_MS=2000` · `ICONS_DEBUG=1`
 
 ---
 
