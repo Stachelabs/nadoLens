@@ -136,6 +136,7 @@ export function WalletPositions({
   loading = false,
 }: Props) {
   const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
+  const fundedSubaccounts = useWalletFundingStore((s) => s.forActive()?.positionFundedSubaccounts ?? []);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
   const displayFilter = useMemo(
@@ -389,6 +390,11 @@ export function WalletPositions({
                 const isLong = pos.amount >= 0;
                 const pnlColor =
                   pos.unrealized_pnl >= 0 ? "text-primary" : "text-destructive";
+                const posFundingQuerySub = (pos.isolated
+                  ? (pos.parent_subaccount ?? pos.subaccount)
+                  : pos.subaccount
+                ).toLowerCase();
+                const posFundingReady = positionFundingComplete || fundedSubaccounts.includes(posFundingQuerySub);
                 const fundingColor =
                   (pos.funding_cumulative ?? 0) >= 0
                     ? "text-primary"
@@ -536,13 +542,13 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        positionFundingComplete &&
+                        posFundingReady &&
                           pos.funding_cumulative != null
                           ? fundingColor
                           : "text-muted-foreground/80",
                       )}
                     >
-                      {!positionFundingComplete ? (
+                      {!posFundingReady ? (
                         <Skeleton className="h-3.5 w-14 ml-auto rounded-sm" />
                       ) : pos.funding_cumulative != null ? (
                         fmtFunding(pos.funding_cumulative)

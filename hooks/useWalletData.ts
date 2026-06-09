@@ -395,15 +395,33 @@ export function useWalletData(rawAddress: string): WalletData {
           }),
       ));
 
+      const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
+      positionStatsMapRef.current = positionSessionStatsMap;
+
       const accumulated = await fetchPositionScopedFunding({
         subaccountsWithPerps,
         openPerpProductIds,
         openTimeKeyByQueryKey,
         positionOpenTimeMap: positionOpenTimeMapRef.current,
-      }, signal);
+      }, signal, (subaccount, batchPayments) => {
+        if (cancelled) return;
+        useWalletFundingStore.getState().pushSubaccountFunding(rawAddress, subaccount, batchPayments);
+        const partialPayments = useWalletFundingStore.getState().forAddress(rawAddress)?.positionFundingPayments ?? [];
+        setData(prev => ({
+          ...prev,
+          stats: prev.stats
+            ? {
+                ...prev.stats,
+                positions: applySessionFunding(
+                  applyPositionStats(prev.stats.positions, positionSessionStatsMap),
+                  positionSessionStatsMap,
+                  partialPayments,
+                ),
+              }
+            : null,
+        }));
+      });
 
-      const positionSessionStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
-      positionStatsMapRef.current = positionSessionStatsMap;
       useWalletFundingStore.getState().setPositionFunding(rawAddress, accumulated, openPerpProductIds);
 
       if (!cancelled) {

@@ -20,6 +20,7 @@ export type PerAddressFundingState = {
   positionFundingPayments: FundingPaymentEntry[]
   positionFundingComplete: boolean
   positionFundingProductIds: number[]
+  positionFundedSubaccounts: string[]
   lastPositionFundingFetch: number
 
   globalFundingLoading: boolean
@@ -36,6 +37,7 @@ const INITIAL_FUNDING_STATE: PerAddressFundingState = {
   positionFundingPayments: [],
   positionFundingComplete: false,
   positionFundingProductIds: [],
+  positionFundedSubaccounts: [],
   lastPositionFundingFetch: 0,
   globalFundingLoading: false,
   globalFundingComplete: false,
@@ -91,6 +93,7 @@ type WalletFundingState = {
 
   setSubaccounts: (addr: string, subs: string[]) => void
   setPositionFunding: (addr: string, payments: FundingPaymentEntry[], productIds: number[]) => void
+  pushSubaccountFunding: (addr: string, subaccount: string, payments: FundingPaymentEntry[]) => void
   loadGlobalFunding: (addr: string) => Promise<void>
   loadFundingForPeriod: (addr: string, period: EquityPeriod) => Promise<void>
   abortAddress: (addr: string) => void
@@ -154,7 +157,18 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
         positionFundingPayments: payments,
         positionFundingComplete: true,
         positionFundingProductIds: productIds,
+        positionFundedSubaccounts: [],
         lastPositionFundingFetch: Date.now(),
+      })),
+    }))
+  },
+
+  pushSubaccountFunding: (addr: string, subaccount: string, payments: FundingPaymentEntry[]) => {
+    if (!get().wallets.has(addr)) return
+    set(prev => ({
+      wallets: updateSlot(prev.wallets, addr, (s) => ({
+        positionFundingPayments: [...s.positionFundingPayments, ...payments],
+        positionFundedSubaccounts: [...s.positionFundedSubaccounts, subaccount.toLowerCase()],
       })),
     }))
   },
