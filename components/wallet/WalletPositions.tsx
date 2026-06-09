@@ -119,6 +119,7 @@ type Props = {
   unrealizedRefreshing?: boolean;
   /** True once position-scoped matches (Phase 2a) are done — enables Realized PnL + Fees. */
   positionMatchesComplete?: boolean;
+  matchedPositionKeys?: string[];
   /** True once snapshot entry prices are applied — gates Unrealized PnL column. */
   snapshotReady?: boolean;
   /** True while Gateway positions are being fetched (Phase 1 in progress). */
@@ -132,11 +133,13 @@ export function WalletPositions({
   onRefreshUnrealized,
   unrealizedRefreshing = false,
   positionMatchesComplete = true,
+  matchedPositionKeys = [],
   snapshotReady = true,
   loading = false,
 }: Props) {
   const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
   const fundedSubaccounts = useWalletFundingStore((s) => s.forActive()?.positionFundedSubaccounts ?? []);
+  const matchedSet = useMemo(() => new Set(matchedPositionKeys), [matchedPositionKeys]);
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
   const displayFilter = useMemo(
@@ -388,6 +391,8 @@ export function WalletPositions({
             <TableBody>
               {orderedPositions.map((pos) => {
                 const isLong = pos.amount >= 0;
+                const posMatchKey = `${pos.subaccount}:${pos.product_id}`;
+                const posMatchReady = positionMatchesComplete || matchedSet.has(posMatchKey);
                 const pnlColor =
                   pos.unrealized_pnl >= 0 ? "text-primary" : "text-destructive";
                 const posFundingQuerySub = (pos.isolated
@@ -526,12 +531,12 @@ export function WalletPositions({
                     <TableCell
                       className={cn(
                         "py-2 pr-4 text-right tabular-nums",
-                        positionMatchesComplete && realizedNet != null
+                        posMatchReady && realizedNet != null
                           ? realizedColor
                           : "text-muted-foreground/80",
                       )}
                     >
-                      {!positionMatchesComplete ? (
+                      {!posMatchReady ? (
                         <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
                       ) : realizedNet != null ? (
                         `${realizedNet >= 0 ? "+" : ""}${fmtUsd.format(realizedNet)}`
@@ -557,7 +562,7 @@ export function WalletPositions({
                       )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-muted-foreground/80">
-                      {!positionMatchesComplete ? (
+                      {!posMatchReady ? (
                         <Skeleton className="h-3.5 w-12 ml-auto rounded-sm" />
                       ) : pos.fees_cumulative != null ? (
                         fmtUsd.format(pos.fees_cumulative)

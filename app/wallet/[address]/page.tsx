@@ -42,6 +42,7 @@ function WalletContent({ address }: { address: string }) {
     refreshSpotBalances,
     spotBalancesRefreshing,
     positionMatchesComplete,
+    matchedPositionKeys,
     snapshotReady,
   } = useWalletData(address);
 
@@ -144,6 +145,7 @@ function WalletContent({ address }: { address: string }) {
             onRefreshUnrealized={refreshUnrealizedPnl}
             unrealizedRefreshing={unrealizedRefreshing}
             positionMatchesComplete={positionMatchesComplete}
+            matchedPositionKeys={matchedPositionKeys}
             snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
           />
