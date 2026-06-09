@@ -1,20 +1,26 @@
 /**
  * sync-nado-perp-svgs.ts
  *
- * Downloads perp market header SVGs from the Nado web app (same assets as app.nado.xyz
- * under /_next/static/media/*.svg). Uses Gateway GET /v2/assets (perps only) and visits
- * /perpetuals?market=<BASE> where BASE is the segment before the first "-" in symbol
- * (e.g. AAVE-PERP → AAVE).
+ * Downloads perp + spot market header SVGs from the Nado web app (same assets as
+ * app.nado.xyz under /_next/static/media/*.svg). Uses Gateway GET /v2/assets:
+ *   perps — /perpetuals?market=<BASE> (AAVE-PERP → AAVE)
+ *   spot  — /spot?market=<DISPLAY>/<QUOTE> (e.g. QQQx/USDT0, kBTC/USDT0;
+ *           files named {gatewaySymbol}.toLowerCase().svg)
+ *
+ * Spot sync does not update lib/spotMeta.ts — set visible + paths manually after sync.
  *
  * Usage:
  *   pnpm icons:sync-nado-perps
  *
  * Env:
- *   NADO_GATEWAY_V2      — default https://gateway.prod.nado.xyz/v2
- *   ICONS_OUTPUT_DIR     — default public/icons/perps
- *   PLAYWRIGHT_HEADED    — set to "1" to show browser window
- *   ICONS_DELAY_MS       — extra wait after navigation (default 2000)
- *   ICONS_ONLY           — comma-separated market keys to fetch (e.g. BTC,ETH)
+ *   NADO_GATEWAY_V2         — default https://gateway.prod.nado.xyz/v2
+ *   ICONS_OUTPUT_DIR        — default public/icons/perps
+ *   ICONS_SPOT_OUTPUT_DIR   — default public/icons/spot
+ *   ICONS_KIND              — perp | spot | all (default all)
+ *   PLAYWRIGHT_HEADED       — set to "1" to show browser window
+ *   ICONS_DELAY_MS          — extra wait after navigation (default 2000)
+ *   ICONS_ONLY              — comma-separated market keys (e.g. BTC,wQQQx)
+ *   ICONS_DEBUG             — set to "1" for DOM/network debug logs
  */
 
 import { createHash } from "crypto";
@@ -38,10 +44,16 @@ config();
 
 const NADO_APP = "https://app.nado.xyz";
 
-type PerpRow = {
+type MarketKind = "perp" | "spot";
+
+type MarketRow = {
   product_id: number;
   symbol: string;
   marketKey: string;
+  /** Spot app route — slash pair from ticker_id (e.g. wQQQx/USDT0). */
+  marketRoute: string;
+  marketKind: MarketKind;
+  iconFilename: string;
 };
 
 type SvgCapture = { url: string; body: Buffer };
@@ -203,7 +215,63 @@ function parseOnlyFilter(): Set<string> | null {
   );
 }
 
-async function fetchPerps(gatewayV2: string): Promise<PerpRow[]> {
+function parseIconsKind(): MarketKind[] {
+  const raw = cfgStr("ICONS_KIND", nadoPerpIconsDefaults.ICONS_KIND).trim().toLowerCase();
+  if (raw === "perp") return ["perp"];
+  if (raw === "spot") return ["spot"];
+  return ["perp", "spot"];
+}
+
+function spotAltVariants(marketKey: string): string[] {
+  const lower = marketKey.trim().toLowerCase();
+  const display = spotDisplaySymbol(marketKey);
+  const variants = [
+    lower,
+    lower.toUpperCase(),
+    marketKey.trim(),
+    display,
+    display.toLowerCase(),
+    display.toUpperCase(),
+  ];
+  if (lower.startsWith("w") && lower.endsWith("x") && lower.length > 2) {
+    const inner = lower.slice(1, -1);
+    variants.push(inner, `${inner}x`, inner.toUpperCase(), `${inner.toUpperCase()}X`);
+  }
+  return [...new Set(variants)];
+}
+
+function spotIconFilename(symbol: string): string {
+  return `${symbol.toLowerCase()}.svg`;
+}
+
+/** Gateway symbol → app.nado.xyz spot switcher label (e.g. wQQQx → QQQx, KBTC → kBTC). */
+function spotDisplaySymbol(symbol: string): string {
+  const s = symbol.trim();
+  if (s === "KBTC") return "kBTC";
+  if (s === "WETH") return "wETH";
+  if (s.length > 2 && s.startsWith("w") && s.endsWith("x")) {
+    return s.slice(1);
+  }
+  return s;
+}
+
+function spotMarketRoute(tickerId: string | null, symbol: string): string {
+  if (tickerId) {
+    const slash = tickerId.indexOf("_");
+    if (slash > 0) {
+      const base = tickerId.slice(0, slash);
+      const quote = tickerId.slice(slash + 1);
+      return `${spotDisplaySymbol(base)}/${quote}`;
+    }
+  }
+  return spotDisplaySymbol(symbol);
+}
+
+function normalizeMarketRoute(route: string): string {
+  return route.trim().toLowerCase();
+}
+
+async function fetchGatewayAssets(gatewayV2: string): Promise<MarketRow[]> {
   const res = await fetch(`${gatewayV2.replace(/\/$/, "")}/assets`, {
     headers: { Accept: "application/json" },
   });
@@ -212,14 +280,36 @@ async function fetchPerps(gatewayV2: string): Promise<PerpRow[]> {
   const parsed = V2AssetsResponseSchema.safeParse(raw);
   if (!parsed.success) throw new Error("GET /assets: invalid JSON (Zod)");
 
-  const out: PerpRow[] = [];
+  const out: MarketRow[] = [];
   for (const a of parsed.data) {
-    if (a.market_type !== "perp") continue;
-    const dash = a.symbol.indexOf("-");
-    if (dash <= 0) continue;
-    const marketKey = a.symbol.slice(0, dash);
-    if (!marketKey) continue;
-    out.push({ product_id: a.product_id, symbol: a.symbol, marketKey });
+    if (a.market_type === "perp") {
+      const dash = a.symbol.indexOf("-");
+      if (dash <= 0) continue;
+      const marketKey = a.symbol.slice(0, dash);
+      if (!marketKey) continue;
+      out.push({
+        product_id: a.product_id,
+        symbol: a.symbol,
+        marketKey,
+        marketRoute: marketKey,
+        marketKind: "perp",
+        iconFilename: `${marketKey.toUpperCase()}.svg`,
+      });
+      continue;
+    }
+
+    if (a.market_type === "spot" || a.market_type === null) {
+      const marketKey = a.symbol.trim();
+      if (!marketKey) continue;
+      out.push({
+        product_id: a.product_id,
+        symbol: a.symbol,
+        marketKey,
+        marketRoute: spotMarketRoute(a.ticker_id, marketKey),
+        marketKind: "spot",
+        iconFilename: spotIconFilename(a.symbol),
+      });
+    }
   }
   return out;
 }
@@ -315,18 +405,22 @@ async function fetchSvgFromImgSrc(
 async function pickSvgFromMarketSwitcher(
   page: Page,
   marketKey: string,
+  altMatchers?: string[],
 ): Promise<SvgCapture | null> {
   const trigger = page.locator('[data-testid="trading-market-switcher-trigger"]');
   if (!(await trigger.isVisible().catch(() => false))) return null;
 
+  const wants = new Set(
+    (altMatchers ?? [marketKey.toUpperCase()]).map((v) => v.toUpperCase()),
+  );
+
   const imgs = trigger.locator("img");
   const n = await imgs.count();
-  const want = marketKey.toUpperCase();
 
   for (let i = 0; i < n; i++) {
     const img = imgs.nth(i);
     const alt = (await img.getAttribute("alt"))?.trim().toUpperCase();
-    if (alt && alt !== want) continue;
+    if (alt && !wants.has(alt)) continue;
     const src = await img.getAttribute("src");
     const cap = await fetchSvgFromImgSrc(page, src);
     if (cap) return cap;
@@ -340,14 +434,15 @@ async function pickSvgFromMarketSwitcher(
 }
 
 /**
- * Open the market menu (Radix), Perps tab, and match the row by img[alt] ≈ ticker.
- * Same canonical list as the UI; paths are /_next/static/media/&lt;ticker&gt;.&lt;hash&gt;.svg
+ * Open the market menu (Radix), pick a tab, and match the row by img[alt] ≈ ticker.
  */
-async function pickSvgFromPerpsDropdown(
+async function pickSvgFromMarketDropdown(
   page: Page,
   marketKey: string,
+  tabName: RegExp,
+  altMatchers: string[],
 ): Promise<SvgCapture | null> {
-  const want = marketKey.trim().toLowerCase();
+  const wants = new Set(altMatchers.map((v) => v.trim().toLowerCase()));
   const trigger = page.locator(
     '[data-testid="trading-market-switcher-trigger"]',
   );
@@ -360,7 +455,7 @@ async function pickSvgFromPerpsDropdown(
     if (!(await wrapper.isVisible().catch(() => false))) return null;
 
     await page
-      .getByRole("tab", { name: /^perps$/i })
+      .getByRole("tab", { name: tabName })
       .first()
       .click({ timeout: 4000 })
       .catch(() => {});
@@ -370,7 +465,7 @@ async function pickSvgFromPerpsDropdown(
     for (let i = 0; i < n; i++) {
       const img = imgs.nth(i);
       const alt = (await img.getAttribute("alt"))?.trim().toLowerCase();
-      if (alt !== want) continue;
+      if (!alt || !wants.has(alt)) continue;
       const src = await img.getAttribute("src");
       const cap = await fetchSvgFromImgSrc(page, src);
       if (cap) return cap;
@@ -385,20 +480,38 @@ async function pickSvgFromPerpsDropdown(
 /** When network capture misses (hashed filenames), resolve from DOM + GET. */
 async function pickSvgFromDom(
   page: Page,
-  marketKey: string,
+  row: MarketRow,
 ): Promise<SvgCapture | null> {
-  const fromSwitcher = await pickSvgFromMarketSwitcher(page, marketKey);
+  const altMatchers =
+    row.marketKind === "spot"
+      ? spotAltVariants(row.marketKey)
+      : [row.marketKey];
+
+  const fromSwitcher = await pickSvgFromMarketSwitcher(
+    page,
+    row.marketKey,
+    altMatchers,
+  );
   if (fromSwitcher) return fromSwitcher;
 
-  const fromDropdown = await pickSvgFromPerpsDropdown(page, marketKey);
+  const tabName = row.marketKind === "spot" ? /^spot$/i : /^perps$/i;
+  const fromDropdown = await pickSvgFromMarketDropdown(
+    page,
+    row.marketKey,
+    tabName,
+    altMatchers,
+  );
   if (fromDropdown) return fromDropdown;
 
-  const lower = marketKey.toLowerCase();
+  const prefixCandidates = altMatchers.map((v) => v.toLowerCase());
   const urls = await collectMediaSvgUrls(page);
 
   for (const href of urls) {
     const name = filenameFromUrl(href).toLowerCase();
-    if (!name.startsWith(`${lower}.`) && !name.startsWith(`${lower}_`)) continue;
+    const matched = prefixCandidates.some(
+      (prefix) => name.startsWith(`${prefix}.`) || name.startsWith(`${prefix}_`),
+    );
+    if (!matched) continue;
     const got = await fetchSvgFromImgSrc(page, href);
     if (got) return got;
   }
@@ -477,187 +590,191 @@ async function isChooseMarketSwitcher(page: Page): Promise<boolean> {
   return /choose\s+market/i.test(text);
 }
 
-async function ensureNadoAppReady(page: Page): Promise<void> {
-  await page.goto(`${NADO_APP}/perpetuals?market=BTC`, {
+async function ensureNadoAppReady(page: Page, marketKind: MarketKind): Promise<void> {
+  const seedUrl =
+    marketKind === "spot"
+      ? `${NADO_APP}/spot?market=kBTC/USDT0`
+      : `${NADO_APP}/perpetuals?market=BTC`;
+  await page.goto(seedUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
   await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
   await sleep(1_000);
-  console.log("[icons] App loaded — continuing.");
+  console.log(`[icons] App loaded (${marketKind}) — continuing.`);
 }
 
-async function main(): Promise<void> {
-  const gatewayV2 = cfgStr("NADO_GATEWAY_V2", NADO_GATEWAY_V2);
-  const outDir = cfgStr(
-    "ICONS_OUTPUT_DIR",
-    join(REPO_ROOT, nadoPerpIconsDefaults.ICONS_OUTPUT_DIR),
-  );
-  const delayMs = Number.parseInt(
-    cfgStr("ICONS_DELAY_MS", nadoPerpIconsDefaults.ICONS_DELAY_MS),
-    10,
-  );
-  const only = parseOnlyFilter();
+function marketAppUrl(row: MarketRow): string {
+  const path = row.marketKind === "spot" ? "spot" : "perpetuals";
+  const route = row.marketKind === "spot" ? row.marketRoute : row.marketKey;
+  return `${NADO_APP}/${path}?market=${route}`;
+}
 
-  mkdirSync(outDir, { recursive: true });
+function marketParamMatches(row: MarketRow, marketParam: string): boolean {
+  const param = normalizeMarketRoute(marketParam);
+  const route = normalizeMarketRoute(row.marketRoute);
+  const key = normalizeMarketRoute(row.marketKey);
+  if (param === route || param === key) return true;
+  if (row.marketKind !== "spot") return false;
+  const display = normalizeMarketRoute(spotDisplaySymbol(row.marketKey));
+  if (param.startsWith(`${display}/`)) return true;
+  const variants = spotAltVariants(row.marketKey).map((v) => normalizeMarketRoute(v));
+  return variants.some((v) => param === v || param.startsWith(`${v}/`));
+}
 
-  const perps = await fetchPerps(gatewayV2);
-  const filtered = only
-    ? perps.filter((p) => only.has(p.marketKey.toUpperCase()))
-    : perps;
+async function spotSwitcherMatches(page: Page, row: MarketRow): Promise<boolean> {
+  const trigger = page.locator('[data-testid="trading-market-switcher-trigger"]');
+  if (!(await trigger.isVisible().catch(() => false))) return false;
+  const text = (await trigger.innerText()).replace(/\s+/g, " ").trim().toLowerCase();
+  const display = spotDisplaySymbol(row.marketKey).toLowerCase();
+  return text.startsWith(`${display}/`);
+}
 
-  if (filtered.length === 0) {
-    console.warn("No perp markets to process (check ICONS_ONLY or /v2/assets).");
-    return;
+async function syncMarketBatch(
+  page: Page,
+  rows: MarketRow[],
+  outDir: string,
+  delayMs: number,
+): Promise<ManifestEntry[]> {
+  const manifest: ManifestEntry[] = [];
+  const refKey =
+    rows[0]?.marketKind === "spot" ? "KBTC" : "BTC";
+  const refFilename =
+    rows[0]?.marketKind === "spot"
+      ? spotIconFilename(refKey)
+      : `${refKey.toUpperCase()}.svg`;
+  let refBytes: Buffer | null = null;
+  const refPath = join(outDir, refFilename);
+  if (existsSync(refPath)) {
+    refBytes = readFileSync(refPath);
   }
 
-  const { browser, close } = await connectBrowser();
-  const manifest: ManifestEntry[] = [];
+  for (const row of rows) {
+    const caps: SvgCapture[] = [];
+    const detach = await attachSvgCollector(page, (cap) => {
+      caps.push(cap);
+    });
 
-  try {
-    const page = await getOrCreatePage(browser);
-    await ensureNadoAppReady(page);
+    const targetUrl = marketAppUrl(row);
+    let finalUrl = targetUrl;
+    let status: ManifestEntry["status"] = "error";
+    let message: string | undefined;
+    let picked: SvgCapture | null = null;
 
-    let btcRef: Buffer | null = null;
-    const btcPath = join(outDir, "BTC.svg");
-    if (existsSync(btcPath)) {
-      btcRef = readFileSync(btcPath);
-    }
-
-    for (const row of filtered) {
-      const caps: SvgCapture[] = [];
-      const detach = await attachSvgCollector(page, (cap) => {
-        caps.push(cap);
+    try {
+      await page.goto(targetUrl, {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
       });
+      await page
+        .waitForURL(
+          (url) => {
+            try {
+              const marketParam = new URL(url).searchParams.get("market") ?? "";
+              return marketParamMatches(row, marketParam);
+            } catch {
+              return false;
+            }
+          },
+          { timeout: 45_000 },
+        )
+        .catch(() => {});
+      await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+      await sleep(400);
 
-      const targetUrl = `${NADO_APP}/perpetuals?market=${encodeURIComponent(row.marketKey)}`;
-      let finalUrl = targetUrl;
-      let status: ManifestEntry["status"] = "error";
-      let message: string | undefined;
-      let picked: SvgCapture | null = null;
+      finalUrl = page.url();
+      const u = new URL(finalUrl);
+      const marketParam = u.searchParams.get("market") ?? "";
 
-      try {
-        await page.goto(targetUrl, {
-          waitUntil: "domcontentloaded",
-          timeout: 60_000,
+      if (!marketParamMatches(row, marketParam)) {
+        status = "skipped_not_on_app";
+        message = `URL shows ?market=${marketParam || "none"} but expected route is ${row.marketRoute}. No stable route for this ${row.marketKind} on app.nado.xyz.`;
+        manifest.push({
+          marketKey: row.marketKey,
+          product_id: row.product_id,
+          symbol: row.symbol,
+          status,
+          finalUrl,
+          message,
         });
-        const mkUpper = row.marketKey.toUpperCase();
-        await page
-          .waitForURL(
-            (url) => {
-              try {
-                const m = new URL(url).searchParams.get("market")?.toUpperCase() ?? "";
-                return m === mkUpper;
-              } catch {
-                return false;
-              }
-            },
-            { timeout: 45_000 },
-          )
-          .catch(() => {});
-        await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
-        await sleep(400);
+        detach();
+        continue;
+      }
 
-        finalUrl = page.url();
-        const u = new URL(finalUrl);
-        const marketParam = u.searchParams.get("market")?.toUpperCase() ?? "";
+      if (row.marketKind === "spot" && !(await spotSwitcherMatches(page, row))) {
+        status = "skipped_not_on_app";
+        message = `Spot market switcher does not show ${row.marketRoute} — not listed on app.nado.xyz yet.`;
+        manifest.push({
+          marketKey: row.marketKey,
+          product_id: row.product_id,
+          symbol: row.symbol,
+          status,
+          finalUrl,
+          message,
+        });
+        detach();
+        continue;
+      }
 
-        if (marketParam !== row.marketKey.toUpperCase()) {
-          status = "skipped_not_on_app";
-          message = `URL shows ?market=${marketParam || "none"} but Gateway slug is ${row.marketKey} (redirect to another asset, not necessarily BTC). No stable route for this perp on app.nado.xyz.`;
-          manifest.push({
-            marketKey: row.marketKey,
-            product_id: row.product_id,
-            symbol: row.symbol,
-            status,
-            finalUrl,
-            message,
-          });
-          detach();
-          continue;
-        }
+      await page
+        .locator('[data-testid="trading-market-switcher-trigger"] img')
+        .first()
+        .waitFor({ state: "visible", timeout: 25_000 })
+        .catch(() => {});
+      await page
+        .waitForSelector('img[src*="/_next/static/media/"]', { timeout: 5_000 })
+        .catch(() => {});
+      await sleep(Number.isFinite(delayMs) ? delayMs : 2000);
 
-        await page
-          .locator('[data-testid="trading-market-switcher-trigger"] img')
-          .first()
-          .waitFor({ state: "visible", timeout: 25_000 })
-          .catch(() => {});
-        await page
-          .waitForSelector('img[src*="/_next/static/media/"]', { timeout: 5_000 })
-          .catch(() => {});
-        await sleep(Number.isFinite(delayMs) ? delayMs : 2000);
+      if (await isChooseMarketSwitcher(page)) {
+        status = "skipped_not_on_app";
+        message =
+          'Market switcher shows "Choose Market" — not listed on app.nado.xyz (Gateway /v2/assets may still expose it).';
+        manifest.push({
+          marketKey: row.marketKey,
+          product_id: row.product_id,
+          symbol: row.symbol,
+          status,
+          finalUrl,
+          message,
+        });
+        detach();
+        continue;
+      }
 
-        if (await isChooseMarketSwitcher(page)) {
-          status = "skipped_not_on_app";
-          message =
-            'Market switcher shows "Choose Market" — this perp is not listed on app.nado.xyz (Gateway /v2/assets may still expose it).';
-          manifest.push({
-            marketKey: row.marketKey,
-            product_id: row.product_id,
-            symbol: row.symbol,
-            status,
-            finalUrl,
-            message,
-          });
-          detach();
-          continue;
-        }
+      picked = pickSvgForMarket(row.marketKey, caps);
+      if (!picked) {
+        picked = await pickSvgFromDom(page, row);
+      }
+      if (!picked && process.env.ICONS_DEBUG === "1") {
+        const domUrls = await collectMediaSvgUrls(page);
+        console.error(
+          `[debug] ${row.marketKey} caps=${caps.map((c) => c.url).join(" | ")}`,
+        );
+        console.error(`[debug] ${row.marketKey} dom=${domUrls.join(" | ")}`);
+      }
+      if (!picked) {
+        status = "skipped_no_svg";
+        message = `No matching ${row.marketKind} icon for ${row.marketKey} (network: ${caps.length} svg responses).`;
+        manifest.push({
+          marketKey: row.marketKey,
+          product_id: row.product_id,
+          symbol: row.symbol,
+          status,
+          finalUrl,
+          message,
+        });
+        detach();
+        continue;
+      }
 
-        picked = pickSvgForMarket(row.marketKey, caps);
-        if (!picked) {
-          picked = await pickSvgFromDom(page, row.marketKey);
-        }
-        if (!picked && process.env.ICONS_DEBUG === "1") {
-          const domUrls = await collectMediaSvgUrls(page);
-          console.error(
-            `[debug] ${row.marketKey} caps=${caps.map((c) => c.url).join(" | ")}`,
-          );
-          console.error(`[debug] ${row.marketKey} dom=${domUrls.join(" | ")}`);
-        }
-        if (!picked) {
-          status = "skipped_no_svg";
-          message = `No matching perp icon for ${row.marketKey} (network: ${caps.length} svg responses).`;
-          manifest.push({
-            marketKey: row.marketKey,
-            product_id: row.product_id,
-            symbol: row.symbol,
-            status,
-            finalUrl,
-            message,
-          });
-          detach();
-          continue;
-        }
-
-        if (
-          btcRef &&
-          row.marketKey.toUpperCase() !== "BTC" &&
-          picked.body.equals(btcRef)
-        ) {
-          status = "skipped_not_on_app";
-          message =
-            "Resolved icon bytes match BTC.svg (app likely fell back to BTC for this slug).";
-          manifest.push({
-            marketKey: row.marketKey,
-            product_id: row.product_id,
-            symbol: row.symbol,
-            status,
-            finalUrl,
-            pickedUrl: picked.url,
-            message,
-          });
-          detach();
-          continue;
-        }
-
-        const sha256 = createHash("sha256").update(picked.body).digest("hex");
-        const outPath = join(outDir, `${row.marketKey.toUpperCase()}.svg`);
-        writeFileSync(outPath, picked.body);
-        if (row.marketKey.toUpperCase() === "BTC" && !btcRef) {
-          btcRef = picked.body;
-        }
-
-        status = "ok";
+      if (
+        refBytes &&
+        row.marketKey.toUpperCase() !== refKey.toUpperCase() &&
+        picked.body.equals(refBytes)
+      ) {
+        status = "skipped_not_on_app";
+        message = `Resolved icon bytes match ${refFilename} (app likely fell back for this slug).`;
         manifest.push({
           marketKey: row.marketKey,
           product_id: row.product_id,
@@ -665,48 +782,157 @@ async function main(): Promise<void> {
           status,
           finalUrl,
           pickedUrl: picked.url,
-          sha256,
-          bytes: picked.body.length,
-        });
-      } catch (e) {
-        message = e instanceof Error ? e.message : String(e);
-        manifest.push({
-          marketKey: row.marketKey,
-          product_id: row.product_id,
-          symbol: row.symbol,
-          status: "error",
-          finalUrl,
           message,
         });
-      } finally {
         detach();
+        continue;
       }
+
+      const sha256 = createHash("sha256").update(picked.body).digest("hex");
+      const outPath = join(outDir, row.iconFilename);
+      writeFileSync(outPath, picked.body);
+      if (
+        row.marketKey.toUpperCase() === refKey.toUpperCase() &&
+        !refBytes
+      ) {
+        refBytes = picked.body;
+      }
+
+      status = "ok";
+      manifest.push({
+        marketKey: row.marketKey,
+        product_id: row.product_id,
+        symbol: row.symbol,
+        status,
+        finalUrl,
+        pickedUrl: picked.url,
+        sha256,
+        bytes: picked.body.length,
+      });
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+      manifest.push({
+        marketKey: row.marketKey,
+        product_id: row.product_id,
+        symbol: row.symbol,
+        status: "error",
+        finalUrl,
+        message,
+      });
+    } finally {
+      detach();
+    }
+  }
+
+  return manifest;
+}
+
+function matchesOnlyFilter(row: MarketRow, only: Set<string> | null): boolean {
+  if (!only) return true;
+  const key = row.marketKey.toUpperCase();
+  if (only.has(key)) return true;
+  if (row.marketKind === "spot") {
+    return spotAltVariants(row.marketKey).some((v) => only.has(v.toUpperCase()));
+  }
+  return false;
+}
+
+async function main(): Promise<void> {
+  const gatewayV2 = cfgStr("NADO_GATEWAY_V2", NADO_GATEWAY_V2);
+  const perpOutDir = cfgStr(
+    "ICONS_OUTPUT_DIR",
+    join(REPO_ROOT, nadoPerpIconsDefaults.ICONS_OUTPUT_DIR),
+  );
+  const spotOutDir = cfgStr(
+    "ICONS_SPOT_OUTPUT_DIR",
+    join(REPO_ROOT, nadoPerpIconsDefaults.ICONS_SPOT_OUTPUT_DIR),
+  );
+  const delayMs = Number.parseInt(
+    cfgStr("ICONS_DELAY_MS", nadoPerpIconsDefaults.ICONS_DELAY_MS),
+    10,
+  );
+  const only = parseOnlyFilter();
+  const kinds = parseIconsKind();
+
+  const allRows = await fetchGatewayAssets(gatewayV2);
+  const perpRows = allRows
+    .filter((r) => r.marketKind === "perp")
+    .filter((r) => matchesOnlyFilter(r, only));
+  const spotRows = allRows
+    .filter((r) => r.marketKind === "spot")
+    .filter((r) => matchesOnlyFilter(r, only))
+    .filter((r) => r.product_id !== 0);
+
+  const runPerps = kinds.includes("perp") && perpRows.length > 0;
+  const runSpot = kinds.includes("spot") && spotRows.length > 0;
+
+  if (!runPerps && !runSpot) {
+    console.warn("No markets to process (check ICONS_KIND, ICONS_ONLY, or /v2/assets).");
+    return;
+  }
+
+  if (runPerps) mkdirSync(perpOutDir, { recursive: true });
+  if (runSpot) mkdirSync(spotOutDir, { recursive: true });
+
+  const { browser, close } = await connectBrowser();
+
+  try {
+    const page = await getOrCreatePage(browser);
+
+    if (runPerps) {
+      await ensureNadoAppReady(page, "perp");
+      const manifest = await syncMarketBatch(page, perpRows, perpOutDir, delayMs);
+      const manifestPath = join(perpOutDir, "manifest.json");
+      const previousManifest = loadPreviousManifest(manifestPath);
+      writeFileSync(
+        manifestPath,
+        JSON.stringify(
+          {
+            generatedAt: new Date().toISOString(),
+            gateway: gatewayV2,
+            marketKind: "perp",
+            entries: manifest,
+          },
+          null,
+          2,
+        ),
+      );
+      const ok = manifest.filter((m) => m.status === "ok").length;
+      const notOnApp = manifest.filter((m) => m.status === "skipped_not_on_app").length;
+      console.log(
+        `[icons][perp] ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
+      );
+      printRunDiff(previousManifest, manifest);
+    }
+
+    if (runSpot) {
+      await ensureNadoAppReady(page, "spot");
+      const manifest = await syncMarketBatch(page, spotRows, spotOutDir, delayMs);
+      const manifestPath = join(spotOutDir, "manifest.json");
+      const previousManifest = loadPreviousManifest(manifestPath);
+      writeFileSync(
+        manifestPath,
+        JSON.stringify(
+          {
+            generatedAt: new Date().toISOString(),
+            gateway: gatewayV2,
+            marketKind: "spot",
+            entries: manifest,
+          },
+          null,
+          2,
+        ),
+      );
+      const ok = manifest.filter((m) => m.status === "ok").length;
+      const notOnApp = manifest.filter((m) => m.status === "skipped_not_on_app").length;
+      console.log(
+        `[icons][spot] ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
+      );
+      printRunDiff(previousManifest, manifest);
     }
   } finally {
     await close();
   }
-
-  const manifestPath = join(outDir, "manifest.json");
-  const previousManifest = loadPreviousManifest(manifestPath);
-  writeFileSync(
-    manifestPath,
-    JSON.stringify(
-      {
-        generatedAt: new Date().toISOString(),
-        gateway: gatewayV2,
-        entries: manifest,
-      },
-      null,
-      2,
-    ),
-  );
-
-  const ok = manifest.filter((m) => m.status === "ok").length;
-  const notOnApp = manifest.filter((m) => m.status === "skipped_not_on_app").length;
-  console.log(
-    `Done. ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
-  );
-  printRunDiff(previousManifest, manifest);
 }
 
 main().catch((e) => {
