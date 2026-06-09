@@ -1,9 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { cn } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +7,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { motion, useReducedMotion } from "framer-motion";
+import { ExternalLink } from "lucide-react";
+import { useState } from "react";
 
 const REFERRAL_URL = "https://app.nado.xyz?join=ak8qebt";
+const X_URL = "https://x.com/stache_dev";
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 function LensIcon({ className }: { className?: string }) {
   return (
@@ -103,14 +112,24 @@ export function ReferralCTA() {
       </motion.button>
       {open && (
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-md pb-6 sm:pb-4">
+          <DialogContent className="sm:max-w-[500px] pb-6 sm:pb-4">
             <DialogHeader>
               <DialogTitle className="text-center text-[17px] pr-2 sm:pr-0 pt-6 sm:pt-2">
                 See the market through a sharper lens
               </DialogTitle>
               <DialogDescription className="text-center leading-relaxed">
-                NadoLens is free, open, and built by traders. Support the project —
-                Trade on Nado with our referral and help keep the lights on.
+                NadoLens is free, open-source, and built solo for traders.
+                Support the project by trading on Nado with our referral and
+                give the dev a{" "}
+                <a
+                  href={X_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-foreground underline underline-offset-2 transition-colors hover:text-primary"
+                >
+                  follow
+                </a>{" "}
+                on <XIcon className="inline size-3" />
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-center pt-2">
