@@ -10,6 +10,7 @@ import { parseArchiveJson } from "@/lib/api/validateResponse";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = "fra1";
 
 type ErrResponse = { error: string };
 
@@ -35,17 +36,19 @@ export async function POST(
       );
     }
 
-    const response = await withTransientRetry(() =>
-      fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Service-Secret": serviceSecret,
-        },
-        body: JSON.stringify(bodyResult.data),
-        signal: AbortSignal.timeout(18_000),
-        cache: "no-store",
-      }),
+    const response = await withTransientRetry(
+      () =>
+        fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Service-Secret": serviceSecret,
+          },
+          body: JSON.stringify(bodyResult.data),
+          signal: AbortSignal.timeout(18_000),
+          cache: "no-store",
+        }),
+      { maxAttempts: 1 },
     );
 
     if (!response.ok) {
