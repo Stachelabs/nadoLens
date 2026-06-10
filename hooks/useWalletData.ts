@@ -825,21 +825,6 @@ export function useWalletData(rawAddress: string): WalletData {
         }
       })();
 
-      // Wait for all background tasks — don't block UI (already rendered at Phase 1)
-      await Promise.all([phase2, snapshotsTask, phase3a]).catch((e: unknown) => {
-        if (e instanceof DOMException && e.name === 'AbortError') return;
-        console.error("[useWalletData] background phase error:", e);
-      });
-
-      if (!cancelled && tradesRef.current.length > 0) {
-        useWalletMatchesCacheStore.getState().setCache(rawAddress, {
-          trades: tradesRef.current,
-          latestKnownIdx: latestKnownIdxRef.current,
-          seenTradeIds: new Set(seenTradeIdsRef.current),
-          globalMatchesComplete: tradesCompleteRef.current,
-        });
-      }
-
       // Poll live position marks / unrealized only — subaccount_info only (Gateway).
       // avg_entry (account_snapshots) is cached and only re-fetched when a fill is detected:
       // if any position's amount_x18 changed since the last tick, a fill happened and the
@@ -1043,7 +1028,6 @@ export function useWalletData(rawAddress: string): WalletData {
         }, delay);
       };
       schedulePoll();
-
       refreshUnrealizedImplRef.current = async () => {
         if (cancelled) return;
         setData((prev) => ({ ...prev, unrealizedRefreshing: true }));
@@ -1192,6 +1176,23 @@ export function useWalletData(rawAddress: string): WalletData {
           setData((prev) => ({ ...prev, spotBalancesRefreshing: false }));
         }
       };
+
+      // Wait for all background tasks (trade pagination, snapshots, position matches).
+      // Ref assignments above are intentionally before this await so the refresh buttons
+      // are functional while background pagination is still running.
+      await Promise.all([phase2, snapshotsTask, phase3a]).catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        console.error("[useWalletData] background phase error:", e);
+      });
+
+      if (!cancelled && tradesRef.current.length > 0) {
+        useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+          trades: tradesRef.current,
+          latestKnownIdx: latestKnownIdxRef.current,
+          seenTradeIds: new Set(seenTradeIdsRef.current),
+          globalMatchesComplete: tradesCompleteRef.current,
+        });
+      }
       } finally {
         if (cancelled && mode === "refresh") {
           setData((prev) => ({ ...prev, refreshing: false }));
