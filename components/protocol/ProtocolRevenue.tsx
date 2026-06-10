@@ -414,7 +414,7 @@ export function ProtocolRevenue() {
             ) : donutSlices.length === 0 ? (
               <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <div className="mt-auto flex flex-1 items-center gap-6">
+              <div className="mt-auto flex flex-1 flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div className="flex flex-1 justify-center">
                   <PieChart width={260} height={260}>
                     <Pie data={donutSlices} cx={130} cy={130} innerRadius={65} outerRadius={110} dataKey="value" stroke="none">
@@ -439,9 +439,9 @@ export function ProtocolRevenue() {
                     <Tooltip content={<DonutTooltip />} />
                   </PieChart>
                 </div>
-                <div className="flex shrink-0 flex-col justify-center gap-2 self-stretch">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 sm:flex-col sm:flex-nowrap sm:justify-center sm:shrink-0 sm:gap-2 sm:self-stretch">
                   {donutSlices.map((slice) => (
-                    <div key={slice.name} className="flex items-center gap-2">
+                    <div key={slice.name} className="flex items-center gap-1.5">
                       <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
                       <span className="text-xs text-foreground">{slice.name}</span>
                     </div>

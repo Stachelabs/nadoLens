@@ -558,7 +558,7 @@ export function ProtocolTVL() {
             ) : depositDonut.length === 0 ? (
               <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <div className="flex flex-1 items-center gap-6">
+              <div className="flex flex-1 flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div className="flex flex-1 justify-center">
                   <PieChart width={280} height={280}>
                     <Pie
@@ -608,9 +608,9 @@ export function ProtocolTVL() {
                     <Tooltip content={<DonutTooltip />} />
                   </PieChart>
                 </div>
-                <div className="flex shrink-0 flex-col justify-center gap-2.5 self-stretch">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 sm:flex-col sm:flex-nowrap sm:justify-center sm:shrink-0 sm:gap-2.5 sm:self-stretch">
                   {depositDonut.map((s) => (
-                    <div key={s.name} className="flex items-center gap-2">
+                    <div key={s.name} className="flex items-center gap-1.5">
                       <div
                         className="h-3 w-3 shrink-0 rounded-full"
                         style={{ backgroundColor: s.color }}
@@ -638,7 +638,7 @@ export function ProtocolTVL() {
             ) : borrowDonut.length === 0 ? (
               <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <div className="flex flex-1 items-center gap-6">
+              <div className="flex flex-1 flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 <div className="flex flex-1 justify-center">
                   <PieChart width={280} height={280}>
                     <Pie
@@ -688,9 +688,9 @@ export function ProtocolTVL() {
                     <Tooltip content={<DonutTooltip />} />
                   </PieChart>
                 </div>
-                <div className="flex shrink-0 flex-col justify-center gap-2.5 self-stretch">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 sm:flex-col sm:flex-nowrap sm:justify-center sm:shrink-0 sm:gap-2.5 sm:self-stretch">
                   {borrowDonut.map((s) => (
-                    <div key={s.name} className="flex items-center gap-2">
+                    <div key={s.name} className="flex items-center gap-1.5">
                       <div
                         className="h-3 w-3 shrink-0 rounded-full"
                         style={{ backgroundColor: s.color }}

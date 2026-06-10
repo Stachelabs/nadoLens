@@ -595,7 +595,7 @@ export function ProtocolOIFunding() {
             ) : oiDonutSlices.length === 0 ? (
               <ChartEmpty height={CHART_HEIGHT} />
             ) : (
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="flex-1 flex justify-center">
                   <PieChart width={240} height={240}>
                     <Pie
@@ -614,17 +614,17 @@ export function ProtocolOIFunding() {
                     <Tooltip content={<OIDonutTooltip />} />
                   </PieChart>
                 </div>
-                <div className="flex flex-col gap-1.5 overflow-hidden w-20">
+                <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 sm:flex-col sm:flex-nowrap sm:justify-start sm:overflow-hidden sm:w-20">
                   {oiDonutSlices.map((slice) => (
                     <div
                       key={slice.name}
-                      className="flex items-center gap-2 min-w-0"
+                      className="flex items-center gap-1.5 min-w-0"
                     >
                       <div
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: slice.color }}
                       />
-                      <span className="text-xs text-foreground truncate">
+                      <span className="text-xs text-foreground sm:truncate">
                         {slice.name}
                       </span>
                     </div>
