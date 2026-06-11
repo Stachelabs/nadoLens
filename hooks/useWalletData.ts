@@ -55,6 +55,8 @@ const MATCHES_429_JITTER = 10_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
 const MATCHES_STAGGER_MAX_MS = 5_000;
 const REMAINING_MATCHES_DELAY_MS = 7_000;
+const REMAINING_429_MAX_RETRIES = 6;
+const BG_PAGINATION_429_MAX_RETRIES = 4;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
@@ -651,9 +653,11 @@ export function useWalletData(rawAddress: string): WalletData {
                 : null,
             }));
           }
-          // Incremental catch-up for trades newer than cache
+          // Incremental catch-up for trades newer than cache — active subs only
           if (latestKnownIdxRef.current && !cancelled) {
-            const newTrades = await fetchIncrementalTrades(subaccountChunks, latestKnownIdxRef.current);
+            const activeAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
+            const activeCacheChunks = chunk(activeAddrs, 5);
+            const newTrades = await fetchIncrementalTrades(activeCacheChunks, latestKnownIdxRef.current);
             if (!cancelled && newTrades.length > 0) {
               const merged = sortTradesNewestFirst([...newTrades, ...tradesRef.current]);
               tradesRef.current = merged;
@@ -751,21 +755,27 @@ export function useWalletData(rawAddress: string): WalletData {
         };});
 
         // Step 2: Background-load remaining subaccounts (throttled, 7s between chunks)
+        // Every chunk MUST succeed — retry with escalating backoff until it does.
         const remainingFirstPages: MatchesPageResult[] = [];
         for (let c = 0; c < remainingChunks.length && !cancelled; c++) {
           if (c > 0) await sleep(REMAINING_MATCHES_DELAY_MS);
-          let result = await fetchPage(remainingChunks[c]!);
-          if (cancelled) break;
-          if (result.rateLimited) {
-            await sleep(MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER);
+          let result: MatchesPageResult | null = null;
+          for (let retry = 0; retry <= REMAINING_429_MAX_RETRIES && !cancelled; retry++) {
+            const page = await fetchPage(remainingChunks[c]!);
             if (cancelled) break;
-            result = await fetchPage(remainingChunks[c]!);
-            if (cancelled) break;
-            if (result.rateLimited) {
-              remainingFirstPages.push({ trades: [], nextIdx: null, done: false });
-              continue;
+            if (!page.rateLimited) {
+              result = page;
+              break;
+            }
+            if (retry < REMAINING_429_MAX_RETRIES) {
+              const delay = Math.min(
+                MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+                60_000,
+              );
+              await sleep(delay);
             }
           }
+          if (cancelled || !result) break;
           remainingFirstPages.push(result);
           const uniqueTrades = result.trades.filter((trade) => {
             const id = tradeIdentity(trade);
@@ -811,10 +821,11 @@ export function useWalletData(rawAddress: string): WalletData {
         }
 
         // Catch-up: one no-cache fetch to bridge Redis cache lag — runs once per page load.
-        // If Redis served stale data (old 24h TTL entry), this surfaces trades made after
-        // the cache was written without waiting for a poll tick or manual refresh.
+        // Only check active subs — new trades require open positions.
         if (latestKnownIdxRef.current && !cancelled) {
-          const catchUpTrades = await fetchIncrementalTrades(subaccountChunks, latestKnownIdxRef.current);
+          const activeAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
+          const activeCatchUpChunks = chunk(activeAddrs, 5);
+          const catchUpTrades = await fetchIncrementalTrades(activeCatchUpChunks, latestKnownIdxRef.current);
           if (!cancelled && catchUpTrades.length > 0) {
             allTrades = sortTradesNewestFirst([...catchUpTrades, ...allTrades]);
             seenTradeIdsRef.current = new Set(allTrades.map(tradeIdentity));
@@ -844,22 +855,29 @@ export function useWalletData(rawAddress: string): WalletData {
 
             for (let a = 0; a < active.length; a++) {
               const state = active[a]!;
-              const result = await fetchPage(
-                state.chunk,
-                state.nextIdx ?? undefined,
-              );
+              let result: MatchesPageResult | null = null;
+              for (let retry = 0; retry <= BG_PAGINATION_429_MAX_RETRIES && !cancelled; retry++) {
+                const page = await fetchPage(
+                  state.chunk,
+                  state.nextIdx ?? undefined,
+                );
+                if (cancelled) break;
+                if (!page.rateLimited) {
+                  result = page;
+                  break;
+                }
+                if (retry < BG_PAGINATION_429_MAX_RETRIES) {
+                  const delay = Math.min(
+                    MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+                    60_000,
+                  );
+                  await sleep(delay);
+                }
+              }
               if (cancelled) break outerMatches;
-              if (result.rateLimited) {
-                setData((prev) => ({
-                  ...prev,
-                  error: "Archive rate limit while loading history — partial data shown.",
-                  globalMatchesComplete: false,
-                  tradesComplete: false,
-                  stats: prev.stats
-                    ? { ...prev.stats, trades_complete: false }
-                    : null,
-                }));
-                break outerMatches;
+              if (!result) {
+                state.done = true;
+                continue;
               }
 
               state.done = result.done;
@@ -1056,10 +1074,12 @@ export function useWalletData(rawAddress: string): WalletData {
             });
 
             // Also pull new fills into the global trade history (WalletTradeHistory).
-            // Redis TTL for first-page is 15s, so this sees fresh data after the fill.
+            // Only active subs — fills require open positions.
             if (latestKnownIdxRef.current) {
+              const activeAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
+              const activeIncrChunks = chunk(activeAddrs, 5);
               const newTrades = await fetchIncrementalTrades(
-                subaccountChunks,
+                activeIncrChunks,
                 latestKnownIdxRef.current,
               );
               if (!cancelled && newTrades.length > 0) {
@@ -1313,13 +1333,12 @@ export function useWalletData(rawAddress: string): WalletData {
       setData((prev) => ({ ...prev, refreshing: true, error: null }));
       try {
         const knownIdx = latestKnownIdxRef.current;
-        const subAddrs = subaccountsRef.current.map((s) => s.subaccount);
-        const chunks = chunk(subAddrs, 5);
+        const activeAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
+        const refreshChunks = chunk(activeAddrs, 5);
 
-        // Fetch only new trades since last known idx (incremental).
-        // Fall back to full reload if no cursor (shouldn't happen after initial load).
+        // Fetch only new trades since last known idx — active subs only (fills require positions).
         const newTrades = knownIdx
-          ? await fetchIncrementalTrades(chunks, knownIdx)
+          ? await fetchIncrementalTrades(refreshChunks, knownIdx)
           : [];
 
         if (cancelled) return;
