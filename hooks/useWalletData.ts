@@ -50,6 +50,24 @@ import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore"
 const POSITIONS_POLL_MS = 6_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
 const POLL_BACKOFF_THRESHOLD = 3;
+const MATCHES_429_BASE_DELAY = 20_000;
+const MATCHES_429_JITTER = 10_000;
+const MATCHES_429_MAX_ATTEMPTS = 3;
+const MATCHES_STAGGER_MAX_MS = 5_000;
+
+function deriveActiveSubaccounts(
+  allSubs: SubaccountEntry[],
+  positions: Position[],
+): SubaccountEntry[] {
+  const activePockets = new Set(
+    positions
+      .filter((p) => p.isolated)
+      .map((p) => p.subaccount.toLowerCase()),
+  );
+  return allSubs.filter(
+    (s) => !s.isolated || activePockets.has(s.subaccount.toLowerCase()),
+  );
+}
 
 function buildPnlStats(
   trades: TradeMatch[],
@@ -107,6 +125,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const pollErrorCountRef = useRef(0);
   const gatewayStaleToastRef = useRef<string | number | null>(null);
   const subaccountsRef = useRef<SubaccountEntry[]>([]);
+  const activeSubaccountsRef = useRef<SubaccountEntry[]>([]);
+  const pendingDiscoveryRef = useRef(false);
   const isolatedParentNameRef = useRef<Map<string, string>>(new Map());
   const isolatedParentSubaccountRef = useRef<Map<string, string>>(new Map());
   const tradesRef = useRef<TradeMatch[]>([]);
@@ -138,6 +158,7 @@ export function useWalletData(rawAddress: string): WalletData {
     [data.stats?.cross_subaccounts, rawAddress],
   );
   const onWsFill = useCallback((event: FillEvent) => {
+    pendingDiscoveryRef.current = true;
     const pairLabel = productName(event.product_id) || `#${event.product_id}`;
     const direction = event.is_bid ? "Long" : "Short";
     const qty = Math.abs(fromX18BigInt(event.filled_qty));
@@ -496,6 +517,7 @@ export function useWalletData(rawAddress: string): WalletData {
         isolatedParentSubaccountRef.current,
       );
       if (cancelled) return;
+      activeSubaccountsRef.current = deriveActiveSubaccounts(subs, positionData.positions);
 
       if (positionData.allFailed) {
         setData((prev) => ({
@@ -643,31 +665,48 @@ export function useWalletData(rawAddress: string): WalletData {
           return;
         }
 
-        let firstPages: MatchesPageResult[];
-        try {
-          const pages: MatchesPageResult[] = [];
-          for (let c = 0; c < subaccountChunks.length; c++) {
-            const subChunk = subaccountChunks[c]!;
-            const p = await fetchPage(subChunk);
-            if (p.rateLimited) throw new Error("RATE_LIMIT");
-            pages.push(p);
-            if (c < subaccountChunks.length - 1) await sleep(MATCHES_BURST_MS);
-          }
-          firstPages = pages;
-        } catch (e) {
-          if (cancelled) return;
-          if (e instanceof Error && e.message === "RATE_LIMIT") {
-            setData((prev) => ({
-              ...prev,
-              error:
-                prev.error ??
-                "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
-            }));
-            return;
-          }
-          throw e;
-        }
+        await sleep(Math.random() * MATCHES_STAGGER_MAX_MS);
         if (cancelled) return;
+
+        let firstPages: MatchesPageResult[] = [];
+        let matchesLoaded = false;
+        for (let attempt = 0; attempt < MATCHES_429_MAX_ATTEMPTS && !cancelled; attempt++) {
+          try {
+            const pages: MatchesPageResult[] = [];
+            for (let c = 0; c < subaccountChunks.length; c++) {
+              const subChunk = subaccountChunks[c]!;
+              const p = await fetchPage(subChunk);
+              if (p.rateLimited) throw new Error("RATE_LIMIT");
+              pages.push(p);
+              if (c < subaccountChunks.length - 1) await sleep(MATCHES_BURST_MS);
+            }
+            firstPages = pages;
+            matchesLoaded = true;
+            setData((prev) => ({ ...prev, error: null }));
+            break;
+          } catch (e) {
+            if (cancelled) return;
+            if (e instanceof Error && e.message === "RATE_LIMIT") {
+              if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
+                const delay = MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER;
+                const delaySec = Math.round(delay / 1000);
+                setData((prev) => ({
+                  ...prev,
+                  error: `Rate limited — retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
+                }));
+                await sleep(delay);
+                continue;
+              }
+              setData((prev) => ({
+                ...prev,
+                error: "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
+              }));
+              return;
+            }
+            throw e;
+          }
+        }
+        if (!matchesLoaded || cancelled) return;
 
         let allTrades = sortTradesNewestFirst(firstPages.flatMap((page) => page.trades));
         seenTradeIdsRef.current = new Set(allTrades.map(tradeIdentity));
@@ -749,9 +788,7 @@ export function useWalletData(rawAddress: string): WalletData {
               if (result.rateLimited) {
                 setData((prev) => ({
                   ...prev,
-                  error:
-                    prev.error ??
-                    "Archive rate limit while loading history — partial data shown.",
+                  error: "Archive rate limit while loading history — partial data shown.",
                   globalMatchesComplete: false,
                   tradesComplete: false,
                   stats: prev.stats
@@ -833,7 +870,7 @@ export function useWalletData(rawAddress: string): WalletData {
         try {
           if (cancelled) return;
           let pd = await fetchAllPos(
-            subaccountsRef.current,
+            activeSubaccountsRef.current,
             isolatedParentNameRef.current,
             isolatedParentSubaccountRef.current,
           );
@@ -856,15 +893,16 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           pollErrorCountRef.current = 0;
 
-          // Periodic isolated pocket discovery (every 6 ticks = 30s) + immediate fix
-          // when a known pocket has no parent mapping.
-          // Calls isolated_positions on each cross subaccount — lightweight Gateway query.
-          // Rebuilds subaccountsRef with ONLY active pockets (prunes dead ones too).
+          // Discovery: periodic (30s), on SSE fill, or when a pocket has no parent mapping.
           pollCountRef.current += 1;
           const hasUnmappedIsolated = pd.positions.some(
             (p) => p.isolated && !isolatedParentNameRef.current.has(p.subaccount.toLowerCase()),
           );
-          const shouldDiscover = hasUnmappedIsolated || pollCountRef.current % 6 === 0;
+          const shouldDiscover =
+            hasUnmappedIsolated ||
+            pendingDiscoveryRef.current ||
+            pollCountRef.current % 6 === 0;
+          if (shouldDiscover) pendingDiscoveryRef.current = false;
 
           if (shouldDiscover) {
             const freshMaps = await fetchIsoMaps(subaccountsRef.current);
@@ -908,6 +946,11 @@ export function useWalletData(rawAddress: string): WalletData {
               pd = refreshed;
             }
           }
+
+          activeSubaccountsRef.current = deriveActiveSubaccounts(
+            subaccountsRef.current,
+            pd.positions,
+          );
 
           // Detect fills: compare amount_x18 with previous poll.
           // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
@@ -1059,6 +1102,7 @@ export function useWalletData(rawAddress: string): WalletData {
             setData((prev) => ({ ...prev, unrealizedRefreshing: false }));
             return;
           }
+          activeSubaccountsRef.current = deriveActiveSubaccounts(subaccountsRef.current, pd.positions);
 
           // Refresh snapshot entry prices for avg entry accuracy
           const refreshedCrossSubs = subaccountsRef.current
