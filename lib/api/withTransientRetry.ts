@@ -12,7 +12,7 @@ export async function withTransientRetry(
   fetcher: () => Promise<Response>,
   opts: TransientRetryOptions = {},
 ): Promise<Response> {
-  const { maxAttempts = 3, baseDelayMs = 500, maxTotalMs = 35_000 } = opts;
+  const { maxAttempts = 2, baseDelayMs = 500, maxTotalMs = 20_000 } = opts;
   const deadline = Date.now() + maxTotalMs;
 
   let lastError: unknown;

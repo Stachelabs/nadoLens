@@ -107,7 +107,12 @@ const server = Bun.serve({
     const url = new URL(req.url);
 
     if (req.method === "GET" && url.pathname === "/health") {
-      return Response.json({ ok: true });
+      const mem = process.memoryUsage();
+      return Response.json({
+        ok: true,
+        memory_mb: Math.round(mem.rss / 1024 / 1024),
+        heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/funding") {
