@@ -50,7 +50,8 @@ import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore"
 const POSITIONS_POLL_MS = 6_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
 const POLL_BACKOFF_THRESHOLD = 3;
-const MATCHES_429_RETRY_DELAY = 15_000;
+const MATCHES_429_BASE_DELAY = 20_000;
+const MATCHES_429_JITTER = 10_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
 
 function deriveActiveSubaccounts(
@@ -683,18 +684,18 @@ export function useWalletData(rawAddress: string): WalletData {
             if (cancelled) return;
             if (e instanceof Error && e.message === "RATE_LIMIT") {
               if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
+                const delay = MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER;
+                const delaySec = Math.round(delay / 1000);
                 setData((prev) => ({
                   ...prev,
-                  error: `Rate limited — retrying in ${MATCHES_429_RETRY_DELAY / 1000}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
+                  error: `Rate limited — retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
                 }));
-                await sleep(MATCHES_429_RETRY_DELAY);
+                await sleep(delay);
                 continue;
               }
               setData((prev) => ({
                 ...prev,
-                error:
-                  prev.error ??
-                  "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
+                error: "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
               }));
               return;
             }
@@ -783,9 +784,7 @@ export function useWalletData(rawAddress: string): WalletData {
               if (result.rateLimited) {
                 setData((prev) => ({
                   ...prev,
-                  error:
-                    prev.error ??
-                    "Archive rate limit while loading history — partial data shown.",
+                  error: "Archive rate limit while loading history — partial data shown.",
                   globalMatchesComplete: false,
                   tradesComplete: false,
                   stats: prev.stats
