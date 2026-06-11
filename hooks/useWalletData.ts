@@ -53,6 +53,7 @@ const POLL_BACKOFF_THRESHOLD = 3;
 const MATCHES_429_BASE_DELAY = 20_000;
 const MATCHES_429_JITTER = 10_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
+const MATCHES_STAGGER_MAX_MS = 5_000;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
@@ -663,6 +664,9 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           return;
         }
+
+        await sleep(Math.random() * MATCHES_STAGGER_MAX_MS);
+        if (cancelled) return;
 
         let firstPages: MatchesPageResult[] = [];
         let matchesLoaded = false;
