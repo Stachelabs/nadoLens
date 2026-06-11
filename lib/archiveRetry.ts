@@ -39,8 +39,9 @@ export async function withArchiveRetry(
       const retryAfterMs = retryAfterHeader
         ? Math.min(parseInt(retryAfterHeader, 10) * 1000, maxDelayMs)
         : 0;
+      const jitter = 1 + Math.random() * 0.3;
       const delay = Math.min(
-        baseDelayMs * Math.pow(2, attempt) + retryAfterMs,
+        baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs,
         maxDelayMs,
         deadline - Date.now(),
       );

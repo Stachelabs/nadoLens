@@ -49,7 +49,6 @@ export async function GET(
           signal: AbortSignal.timeout(10_000),
           cache: "no-store",
         }),
-      { maxAttempts: 5, baseDelayMs: 400, maxDelayMs: 30_000 },
     );
 
     if (!response.ok) {
