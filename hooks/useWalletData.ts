@@ -772,7 +772,11 @@ export function useWalletData(rawAddress: string): WalletData {
                 MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
                 60_000,
               );
-              await sleep(delay);
+              setData((prev) => ({
+                ...prev,
+                error: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${retry + 1}/${REMAINING_429_MAX_RETRIES})…`,
+              }));
+              await sleep(delay, signal);
             }
           }
           if (cancelled || !result) break;
@@ -810,6 +814,7 @@ export function useWalletData(rawAddress: string): WalletData {
             const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
             return {
               ...prev,
+              error: allChunksFetched ? null : prev.error,
               trades: allTrades,
               globalMatchesComplete: allDone,
               tradesComplete: allDone,
@@ -849,6 +854,7 @@ export function useWalletData(rawAddress: string): WalletData {
             nextIdx: page.nextIdx,
           }));
           let truncatedByPageLimit = false;
+          let anyChunkExhausted = false;
           outerMatches: for (let page = 1; page < MAX_PAGES && !cancelled; page++) {
             const active = chunkStates.filter((state) => !state.done);
             if (active.length === 0) break;
@@ -871,11 +877,12 @@ export function useWalletData(rawAddress: string): WalletData {
                     MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
                     60_000,
                   );
-                  await sleep(delay);
+                  await sleep(delay, signal);
                 }
               }
               if (cancelled) break outerMatches;
               if (!result) {
+                anyChunkExhausted = true;
                 state.done = true;
                 continue;
               }
@@ -894,7 +901,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
             tradesRef.current = allTrades;
             latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
-            const allDone = chunkStates.every((state) => state.done);
+            const allDone = chunkStates.every((state) => state.done) && !anyChunkExhausted;
             tradesCompleteRef.current = allDone || page === MAX_PAGES - 1;
             setData((prev) => {
               const fs = useWalletFundingStore.getState().forAddress(rawAddress);
@@ -902,6 +909,9 @@ export function useWalletData(rawAddress: string): WalletData {
               return {
               ...prev,
               trades: allTrades,
+              ...(anyChunkExhausted
+                ? { error: "Archive rate limit while loading history — partial data shown." }
+                : {}),
               globalMatchesComplete: allDone || page === MAX_PAGES - 1,
               tradesComplete: allDone || page === MAX_PAGES - 1,
               stats: prev.stats
