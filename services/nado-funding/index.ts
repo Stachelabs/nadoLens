@@ -27,18 +27,33 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchWithRetry(body: FundingBody): Promise<Response> {
+async function fetchWithRetry(
+  body: FundingBody,
+  callerSignal?: AbortSignal,
+): Promise<Response> {
   const maxAttempts = 4;
-  const baseDelayMs = 350;
-  const maxDelayMs = 8_000;
+  const baseDelayMs = 400;
+  const maxDelayMs = 5_000;
+  const DEADLINE_MS = 14_000;
+  const deadline = Date.now() + DEADLINE_MS;
   let last: Response | undefined;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0 && Date.now() >= deadline) break;
+    if (callerSignal?.aborted) break;
+
+    const remainingMs = Math.max(deadline - Date.now(), 1_000);
+    const perAttemptTimeout = Math.min(remainingMs, 8_000);
+
+    const ac = new AbortController();
+    const tid = setTimeout(() => ac.abort(), perAttemptTimeout);
+    callerSignal?.addEventListener("abort", () => ac.abort(), { once: true });
+
     try {
       const res = await fetch(ARCHIVE_URL, {
         method: "POST",
-        signal: AbortSignal.timeout(8_000),
+        signal: ac.signal,
         headers: {
           "Content-Type": "application/json",
           "Accept-Encoding": "gzip, br, deflate",
@@ -54,20 +69,31 @@ async function fetchWithRetry(body: FundingBody): Promise<Response> {
       });
 
       if (res.status < 500 && res.status !== 429) return res;
+
+      if (res.status >= 500 && attempt >= 1) {
+        console.warn(`[nado-funding] Archive 5xx after ${attempt + 1} attempts — circuit break`);
+        return res;
+      }
+
       last = res;
       console.warn(`[nado-funding] Archive retry ${attempt + 1}/${maxAttempts} — status ${res.status}`);
     } catch (e) {
       lastError = e;
       const reason = e instanceof Error ? e.message : "unknown";
       console.warn(`[nado-funding] Archive retry ${attempt + 1}/${maxAttempts} — ${reason}`);
+    } finally {
+      clearTimeout(tid);
     }
 
-    if (attempt < maxAttempts - 1) {
+    if (attempt < maxAttempts - 1 && Date.now() < deadline) {
       const ra = last?.headers.get("Retry-After");
       const retryAfterMs = ra ? Math.min(parseInt(ra, 10) * 1000, maxDelayMs) : 0;
       const jitter = 1 + Math.random() * 0.3;
-      const delay = Math.min(baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs, maxDelayMs);
-      await sleep(delay);
+      const delay = Math.min(
+        baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs,
+        maxDelayMs,
+      );
+      await sleep(Math.min(delay, deadline - Date.now()));
     }
   }
 
@@ -111,7 +137,7 @@ const server = Bun.serve({
 
       let archiveRes: Response;
       try {
-        archiveRes = await fetchWithRetry(body);
+        archiveRes = await fetchWithRetry(body, req.signal);
       } catch {
         return Response.json(
           { error: "Archive temporarily unavailable" },

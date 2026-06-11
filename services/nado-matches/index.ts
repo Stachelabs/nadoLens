@@ -323,11 +323,14 @@ const server = Bun.serve({
     const url = new URL(req.url);
 
     if (req.method === "GET" && url.pathname === "/health") {
+      const mem = process.memoryUsage();
       return Response.json({
         ok: true,
         ws_connected: wsConnected,
         sse_clients: clients.size,
         account_subs: subscribedAccounts.size,
+        memory_mb: Math.round(mem.rss / 1024 / 1024),
+        heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
       });
     }
 

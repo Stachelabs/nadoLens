@@ -10,7 +10,6 @@ import { parseArchiveJson } from "@/lib/api/validateResponse";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
-export const preferredRegion = "fra1";
 
 type ErrResponse = { error: string };
 
