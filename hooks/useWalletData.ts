@@ -54,6 +54,7 @@ const MATCHES_429_BASE_DELAY = 20_000;
 const MATCHES_429_JITTER = 10_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
 const MATCHES_STAGGER_MAX_MS = 5_000;
+const REMAINING_MATCHES_DELAY_MS = 7_000;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
@@ -518,6 +519,11 @@ export function useWalletData(rawAddress: string): WalletData {
       );
       if (cancelled) return;
       activeSubaccountsRef.current = deriveActiveSubaccounts(subs, positionData.positions);
+      const activeSubAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
+      const activeChunks = chunk(activeSubAddrs, 5);
+      const activeAddrSet = new Set(activeSubAddrs.map((a) => a.toLowerCase()));
+      const remainingAddrs = subAddrs.filter((a) => !activeAddrSet.has(a.toLowerCase()));
+      const remainingChunks = chunk(remainingAddrs, 5);
 
       if (positionData.allFailed) {
         setData((prev) => ({
@@ -668,19 +674,20 @@ export function useWalletData(rawAddress: string): WalletData {
         await sleep(Math.random() * MATCHES_STAGGER_MAX_MS);
         if (cancelled) return;
 
-        let firstPages: MatchesPageResult[] = [];
+        // Step 1: Fetch first pages for ACTIVE subaccounts only (low weight, fast)
+        let activeFirstPages: MatchesPageResult[] = [];
         let matchesLoaded = false;
         for (let attempt = 0; attempt < MATCHES_429_MAX_ATTEMPTS && !cancelled; attempt++) {
           try {
             const pages: MatchesPageResult[] = [];
-            for (let c = 0; c < subaccountChunks.length; c++) {
-              const subChunk = subaccountChunks[c]!;
+            for (let c = 0; c < activeChunks.length; c++) {
+              const subChunk = activeChunks[c]!;
               const p = await fetchPage(subChunk);
               if (p.rateLimited) throw new Error("RATE_LIMIT");
               pages.push(p);
-              if (c < subaccountChunks.length - 1) await sleep(MATCHES_BURST_MS);
+              if (c < activeChunks.length - 1) await sleep(MATCHES_BURST_MS);
             }
-            firstPages = pages;
+            activeFirstPages = pages;
             matchesLoaded = true;
             setData((prev) => ({ ...prev, error: null }));
             break;
@@ -708,14 +715,11 @@ export function useWalletData(rawAddress: string): WalletData {
         }
         if (!matchesLoaded || cancelled) return;
 
-        let allTrades = sortTradesNewestFirst(firstPages.flatMap((page) => page.trades));
+        let allTrades = sortTradesNewestFirst(activeFirstPages.flatMap((page) => page.trades));
         seenTradeIdsRef.current = new Set(allTrades.map(tradeIdentity));
         tradesRef.current = allTrades;
         latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? null;
         tradesCompleteRef.current = false;
-        // positionStatsMapRef is set exclusively by Phase 2b (position-scoped matches).
-        // Global trades are used only for overall wallet PnL stats, not per-position columns.
-        // Update data after first-page trades arrive
         setData((prev) => {
           const fs = useWalletFundingStore.getState().forAddress(rawAddress);
           const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
@@ -726,7 +730,7 @@ export function useWalletData(rawAddress: string): WalletData {
             ? {
                 ...prev.stats,
                 trades: allTrades,
-                trades_complete: firstPages.every((page) => page.done),
+                trades_complete: false,
                 ...pnlStats,
                 positions: (() => {
                   const ef = (fs?.fundingPayments.length ?? 0) > 0
@@ -742,9 +746,69 @@ export function useWalletData(rawAddress: string): WalletData {
                 })(),
               }
             : null,
-          globalMatchesComplete: firstPages.every((page) => page.done),
-          tradesComplete: firstPages.every((page) => page.done),
+          globalMatchesComplete: remainingChunks.length === 0 && activeFirstPages.every((page) => page.done),
+          tradesComplete: remainingChunks.length === 0 && activeFirstPages.every((page) => page.done),
         };});
+
+        // Step 2: Background-load remaining subaccounts (throttled, 7s between chunks)
+        const remainingFirstPages: MatchesPageResult[] = [];
+        for (let c = 0; c < remainingChunks.length && !cancelled; c++) {
+          if (c > 0) await sleep(REMAINING_MATCHES_DELAY_MS);
+          let result = await fetchPage(remainingChunks[c]!);
+          if (cancelled) break;
+          if (result.rateLimited) {
+            await sleep(MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER);
+            if (cancelled) break;
+            result = await fetchPage(remainingChunks[c]!);
+            if (cancelled) break;
+            if (result.rateLimited) {
+              remainingFirstPages.push({ trades: [], nextIdx: null, done: false });
+              continue;
+            }
+          }
+          remainingFirstPages.push(result);
+          const uniqueTrades = result.trades.filter((trade) => {
+            const id = tradeIdentity(trade);
+            if (seenTradeIdsRef.current.has(id)) return false;
+            seenTradeIdsRef.current.add(id);
+            return true;
+          });
+          if (uniqueTrades.length > 0) {
+            allTrades = sortTradesNewestFirst([...allTrades, ...uniqueTrades]);
+            tradesRef.current = allTrades;
+            latestKnownIdxRef.current = allTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+            setData((prev) => {
+              const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+              const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
+              return {
+                ...prev,
+                trades: allTrades,
+                stats: prev.stats ? { ...prev.stats, trades: allTrades, ...pnlStats } : null,
+              };
+            });
+          }
+        }
+
+        const firstPages = [...activeFirstPages, ...remainingFirstPages];
+        const firstPageChunks = [...activeChunks, ...remainingChunks.slice(0, remainingFirstPages.length)];
+        if (!cancelled) {
+          const allChunksFetched = remainingFirstPages.length === remainingChunks.length;
+          const allDone = firstPages.every((p) => p.done) && allChunksFetched;
+          tradesCompleteRef.current = allDone;
+          setData((prev) => {
+            const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+            const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
+            return {
+              ...prev,
+              trades: allTrades,
+              globalMatchesComplete: allDone,
+              tradesComplete: allDone,
+              stats: prev.stats
+                ? { ...prev.stats, trades: allTrades, trades_complete: allDone, ...pnlStats }
+                : null,
+            };
+          });
+        }
 
         // Catch-up: one no-cache fetch to bridge Redis cache lag — runs once per page load.
         // If Redis served stale data (old 24h TTL entry), this surfaces trades made after
@@ -769,7 +833,7 @@ export function useWalletData(rawAddress: string): WalletData {
         // Background: fetch remaining pages
         if (firstPages.some((page) => !page.done)) {
           const chunkStates = firstPages.map((page, idx) => ({
-            chunk: subaccountChunks[idx],
+            chunk: firstPageChunks[idx],
             done: page.done,
             nextIdx: page.nextIdx,
           }));
