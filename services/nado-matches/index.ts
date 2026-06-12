@@ -363,15 +363,18 @@ const server = Bun.serve({
 
       writer.write(encoder.encode(": connected\n\n"));
 
+      const heartbeat = setInterval(() => {
+        writer.write(encoder.encode(": ping\n\n")).catch(() => {});
+      }, 20_000);
+
       req.signal.addEventListener("abort", () => {
+        clearInterval(heartbeat);
         clients.delete(id);
 
         if (subaccount) {
           const ids = accountClients.get(subaccount);
           if (ids) {
             ids.delete(id);
-            // Remove from subscribedAccounts when last client disconnects —
-            // prevents unbounded subscription growth across reconnects.
             if (ids.size === 0) {
               accountClients.delete(subaccount);
               subscribedAccounts.delete(subaccount);
