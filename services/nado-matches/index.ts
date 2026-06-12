@@ -449,7 +449,7 @@ const server = Bun.serve({
         // First-page requests (no cursor) include the most recent fills — short TTL so
         // fill-triggered refetches see fresh data. Paginated pages are historical and safe
         // to cache for a full day.
-        const ttl = body.idx ? 86_400 : 15;
+        const ttl = body.idx ? 86_400 : 3;
         await redis.set(key, data, { ex: ttl });
       } catch {
         // Cache write failure is non-fatal
