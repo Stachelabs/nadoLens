@@ -148,8 +148,8 @@ export async function POST(
       );
     }
 
-    // No cache or empty fresh → store and return
-    if (!cached || fresh.matches.length === 0) {
+    // No cache → store fresh and return
+    if (!cached) {
       const hi = highestIdx(fresh.matches);
       if (hi) {
         const entry: CachedFirstPage = {
@@ -165,6 +165,20 @@ export async function POST(
         }
       }
       return NextResponse.json(fresh, { headers: { "X-Cache": "VMISS" } });
+    }
+
+    // Fly.io returned empty but cache has data → serve stale
+    if (fresh.matches.length === 0) {
+      const refreshed: CachedFirstPage = { ...cached, updatedAt: Date.now() };
+      try {
+        await redis.set(key, refreshed, { ex: HARD_TTL_S });
+      } catch {
+        // Non-fatal
+      }
+      return NextResponse.json(
+        { matches: cached.matches, txs: cached.txs },
+        { headers: { "X-Cache": "VSTALE" } },
+      );
     }
 
     // ── Incremental merge ─────────────────────────────────────────────────
@@ -194,10 +208,13 @@ export async function POST(
     // Merge: new trades first, then cached, trim to MAX_MATCHES
     const mergedMatches = [...newMatches, ...cached.matches].slice(0, MAX_MATCHES);
 
-    // Merge txs: union by submission_idx
+    // Merge txs: union by submission_idx, trim to match mergedMatches
+    const mergedMatchIdxSet = new Set(mergedMatches.map((m) => m.submission_idx));
     const txIdxSet = new Set(cached.txs.map((t) => t.submission_idx));
     const newTxs = fresh.txs.filter((t) => !txIdxSet.has(t.submission_idx));
-    const mergedTxs = [...newTxs, ...cached.txs];
+    const mergedTxs = [...newTxs, ...cached.txs].filter((t) =>
+      mergedMatchIdxSet.has(t.submission_idx),
+    );
 
     const mergedHighest = highestIdx(mergedMatches) ?? cached.highestIdx;
     const entry: CachedFirstPage = {
