@@ -57,6 +57,7 @@ const MATCHES_STAGGER_MAX_MS = 5_000;
 const REMAINING_MATCHES_DELAY_MS = 7_000;
 const REMAINING_429_MAX_RETRIES = 6;
 const BG_PAGINATION_429_MAX_RETRIES = 4;
+const POSITION_SCOPED_429_MAX_RETRIES = 6;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
@@ -313,16 +314,62 @@ export function useWalletData(rawAddress: string): WalletData {
       }
 
       const completedProducts = new Set<string>();
+      const rateLimitedPairs = new Set<string>();
       const notifiedProducts = new Set<string>();
       const cursorByPair: Record<string, string | undefined> = {};
 
+      const processTradesForPair = (pair: PairKey, pairKey: string, result: MatchesPageResult): void => {
+        for (const trade of result.trades) {
+          const tradeId = `${trade.submission_idx ?? ""}-${trade.subaccount ?? ""}-${trade.product_id}`;
+          if (positionSeenTradeIdsRef.current.has(tradeId)) continue;
+          positionSeenTradeIdsRef.current.add(tradeId);
+          positionTradesRef.current.push(trade);
+
+          if ((trade.isolated ?? false) !== pair.isIsolated) continue;
+          if (trade.pre_balance_amount === undefined) continue;
+
+          const preBalance = fromX18BigInt(trade.pre_balance_amount);
+          if (Math.abs(preBalance) < 1e-10) {
+            const timeSec = trade.timestamp
+              ? Number(BigInt(trade.timestamp) / BigInt(1_000_000_000))
+              : 0;
+            positionOpenTimeMapRef.current[pairKey] = timeSec;
+            completedProducts.add(pairKey);
+            return;
+          }
+        }
+
+        if (!completedProducts.has(pairKey)) {
+          if (result.done) {
+            completedProducts.add(pairKey);
+          } else {
+            cursorByPair[pairKey] = result.nextIdx ?? undefined;
+          }
+        }
+      };
+
+      const emitPartialStats = (pairKey: string): void => {
+        if (completedProducts.has(pairKey) && !notifiedProducts.has(pairKey) && !cancelled) {
+          notifiedProducts.add(pairKey);
+          const partialStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
+          positionStatsMapRef.current = partialStatsMap;
+          setData(prev => ({
+            ...prev,
+            matchedPositionKeys: [...notifiedProducts],
+            stats: prev.stats
+              ? { ...prev.stats, positions: applyPositionStats(prev.stats.positions, partialStatsMap) }
+              : null,
+          }));
+        }
+      };
+
       let iteration = 0;
-      while (completedProducts.size < pairs.length && iteration < MAX_POSITION_SCOPED_PAGES) {
+      while (completedProducts.size + rateLimitedPairs.size < pairs.length && iteration < MAX_POSITION_SCOPED_PAGES) {
         if (cancelled) break;
         for (const pair of pairs) {
           if (cancelled) break;
           const pairKey = `${pair.pocketSubaccount}:${pair.productId}`;
-          if (completedProducts.has(pairKey)) continue;
+          if (completedProducts.has(pairKey) || rateLimitedPairs.has(pairKey)) continue;
 
           const result = await fetchPage(
             [pair.querySubaccount],
@@ -331,56 +378,87 @@ export function useWalletData(rawAddress: string): WalletData {
             !cursorByPair[pairKey] ? noCache : false,
           );
 
-          if (result.rateLimited || result.trades.length === 0) {
+          if (result.rateLimited) {
+            rateLimitedPairs.add(pairKey);
+          } else if (result.trades.length === 0) {
             completedProducts.add(pairKey);
           } else {
-            for (const trade of result.trades) {
-              const tradeId = `${trade.submission_idx ?? ""}-${trade.subaccount ?? ""}-${trade.product_id}`;
-              if (positionSeenTradeIdsRef.current.has(tradeId)) continue;
-              positionSeenTradeIdsRef.current.add(tradeId);
-              positionTradesRef.current.push(trade);
-
-              if ((trade.isolated ?? false) !== pair.isIsolated) continue;
-              if (trade.pre_balance_amount === undefined) continue;
-
-              const preBalance = fromX18BigInt(trade.pre_balance_amount);
-              if (Math.abs(preBalance) < 1e-10) {
-                const timeSec = trade.timestamp
-                  ? Number(BigInt(trade.timestamp) / BigInt(1_000_000_000))
-                  : 0;
-                positionOpenTimeMapRef.current[pairKey] = timeSec;
-                completedProducts.add(pairKey);
-                break;
-              }
-            }
-
-            if (!completedProducts.has(pairKey)) {
-              if (result.done) {
-                completedProducts.add(pairKey);
-              } else {
-                cursorByPair[pairKey] = result.nextIdx ?? undefined;
-              }
-            }
+            processTradesForPair(pair, pairKey, result);
           }
 
-          if (completedProducts.has(pairKey) && !notifiedProducts.has(pairKey) && !cancelled) {
-            notifiedProducts.add(pairKey);
-            const partialStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
-            positionStatsMapRef.current = partialStatsMap;
-            setData(prev => ({
-              ...prev,
-              matchedPositionKeys: [...notifiedProducts],
-              stats: prev.stats
-                ? { ...prev.stats, positions: applyPositionStats(prev.stats.positions, partialStatsMap) }
-                : null,
-            }));
-          }
-
-          await new Promise<void>(r => setTimeout(r, MATCHES_BURST_MS));
+          emitPartialStats(pairKey);
+          await sleep(MATCHES_BURST_MS, signal);
         }
         iteration++;
       }
 
+      // ── Retry rate-limited pairs with escalating backoff ──────────────────────
+      if (rateLimitedPairs.size > 0 && !cancelled) {
+        const pairRetryCounts = new Map<string, number>();
+        for (let retry = 0; retry < POSITION_SCOPED_429_MAX_RETRIES && rateLimitedPairs.size > 0 && !cancelled; retry++) {
+          const delay = Math.min(
+            MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+            60_000,
+          );
+          setData(prev => ({
+            ...prev,
+            error: `Loading position stats — rate limited, retrying (${retry + 1}/${POSITION_SCOPED_429_MAX_RETRIES})…`,
+          }));
+          await sleep(delay, signal);
+          if (cancelled) break;
+
+          for (const pairKey of [...rateLimitedPairs]) {
+            if (cancelled) break;
+            const pair = pairs.find(p => `${p.pocketSubaccount}:${p.productId}` === pairKey);
+            if (!pair) { rateLimitedPairs.delete(pairKey); continue; }
+
+            const pairRetries = (pairRetryCounts.get(pairKey) ?? 0) + 1;
+            pairRetryCounts.set(pairKey, pairRetries);
+
+            const result = await fetchPage(
+              [pair.querySubaccount],
+              cursorByPair[pairKey],
+              [pair.productId],
+            );
+
+            if (result.rateLimited) continue;
+
+            rateLimitedPairs.delete(pairKey);
+            if (result.trades.length === 0) {
+              completedProducts.add(pairKey);
+            } else {
+              processTradesForPair(pair, pairKey, result);
+              let miniPage = 0;
+              while (!completedProducts.has(pairKey) && miniPage < MAX_POSITION_SCOPED_PAGES - 1 && !cancelled) {
+                if (!cursorByPair[pairKey]) break;
+                await sleep(MATCHES_BURST_MS, signal);
+                const nextResult = await fetchPage(
+                  [pair.querySubaccount],
+                  cursorByPair[pairKey],
+                  [pair.productId],
+                );
+                if (nextResult.rateLimited) {
+                  if (pairRetries < POSITION_SCOPED_429_MAX_RETRIES) {
+                    rateLimitedPairs.add(pairKey);
+                  }
+                  break;
+                }
+                if (nextResult.trades.length === 0) {
+                  completedProducts.add(pairKey);
+                } else {
+                  processTradesForPair(pair, pairKey, nextResult);
+                }
+                miniPage++;
+              }
+            }
+
+            emitPartialStats(pairKey);
+            await sleep(MATCHES_BURST_MS, signal);
+          }
+        }
+      }
+
+      const anyExhausted = rateLimitedPairs.size > 0;
       const matchStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = matchStatsMap;
       setData(prev => ({
@@ -388,6 +466,11 @@ export function useWalletData(rawAddress: string): WalletData {
         positionTrades: [...positionTradesRef.current],
         positionMatchesComplete: true,
         matchedPositionKeys: [],
+        ...(anyExhausted
+          ? { error: "Some position stats unavailable — Archive rate limited." }
+          : prev.error?.includes("rate limited, retrying")
+            ? { error: null }
+            : {}),
         stats: prev.stats
           ? {
               ...prev.stats,
