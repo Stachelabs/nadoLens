@@ -268,9 +268,7 @@ export function useWalletData(rawAddress: string): WalletData {
         const chunkSubs = chunks[ci]!;
         let pageIdx: string | undefined = undefined;
         for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
-          // Always bypass cache: incremental fetches specifically look for fills newer than
-          // latestKnownIdx — a cached first page would return stale data without the new fill.
-          const page = await fetchPage(chunkSubs, pageIdx, undefined, true);
+          const page = await fetchPage(chunkSubs, pageIdx);
           if (cancelled || page.rateLimited) break;
           let boundaryHit = false;
           for (const trade of page.trades) {
@@ -1146,15 +1144,17 @@ export function useWalletData(rawAddress: string): WalletData {
           const newPositionKeys = new Set(
             pd.positions.map((pos) => `${pos.subaccount}:${pos.product_id}`),
           );
-          const fillDetected =
-            prev.size > 0 &&
-            (pd.positions.some((pos) => {
-              const key = `${pos.subaccount}:${pos.product_id}`;
-              const prevAmt = prev.get(key);
-              return prevAmt === undefined || prevAmt !== pos.amount_x18;
-            }) ||
-              // Position closed: a previously-tracked key is no longer in the poll.
-              [...prev.keys()].some((key) => !newPositionKeys.has(key)));
+          const changedPositions = prev.size > 0
+            ? pd.positions.filter((pos) => {
+                const key = `${pos.subaccount}:${pos.product_id}`;
+                const prevAmt = prev.get(key);
+                return prevAmt === undefined || prevAmt !== pos.amount_x18;
+              })
+            : [];
+          const closedPositionKeys = prev.size > 0
+            ? [...prev.keys()].filter((key) => !newPositionKeys.has(key))
+            : [];
+          const fillDetected = changedPositions.length > 0 || closedPositionKeys.length > 0;
           prevAmountsRef.current = new Map(
             pd.positions.map((pos) => [`${pos.subaccount}:${pos.product_id}`, pos.amount_x18]),
           );
@@ -1165,13 +1165,20 @@ export function useWalletData(rawAddress: string): WalletData {
             const crossSubs = subaccountsRef.current.filter(s => !s.isolated).map(s => s.subaccount);
             entryPriceMapRef.current = await fetchSnapshots(crossSubs);
             if (cancelled) return;
-            // Re-fetch position-scoped matches from the session opener (pre_balance=0 boundary).
-            // This is the authoritative source for per-position fees and realized PnL.
-            // Avoids the Archive-lag race where global trades find a stale prior-session boundary.
-            positionTradesRef.current = [];
-            positionSeenTradeIdsRef.current = new Set();
-            positionOpenTimeMapRef.current = {};
-            await fetchPositionScopedMatches(pd.positions, true);
+            // Re-fetch position-scoped matches ONLY for changed positions (not all).
+            // Closed positions: remove their trades from the cache.
+            const changedKeys = new Set(changedPositions.map(
+              (p) => `${p.subaccount}:${p.product_id}`,
+            ));
+            const closedKeySet = new Set(closedPositionKeys);
+            positionTradesRef.current = positionTradesRef.current.filter((t) => {
+              const key = `${t.subaccount ?? ""}:${t.product_id}`;
+              return !changedKeys.has(key) && !closedKeySet.has(key);
+            });
+            for (const key of [...changedKeys, ...closedKeySet]) {
+              delete positionOpenTimeMapRef.current[key];
+            }
+            await fetchPositionScopedMatches(changedPositions, true);
             if (cancelled) return;
             positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
             usePositionMatchesCacheStore.getState().setCache(rawAddress, {
@@ -1260,13 +1267,16 @@ export function useWalletData(rawAddress: string): WalletData {
           });
         }, delay);
       };
+      let pollInFlight = false;
       triggerImmediatePollRef.current = () => {
-        if (cancelled) return;
+        if (cancelled || pollInFlight) return;
+        pollInFlight = true;
         if (intervalRef.current) {
           clearTimeout(intervalRef.current);
           intervalRef.current = null;
         }
         void pollPositionsOnly().finally(() => {
+          pollInFlight = false;
           if (!cancelled) schedulePoll();
         });
       };
@@ -1424,9 +1434,16 @@ export function useWalletData(rawAddress: string): WalletData {
       // Wait for all background tasks (trade pagination, snapshots, position matches).
       // Ref assignments above are intentionally before this await so the refresh buttons
       // are functional while background pagination is still running.
-      await Promise.all([phase2, snapshotsTask, phase3a]).catch((e: unknown) => {
+      // Phase 2 (position-scoped matches) first — heaviest Archive load.
+      // Phase 3a (global history) starts AFTER to avoid concurrent rate limit burst.
+      // Snapshots run with phase 2 (low weight, usually cached).
+      await Promise.all([phase2, snapshotsTask]).catch((e: unknown) => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
-        console.error("[useWalletData] background phase error:", e);
+        console.error("[useWalletData] phase 2 error:", e);
+      });
+      await phase3a.catch((e: unknown) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        console.error("[useWalletData] phase 3a error:", e);
       });
 
       if (!cancelled && tradesRef.current.length > 0) {
