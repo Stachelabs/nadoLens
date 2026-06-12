@@ -96,6 +96,8 @@ export type WalletData = {
   /** @deprecated Use globalMatchesComplete */
   tradesComplete: boolean;
   error: string | null;
+  positionError: string | null;
+  matchesError: string | null;
   refreshing: boolean;
   unrealizedRefreshing: boolean;
   spotBalancesRefreshing: boolean;
@@ -121,6 +123,8 @@ export function useWalletData(rawAddress: string): WalletData {
     globalMatchesComplete: false,
     tradesComplete: false,
     error: null,
+    positionError: null,
+    matchesError: null,
     refreshing: false,
     unrealizedRefreshing: false,
     spotBalancesRefreshing: false,
@@ -402,7 +406,7 @@ export function useWalletData(rawAddress: string): WalletData {
           );
           setData(prev => ({
             ...prev,
-            error: `Loading position stats — rate limited, retrying (${retry + 1}/${POSITION_SCOPED_429_MAX_RETRIES})…`,
+            positionError: `Loading position stats — rate limited, retrying (${retry + 1}/${POSITION_SCOPED_429_MAX_RETRIES})…`,
           }));
           await sleep(delay, signal);
           if (cancelled) break;
@@ -467,9 +471,9 @@ export function useWalletData(rawAddress: string): WalletData {
         positionMatchesComplete: true,
         matchedPositionKeys: [],
         ...(anyExhausted
-          ? { error: "Some position stats unavailable — Archive rate limited." }
-          : prev.error?.includes("rate limited, retrying")
-            ? { error: null }
+          ? { positionError: "Some position stats unavailable — Archive rate limited." }
+          : prev.positionError?.includes("rate limited, retrying")
+            ? { positionError: null }
             : {}),
         stats: prev.stats
           ? {
@@ -565,7 +569,8 @@ export function useWalletData(rawAddress: string): WalletData {
         setData((prev) => ({
           ...prev,
           refreshing: true,
-          error: null,
+          positionError: null,
+          matchesError: null,
         }));
       }
 
@@ -615,7 +620,8 @@ export function useWalletData(rawAddress: string): WalletData {
           ...prev,
           loading: false,
           refreshing: false,
-          error: "Gateway unavailable — retrying…",
+          positionError: null,
+          matchesError: "Gateway unavailable — retrying…",
         }));
         intervalRef.current = setTimeout(() => {
           if (!cancelled) void loadWallet("refresh");
@@ -668,6 +674,8 @@ export function useWalletData(rawAddress: string): WalletData {
         unrealizedRefreshing: false,
         spotBalancesRefreshing: false,
         error: null,
+        positionError: null,
+        matchesError: null,
       });
 
       // ── Phase 2 + 3 (concurrent, background) ─────────────────────────────
@@ -776,7 +784,7 @@ export function useWalletData(rawAddress: string): WalletData {
             }
             activeFirstPages = pages;
             matchesLoaded = true;
-            setData((prev) => ({ ...prev, error: null }));
+            setData((prev) => ({ ...prev, matchesError: null }));
             break;
           } catch (e) {
             if (cancelled) return;
@@ -786,14 +794,14 @@ export function useWalletData(rawAddress: string): WalletData {
                 const delaySec = Math.round(delay / 1000);
                 setData((prev) => ({
                   ...prev,
-                  error: `Rate limited — retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
+                  matchesError: `Rate limited — retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
                 }));
                 await sleep(delay);
                 continue;
               }
               setData((prev) => ({
                 ...prev,
-                error: "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
+                matchesError: "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
               }));
               return;
             }
@@ -857,7 +865,7 @@ export function useWalletData(rawAddress: string): WalletData {
               );
               setData((prev) => ({
                 ...prev,
-                error: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${retry + 1}/${REMAINING_429_MAX_RETRIES})…`,
+                matchesError: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${retry + 1}/${REMAINING_429_MAX_RETRIES})…`,
               }));
               await sleep(delay, signal);
             }
@@ -897,7 +905,7 @@ export function useWalletData(rawAddress: string): WalletData {
             const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
             return {
               ...prev,
-              error: allChunksFetched ? null : prev.error,
+              matchesError: allChunksFetched ? null : prev.matchesError,
               trades: allTrades,
               globalMatchesComplete: allDone,
               tradesComplete: allDone,
@@ -993,7 +1001,7 @@ export function useWalletData(rawAddress: string): WalletData {
               ...prev,
               trades: allTrades,
               ...(anyChunkExhausted
-                ? { error: "Archive rate limit while loading history — partial data shown." }
+                ? { matchesError: "Archive rate limit while loading history — partial data shown." }
                 : {}),
               globalMatchesComplete: allDone || page === MAX_PAGES - 1,
               tradesComplete: allDone || page === MAX_PAGES - 1,
@@ -1423,7 +1431,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
     refreshImplRef.current = async () => {
       if (cancelled) return;
-      setData((prev) => ({ ...prev, refreshing: true, error: null }));
+      setData((prev) => ({ ...prev, refreshing: true, positionError: null, matchesError: null }));
       try {
         const knownIdx = latestKnownIdxRef.current;
         const activeAddrs = activeSubaccountsRef.current.map((s) => s.subaccount);
@@ -1452,7 +1460,7 @@ export function useWalletData(rawAddress: string): WalletData {
         setData((prev) => ({
           ...prev,
           refreshing: false,
-          error: prev.error ?? "Refresh failed",
+          matchesError: prev.matchesError ?? "Refresh failed",
         }));
       }
     };
@@ -1470,7 +1478,8 @@ export function useWalletData(rawAddress: string): WalletData {
           globalMatchesComplete: true,
           tradesComplete: true,
           stats: p.stats ? { ...p.stats, trades_complete: true } : null,
-          error: "Failed to load wallet data",
+          positionError: null,
+          matchesError: "Failed to load wallet data",
         }));
     });
 
@@ -1504,8 +1513,11 @@ export function useWalletData(rawAddress: string): WalletData {
     return unsub;
   }, [rawAddress]);
 
+  const error = [data.positionError, data.matchesError].filter(Boolean).join("\n") || null;
+
   return {
     ...data,
+    error,
     refresh: () => refreshImplRef.current(),
     refreshUnrealizedPnl: () => refreshUnrealizedImplRef.current(),
     refreshSpotBalances: () => refreshSpotBalancesImplRef.current(),
