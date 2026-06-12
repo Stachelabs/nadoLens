@@ -105,7 +105,7 @@ function WalletContent({ address }: { address: string }) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
           {error}
         </div>
       )}
