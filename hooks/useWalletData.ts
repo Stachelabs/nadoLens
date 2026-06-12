@@ -394,6 +394,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // ── Retry rate-limited pairs with escalating backoff ──────────────────────
       if (rateLimitedPairs.size > 0 && !cancelled) {
+        const pairRetryCounts = new Map<string, number>();
         for (let retry = 0; retry < POSITION_SCOPED_429_MAX_RETRIES && rateLimitedPairs.size > 0 && !cancelled; retry++) {
           const delay = Math.min(
             MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
@@ -410,6 +411,9 @@ export function useWalletData(rawAddress: string): WalletData {
             if (cancelled) break;
             const pair = pairs.find(p => `${p.pocketSubaccount}:${p.productId}` === pairKey);
             if (!pair) { rateLimitedPairs.delete(pairKey); continue; }
+
+            const pairRetries = (pairRetryCounts.get(pairKey) ?? 0) + 1;
+            pairRetryCounts.set(pairKey, pairRetries);
 
             const result = await fetchPage(
               [pair.querySubaccount],
@@ -434,7 +438,9 @@ export function useWalletData(rawAddress: string): WalletData {
                   [pair.productId],
                 );
                 if (nextResult.rateLimited) {
-                  rateLimitedPairs.add(pairKey);
+                  if (pairRetries < POSITION_SCOPED_429_MAX_RETRIES) {
+                    rateLimitedPairs.add(pairKey);
+                  }
                   break;
                 }
                 if (nextResult.trades.length === 0) {
