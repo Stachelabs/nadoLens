@@ -1,30 +1,43 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { FillEventSchema, type FillEvent } from "@/lib/schemas/nado";
+import {
+  FillEventSchema,
+  PositionChangeEventSchema,
+  type FillEvent,
+  type PositionChangeEvent,
+} from "@/lib/schemas/nado";
 
-export type { FillEvent } from "@/lib/schemas/nado";
+export type { FillEvent, PositionChangeEvent } from "@/lib/schemas/nado";
 
 type UseAccountStreamOptions = {
   onFill: (event: FillEvent) => void;
+  onPositionChange?: (event: PositionChangeEvent) => void;
 };
 
 function isFillEvent(data: unknown): data is FillEvent {
   return FillEventSchema.safeParse(data).success;
 }
 
+function isPositionChangeEvent(data: unknown): data is PositionChangeEvent {
+  return PositionChangeEventSchema.safeParse(data).success;
+}
+
 /**
  * Opens one SSE connection per subaccount bytes32.
- * Fires onFill when any fill event arrives. Each connection reconnects independently
+ * Fires onFill when any fill event arrives and onPositionChange when a
+ * position_change event arrives. Each connection reconnects independently
  * with exponential backoff. The REST poll in useWalletData remains the fallback.
  */
 export function useAccountStream(
   subaccounts: string[] | null,
-  { onFill }: UseAccountStreamOptions,
+  { onFill, onPositionChange }: UseAccountStreamOptions,
 ): void {
   const onFillRef = useRef(onFill);
+  const onPositionChangeRef = useRef(onPositionChange);
   useEffect(() => {
     onFillRef.current = onFill;
+    onPositionChangeRef.current = onPositionChange;
   });
 
   useEffect(() => {
@@ -53,6 +66,8 @@ export function useAccountStream(
             const data: unknown = JSON.parse(event.data);
             if (isFillEvent(data)) {
               onFillRef.current(data);
+            } else if (isPositionChangeEvent(data)) {
+              onPositionChangeRef.current?.(data);
             }
           } catch {
             // ignore malformed events

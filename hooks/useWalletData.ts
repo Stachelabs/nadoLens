@@ -155,6 +155,7 @@ export function useWalletData(rawAddress: string): WalletData {
   const refreshImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshSpotBalancesImplRef = useRef<() => Promise<void>>(async () => {});
+  const triggerImmediatePollRef = useRef<() => void>(() => {});
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Position stats are refreshed by the 6s poll fillDetected path (Archive, not WS).
@@ -185,8 +186,12 @@ export function useWalletData(rawAddress: string): WalletData {
     toastFn(`${pairLabel} — ${direction}`, {
       description: `${fmtQty} @ ${fmtPrice} · ${role}`,
     });
+    triggerImmediatePollRef.current();
   }, []);
-  useAccountStream(streamSubaccounts, { onFill: onWsFill });
+  const onWsPositionChange = useCallback(() => {
+    triggerImmediatePollRef.current();
+  }, []);
+  useAccountStream(streamSubaccounts, { onFill: onWsFill, onPositionChange: onWsPositionChange });
 
   /** Position-scoped trades — separate from tradesRef (global). */
   const positionTradesRef = useRef<TradeMatch[]>([]);
@@ -1254,6 +1259,16 @@ export function useWalletData(rawAddress: string): WalletData {
             if (!cancelled) schedulePoll();
           });
         }, delay);
+      };
+      triggerImmediatePollRef.current = () => {
+        if (cancelled) return;
+        if (intervalRef.current) {
+          clearTimeout(intervalRef.current);
+          intervalRef.current = null;
+        }
+        void pollPositionsOnly().finally(() => {
+          if (!cancelled) schedulePoll();
+        });
       };
       schedulePoll();
       refreshUnrealizedImplRef.current = async () => {
