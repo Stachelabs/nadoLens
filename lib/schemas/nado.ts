@@ -5,6 +5,9 @@ import { z } from 'zod'
 /** Raw x18 string — use fromX18BigInt() to convert to number */
 const x18 = z.string()
 
+/** Numeric string — Archive submission index, always a positive integer */
+const submissionIdx = z.string().regex(/^\d+$/)
+
 // ─── Pairs ────────────────────────────────────────────────────────────────────
 
 /** Raw shape from GET /v2/pairs */
@@ -153,7 +156,7 @@ export type LiquidationEventRaw = z.infer<typeof LiquidationEventRawSchema>
 export const ArchiveLiqEventSchema = z.object({
   subaccount: z.string(),
   product_id: z.number(),
-  submission_idx: z.string(),
+  submission_idx: submissionIdx,
   pre_balance: z.object({
     perp: z
       .object({
@@ -189,7 +192,7 @@ export const ArchiveMatchSchema = z.object({
   sequencer_fee: x18.optional().default('0'),
   is_taker: z.boolean().optional(),
   isolated: z.boolean().optional(),
-  submission_idx: z.string(),
+  submission_idx: submissionIdx,
   closed_amount: x18,
   realized_pnl: x18,
   pre_balance: z
@@ -226,7 +229,7 @@ export const ArchiveMatchSchema = z.object({
 export type ArchiveMatch = z.infer<typeof ArchiveMatchSchema>
 
 const ArchiveTxSchema = z.object({
-  submission_idx: z.string(),
+  submission_idx: submissionIdx,
   timestamp: z.string(), // Unix seconds as string
 })
 
@@ -637,7 +640,7 @@ export const FillEventSchema = z.object({
   is_taker: z.boolean(),
   is_bid: z.boolean(),
   fee: x18,
-  submission_idx: z.string(),
+  submission_idx: submissionIdx,
 })
 export type FillEvent = z.infer<typeof FillEventSchema>
 
@@ -828,7 +831,7 @@ export const ArchiveEventsResponseSchema = z.object({
     FundingPaymentEventSchema,
   ])).optional().default([]),
   txs: z.array(z.object({
-    submission_idx: z.string(),
+    submission_idx: submissionIdx,
     timestamp: z.string().optional(),
   })).optional().default([]),
 })

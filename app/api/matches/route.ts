@@ -119,7 +119,16 @@ export async function POST(
     let cached: CachedFirstPage | null = null;
 
     try {
-      cached = await redis.get<CachedFirstPage>(key);
+      const raw = await redis.get<CachedFirstPage>(key);
+      if (
+        raw &&
+        typeof raw.highestIdx === "string" &&
+        Array.isArray(raw.matches) &&
+        Array.isArray(raw.txs) &&
+        typeof raw.updatedAt === "number"
+      ) {
+        cached = raw;
+      }
     } catch {
       // Cache unavailable — proceed without
     }
