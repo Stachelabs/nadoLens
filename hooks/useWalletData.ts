@@ -297,7 +297,7 @@ export function useWalletData(rawAddress: string): WalletData {
     // Cap independent of MAX_PAGES — keeps position-scoped fetching bounded.
     const MAX_POSITION_SCOPED_PAGES = 5;
 
-    async function fetchPositionScopedMatches(openPositions: Position[], noCache = false): Promise<void> {
+    async function fetchPositionScopedMatches(openPositions: Position[]): Promise<void> {
       type PairKey = {
         pocketSubaccount: string  // pocket address — unique position ID, matches funding key
         querySubaccount: string   // parent for isolated (Archive fills), pocket for cross
@@ -382,7 +382,6 @@ export function useWalletData(rawAddress: string): WalletData {
             [pair.querySubaccount],
             cursorByPair[pairKey],
             [pair.productId],
-            !cursorByPair[pairKey] ? noCache : false,
           );
 
           if (result.rateLimited) {
@@ -685,7 +684,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // Phase 2: position-scoped matches → position-scoped funding (sequential)
       const phase2 = (async () => {
-        await fetchPositionScopedMatches(positionData.positions, true);
+        await fetchPositionScopedMatches(positionData.positions);
         if (!cancelled && positionTradesRef.current.length > 0) {
           usePositionMatchesCacheStore.getState().setCache(rawAddress, {
             positionTrades: [...positionTradesRef.current],
@@ -1178,7 +1177,7 @@ export function useWalletData(rawAddress: string): WalletData {
             for (const key of [...changedKeys, ...closedKeySet]) {
               delete positionOpenTimeMapRef.current[key];
             }
-            await fetchPositionScopedMatches(changedPositions, true);
+            await fetchPositionScopedMatches(changedPositions);
             if (cancelled) return;
             positionStatsMapRef.current = buildPositionStatsMap(positionTradesRef.current, true);
             usePositionMatchesCacheStore.getState().setCache(rawAddress, {
