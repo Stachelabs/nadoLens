@@ -494,9 +494,13 @@ export function WalletPositions({
                       </div>
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground/70">
-                      {pos.entry_price != null
-                        ? fmtPrice(pos.entry_price)
-                        : "—"}
+                      {pos.entry_price != null ? (
+                        fmtPrice(pos.entry_price)
+                      ) : !snapshotReady || !posMatchReady ? (
+                        <Skeleton className="h-3.5 w-16 ml-auto rounded-sm" />
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="py-2 pr-4 text-right tabular-nums text-foreground">
                       {fmtPrice(pos.mark_price)}
