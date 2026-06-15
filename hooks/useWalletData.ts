@@ -55,9 +55,7 @@ const MATCHES_429_JITTER = 10_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
 const MATCHES_STAGGER_MAX_MS = 5_000;
 const REMAINING_MATCHES_DELAY_MS = 7_000;
-const REMAINING_429_MAX_RETRIES = 6;
-const BG_PAGINATION_429_MAX_RETRIES = 4;
-const POSITION_SCOPED_429_MAX_RETRIES = 6;
+const RETRY_429_DEADLINE_MS = 5 * 60_000;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
@@ -406,28 +404,27 @@ export function useWalletData(rawAddress: string): WalletData {
         iteration++;
       }
 
-      // ── Retry rate-limited pairs with escalating backoff ──────────────────────
+      // ── Retry rate-limited pairs until all succeed (time-boxed) ────────────────
       if (rateLimitedPairs.size > 0 && !cancelled) {
-        const pairRetryCounts = new Map<string, number>();
-        for (let retry = 0; retry < POSITION_SCOPED_429_MAX_RETRIES && rateLimitedPairs.size > 0 && !cancelled; retry++) {
+        const retryDeadline = Date.now() + RETRY_429_DEADLINE_MS;
+        let retryRound = 0;
+        while (rateLimitedPairs.size > 0 && !cancelled && Date.now() < retryDeadline) {
           const delay = Math.min(
-            MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+            MATCHES_429_BASE_DELAY * Math.pow(1.5, retryRound) + Math.random() * MATCHES_429_JITTER,
             60_000,
           );
+          const remainingSec = Math.max(1, Math.round((retryDeadline - Date.now()) / 1000));
           setData(prev => ({
             ...prev,
-            positionError: `Loading position stats — rate limited, retrying (${retry + 1}/${POSITION_SCOPED_429_MAX_RETRIES})…`,
+            positionError: `Loading position stats — rate limited, retrying in ${Math.round(delay / 1000)}s (${remainingSec}s remaining)…`,
           }));
           await sleep(delay, signal);
           if (cancelled) break;
 
           for (const pairKey of [...rateLimitedPairs]) {
-            if (cancelled) break;
+            if (cancelled || Date.now() >= retryDeadline) break;
             const pair = pairs.find(p => `${p.pocketSubaccount}:${p.productId}` === pairKey);
             if (!pair) { rateLimitedPairs.delete(pairKey); continue; }
-
-            const pairRetries = (pairRetryCounts.get(pairKey) ?? 0) + 1;
-            pairRetryCounts.set(pairKey, pairRetries);
 
             const result = await fetchPage(
               [pair.querySubaccount],
@@ -452,9 +449,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   [pair.productId],
                 );
                 if (nextResult.rateLimited) {
-                  if (pairRetries < POSITION_SCOPED_429_MAX_RETRIES) {
-                    rateLimitedPairs.add(pairKey);
-                  }
+                  rateLimitedPairs.add(pairKey);
                   break;
                 }
                 if (nextResult.trades.length === 0) {
@@ -469,10 +464,10 @@ export function useWalletData(rawAddress: string): WalletData {
             emitPartialStats(pairKey);
             await sleep(MATCHES_BURST_MS, signal);
           }
+          retryRound++;
         }
       }
 
-      const anyExhausted = rateLimitedPairs.size > 0;
       const matchStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = matchStatsMap;
       setData(prev => ({
@@ -480,11 +475,9 @@ export function useWalletData(rawAddress: string): WalletData {
         positionTrades: [...positionTradesRef.current],
         positionMatchesComplete: true,
         matchedPositionKeys: [],
-        ...(anyExhausted
-          ? { positionError: "Some position stats unavailable — Archive rate limited." }
-          : prev.positionError?.includes("rate limited, retrying")
-            ? { positionError: null }
-            : {}),
+        ...(prev.positionError?.includes("rate limited")
+          ? { positionError: null }
+          : {}),
         stats: prev.stats
           ? {
               ...prev.stats,
@@ -861,24 +854,24 @@ export function useWalletData(rawAddress: string): WalletData {
         for (let c = 0; c < remainingChunks.length && !cancelled; c++) {
           if (c > 0) await sleep(REMAINING_MATCHES_DELAY_MS);
           let result: MatchesPageResult | null = null;
-          for (let retry = 0; retry <= REMAINING_429_MAX_RETRIES && !cancelled; retry++) {
+          const chunkDeadline = Date.now() + RETRY_429_DEADLINE_MS;
+          for (let retry = 0; !cancelled && Date.now() < chunkDeadline; retry++) {
             const page = await fetchPage(remainingChunks[c]!);
             if (cancelled) break;
             if (!page.rateLimited) {
               result = page;
               break;
             }
-            if (retry < REMAINING_429_MAX_RETRIES) {
-              const delay = Math.min(
-                MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
-                60_000,
-              );
-              setData((prev) => ({
-                ...prev,
-                matchesError: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${retry + 1}/${REMAINING_429_MAX_RETRIES})…`,
-              }));
-              await sleep(delay, signal);
-            }
+            const delay = Math.min(
+              MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+              60_000,
+            );
+            const remainingSec = Math.max(1, Math.round((chunkDeadline - Date.now()) / 1000));
+            setData((prev) => ({
+              ...prev,
+              matchesError: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${remainingSec}s remaining)…`,
+            }));
+            await sleep(delay, signal);
           }
           if (cancelled || !result) break;
           remainingFirstPages.push(result);
@@ -963,7 +956,8 @@ export function useWalletData(rawAddress: string): WalletData {
             for (let a = 0; a < active.length; a++) {
               const state = active[a]!;
               let result: MatchesPageResult | null = null;
-              for (let retry = 0; retry <= BG_PAGINATION_429_MAX_RETRIES && !cancelled; retry++) {
+              const pageDeadline = Date.now() + RETRY_429_DEADLINE_MS;
+              for (let retry = 0; !cancelled && Date.now() < pageDeadline; retry++) {
                 const page = await fetchPage(
                   state.chunk,
                   state.nextIdx ?? undefined,
@@ -973,13 +967,11 @@ export function useWalletData(rawAddress: string): WalletData {
                   result = page;
                   break;
                 }
-                if (retry < BG_PAGINATION_429_MAX_RETRIES) {
-                  const delay = Math.min(
-                    MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
-                    60_000,
-                  );
-                  await sleep(delay, signal);
-                }
+                const delay = Math.min(
+                  MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+                  60_000,
+                );
+                await sleep(delay, signal);
               }
               if (cancelled) break outerMatches;
               if (!result) {
