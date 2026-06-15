@@ -45,6 +45,7 @@ export type MatchesPageResult = {
   nextIdx: string | null
   done: boolean
   rateLimited?: boolean
+  serverError?: boolean
 }
 
 export type ParsedPositionsResult = {
@@ -484,6 +485,10 @@ export async function fetchOnePage(
       return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true }
     }
 
+    if (res.status >= 500) {
+      return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
+    }
+
     if (!res.ok) {
       return { trades: [], nextIdx: null, done: true }
     }
@@ -506,7 +511,7 @@ export async function fetchOnePage(
       : pageMatches[pageMatches.length - 1].submission_idx
     return { trades, nextIdx, done }
   } catch {
-    return { trades: [], nextIdx: null, done: true }
+    return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
   }
 }
 
@@ -566,7 +571,7 @@ export async function prefetchPositionMatches(
         [pair.productId],
       )
 
-      if (result.rateLimited || result.trades.length === 0) {
+      if (result.rateLimited || result.serverError || result.trades.length === 0) {
         completedProducts.add(pairKey)
         continue
       }

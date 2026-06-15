@@ -275,7 +275,7 @@ export function useWalletData(rawAddress: string): WalletData {
         let pageIdx: string | undefined = undefined;
         for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
           const page = await fetchPage(chunkSubs, pageIdx);
-          if (cancelled || page.rateLimited) break;
+          if (cancelled || page.rateLimited || page.serverError) break;
           let boundaryHit = false;
           for (const trade of page.trades) {
             try {
@@ -390,7 +390,7 @@ export function useWalletData(rawAddress: string): WalletData {
             [pair.productId],
           );
 
-          if (result.rateLimited) {
+          if (result.rateLimited || result.serverError) {
             rateLimitedPairs.add(pairKey);
           } else if (result.trades.length === 0) {
             completedProducts.add(pairKey);
@@ -416,7 +416,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const remainingSec = Math.max(1, Math.round((retryDeadline - Date.now()) / 1000));
           setData(prev => ({
             ...prev,
-            positionError: `Loading position stats — rate limited, retrying in ${Math.round(delay / 1000)}s (${remainingSec}s remaining)…`,
+            positionError: `Loading position stats — retrying in ${Math.round(delay / 1000)}s (${remainingSec}s remaining)…`,
           }));
           await sleep(delay, signal);
           if (cancelled) break;
@@ -432,7 +432,7 @@ export function useWalletData(rawAddress: string): WalletData {
               [pair.productId],
             );
 
-            if (result.rateLimited) continue;
+            if (result.rateLimited || result.serverError) continue;
 
             rateLimitedPairs.delete(pairKey);
             if (result.trades.length === 0) {
@@ -448,7 +448,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   cursorByPair[pairKey],
                   [pair.productId],
                 );
-                if (nextResult.rateLimited) {
+                if (nextResult.rateLimited || nextResult.serverError) {
                   rateLimitedPairs.add(pairKey);
                   break;
                 }
@@ -781,7 +781,7 @@ export function useWalletData(rawAddress: string): WalletData {
             for (let c = 0; c < activeChunks.length; c++) {
               const subChunk = activeChunks[c]!;
               const p = await fetchPage(subChunk);
-              if (p.rateLimited) throw new Error("RATE_LIMIT");
+              if (p.rateLimited || p.serverError) throw new Error("RATE_LIMIT");
               pages.push(p);
               if (c < activeChunks.length - 1) await sleep(MATCHES_BURST_MS);
             }
@@ -797,14 +797,14 @@ export function useWalletData(rawAddress: string): WalletData {
                 const delaySec = Math.round(delay / 1000);
                 setData((prev) => ({
                   ...prev,
-                  matchesError: `Rate limited — retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
+                  matchesError: `Retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
                 }));
                 await sleep(delay);
                 continue;
               }
               setData((prev) => ({
                 ...prev,
-                matchesError: "Archive rate limit — wait a minute and refresh, or open fewer tabs.",
+                matchesError: "Archive unavailable — wait a minute and refresh, or open fewer tabs.",
               }));
               return;
             }
@@ -858,7 +858,7 @@ export function useWalletData(rawAddress: string): WalletData {
           for (let retry = 0; !cancelled && Date.now() < chunkDeadline; retry++) {
             const page = await fetchPage(remainingChunks[c]!);
             if (cancelled) break;
-            if (!page.rateLimited) {
+            if (!page.rateLimited && !page.serverError) {
               result = page;
               break;
             }
@@ -869,7 +869,7 @@ export function useWalletData(rawAddress: string): WalletData {
             const remainingSec = Math.max(1, Math.round((chunkDeadline - Date.now()) / 1000));
             setData((prev) => ({
               ...prev,
-              matchesError: `Loading history — rate limited, retrying chunk ${c + 1}/${remainingChunks.length} (${remainingSec}s remaining)…`,
+              matchesError: `Loading history — retrying chunk ${c + 1}/${remainingChunks.length} (${remainingSec}s remaining)…`,
             }));
             await sleep(delay, signal);
           }
@@ -963,7 +963,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   state.nextIdx ?? undefined,
                 );
                 if (cancelled) break;
-                if (!page.rateLimited) {
+                if (!page.rateLimited && !page.serverError) {
                   result = page;
                   break;
                 }
