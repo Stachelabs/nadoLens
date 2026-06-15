@@ -475,9 +475,7 @@ export function useWalletData(rawAddress: string): WalletData {
         positionTrades: [...positionTradesRef.current],
         positionMatchesComplete: true,
         matchedPositionKeys: [],
-        ...(prev.positionError?.includes("rate limited")
-          ? { positionError: null }
-          : {}),
+        positionError: null,
         stats: prev.stats
           ? {
               ...prev.stats,
