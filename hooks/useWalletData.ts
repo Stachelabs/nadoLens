@@ -158,14 +158,22 @@ export function useWalletData(rawAddress: string): WalletData {
   const triggerImmediatePollRef = useRef<() => void>(() => {});
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
-  // Position stats are refreshed by the 6s poll fillDetected path (Archive, not WS).
-  const streamSubaccounts = useMemo<string[] | null>(() =>
-    data.stats?.cross_subaccounts?.length
+  // Ref-stabilized: only changes when the actual subaccount strings change, preventing
+  // SSE teardown/reconnect cycles during position refreshes.
+  const stableStreamSubsRef = useRef<string[] | null>(null);
+  const streamSubaccounts = useMemo<string[] | null>(() => {
+    const next = data.stats?.cross_subaccounts?.length
       ? data.stats.cross_subaccounts.map(c => c.subaccount)
-      : rawAddress ? [toSubaccount(rawAddress)] : null,
+      : rawAddress ? [toSubaccount(rawAddress)] : null;
+    const prev = stableStreamSubsRef.current;
+    if (prev !== null && next !== null && prev.join(",") === next.join(",")) {
+      return prev;
+    }
+    if (prev === null && next === null) return prev;
+    stableStreamSubsRef.current = next;
+    return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable when subaccount list hasn't changed
-    [data.stats?.cross_subaccounts, rawAddress],
-  );
+  }, [data.stats?.cross_subaccounts, rawAddress]);
   const onWsFill = useCallback((event: FillEvent) => {
     pendingDiscoveryRef.current = true;
     const pairLabel = productName(event.product_id) || `#${event.product_id}`;
