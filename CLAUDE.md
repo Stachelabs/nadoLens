@@ -140,7 +140,7 @@ Rebuild index: `pnpm docs:build:nado`
 - Fetch ALL subaccounts (default + isolated) before fetching matches
 - Matches pagination: `idx = page[page.length - 1].submission_idx`, stop if `page.length < 500`
 - Safety cap: `MAX_PAGES = 50` — never paginate beyond 25 000 matches per load
-- Burst delay: `MATCHES_BURST_MS = 220` between consecutive Archive calls — prevents 429s
+- Burst delay: `MATCHES_BURST_MS = 700` between consecutive Archive calls — prevents 429s
 
 ### Isolated margin — parent vs pocket
 
@@ -249,4 +249,4 @@ Format: `feat(wallet): add equity curve` · `fix(ws-proxy): reconnect backoff`
 
 ---
 
-_CLAUDE.md v4.4 — NadoLens — updated 2026-06-08_
+_CLAUDE.md v4.5 — NadoLens — updated 2026-06-16_
