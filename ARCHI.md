@@ -38,8 +38,8 @@ Results → WalletStats parsed in useWalletData
          → wallet components (WalletHeader, WalletStats, WalletPositions, etc.)
 
 Refresh strategy:
-  - Positions: 6s polling via setInterval (all subaccounts via subaccountsRef)
-  - Isolated pocket discovery: every 6 poll ticks (≈36s) via isolated_positions(parent)
+  - Positions: 6s polling (12s adaptive during Phase 2a) via setInterval (active subaccounts only)
+  - Isolated pocket discovery: every 60s (10 poll ticks) via isolated_positions(parent)
   - Trade history: initial fetch + incremental on fill detection (WS or poll fallback)
   - WS fill stream (useAccountStream → /sse on nado-matches): immediate trigger for
     fetchSnapshotEntryPrices + fetchIncrementalTrades + sonner toast (< 1s latency)
@@ -361,8 +361,8 @@ async function fetchAllMatches(subaccount: string, maxTotal = 2000) {
 
 | Data | Method | Interval |
 |---|---|---|
-| Positions / Health | Polling `/api/wallet/[subaccount]` | 6s |
-| Isolated pocket discovery | `isolated_positions(parent)` every 6 poll ticks | ≈36s |
+| Positions / Health | Polling `/api/wallet/[subaccount]` (active subs only) | 6s (12s during Phase 2a) |
+| Isolated pocket discovery | `isolated_positions(parent)` every 10 poll ticks | ≈60s |
 | Fill detection (WS) | `useAccountStream` → `/sse` on nado-matches | Immediate (< 1s) |
 | Fill detection (fallback) | Poll: prev `amount_x18` changed between ticks | 0–6s |
 | Avg entry (account_snapshots) | On fill event (WS or poll fallback) | On fill |
@@ -406,7 +406,7 @@ Not available via public API. Ignore for MVP → display "—" or hide.
 ### API Routes
 All API routes follow these error patterns (hardened in observability pass 2026-06-08):
 - **try/catch**: Every route wraps its handler in `try/catch` → `categorizedErrorResponse(e, routeLabel)` which maps timeout→504, network/parse→502, unknown→500. Logs structured `console.error(routeLabel, { category, message, ...context })`
-- **Timeout**: `AbortSignal.timeout(10_000)` on every upstream `fetch()` — prevents indefinite hangs
+- **Timeout**: `AbortSignal.timeout(10_000)` on most upstream `fetch()` calls; matches/funding routes use `15_000` — prevents indefinite hangs
 - **Zod validation**: All external responses validated via `safeParse()` before returning to client
 - **withArchiveRetry**: Archive fetches (snapshots, subaccounts, candlesticks, funding-rates, market-snapshots) wrapped in `withArchiveRetry()` — retries on 429, exponential backoff, 4 attempts, 300ms base delay
 - **withTransientRetry**: Fly.io services (matches, funding) + Gateway one-shots (products, insurance-fund) wrapped in `withTransientRetry()` — retries on 5xx/network/timeout, defaults 2 attempts 500ms backoff; wallet routes use maxAttempts: 3
@@ -440,7 +440,7 @@ No known bugs. Last reviewed: 2026-05-22.
 
 ---
 
-*ARCHI.md v4.2 — NadoLens — updated 2026-06-08*
+*ARCHI.md v4.3 — NadoLens — updated 2026-06-16*
 
 ---
 
@@ -452,7 +452,7 @@ No known bugs. Last reviewed: 2026-05-22.
 1) User opens `/wallet/[address]` → `useWalletData(address)` starts.
 2) `GET /api/subaccounts/{address}` resolves all subaccounts (cross + isolated).
 3) Subaccounts are chunked by 5 (`matches` API limit: max 5 subaccounts/request).
-4) For each chunk, Nado Archive `matches` is fetched with pagination (`limit=500`, `idx` cursor).
+4) For each chunk, Nado Archive `matches` is fetched with pagination (`limit=250`, `idx` cursor).
 5) Raw matches are normalized by `parseMatchesBatch()` into internal `TradeMatch` records.
 6) Pages/chunks are merged, sorted by newest submission index, and deduplicated at trade identity level.
 7) Volumes are computed from `quote_filled`:
