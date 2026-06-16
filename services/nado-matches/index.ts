@@ -218,6 +218,59 @@ function reconnect(attempt: number): void {
   setTimeout(() => connect(attempt), delay);
 }
 
+// ─── Token bucket rate limiter ────────────────────────────────────────────────
+
+const RATE_BUDGET = 350;
+const RATE_WINDOW_MS = 10_000;
+const RATE_MAX_WAIT_MS = 15_000;
+const RATE_QUEUED_THRESHOLD_MS = 2_000;
+
+type WeightEntry = { ts: number; weight: number };
+const weightLog: WeightEntry[] = [];
+
+function requestWeight(body: MatchesBody): number {
+  return 2 + (body.limit * body.subaccounts.length) / 10;
+}
+
+function evictStale(now: number): void {
+  const cutoff = now - RATE_WINDOW_MS;
+  while (weightLog.length > 0 && weightLog[0]!.ts < cutoff) {
+    weightLog.shift();
+  }
+}
+
+function currentWeight(): number {
+  let total = 0;
+  for (const e of weightLog) total += e.weight;
+  return total;
+}
+
+async function acquireWeight(weight: number): Promise<{ waited: number }> {
+  const start = Date.now();
+  const deadline = start + RATE_MAX_WAIT_MS;
+
+  while (true) {
+    const now = Date.now();
+    evictStale(now);
+
+    if (currentWeight() + weight <= RATE_BUDGET) {
+      weightLog.push({ ts: now, weight });
+      return { waited: now - start };
+    }
+
+    if (now >= deadline) {
+      weightLog.push({ ts: now, weight });
+      console.warn(`[nado-matches] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
+      return { waited: now - start };
+    }
+
+    const oldest = weightLog[0];
+    const waitUntil = oldest ? oldest.ts + RATE_WINDOW_MS : now + 100;
+    const waitMs = Math.min(waitUntil - now + 10, deadline - now, 500);
+    if (waitMs > 0) await sleep(waitMs);
+  }
+}
+
 // ─── Matches proxy helpers ─────────────────────────────────────────────────────
 
 function cacheKey(body: MatchesBody): string {
@@ -324,11 +377,14 @@ const server = Bun.serve({
 
     if (req.method === "GET" && url.pathname === "/health") {
       const mem = process.memoryUsage();
+      evictStale(Date.now());
       return Response.json({
         ok: true,
         ws_connected: wsConnected,
         sse_clients: clients.size,
         account_subs: subscribedAccounts.size,
+        rate_weight_used: Math.round(currentWeight()),
+        rate_budget: RATE_BUDGET,
         memory_mb: Math.round(mem.rss / 1024 / 1024),
         heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
       });
@@ -429,6 +485,13 @@ const server = Bun.serve({
         }
       }
 
+      const weight = requestWeight(body);
+      const { waited } = await acquireWeight(weight);
+      const wasQueued = waited >= RATE_QUEUED_THRESHOLD_MS;
+      if (wasQueued) {
+        console.log(`[nado-matches] Request queued ${waited}ms (weight=${weight})`);
+      }
+
       let archiveRes: Response;
       try {
         archiveRes = await fetchWithRetry(body, req.signal);
@@ -440,25 +503,28 @@ const server = Bun.serve({
       }
 
       if (!archiveRes.ok) {
+        const responseHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (wasQueued) responseHeaders["X-NadoLens-Queued"] = "true";
         return new Response(await archiveRes.text(), {
           status: archiveRes.status,
-          headers: { "Content-Type": "application/json" },
+          headers: responseHeaders,
         });
       }
 
       const data: unknown = await archiveRes.json();
 
       try {
-        // First-page requests (no cursor) include the most recent fills — short TTL so
-        // fill-triggered refetches see fresh data. Paginated pages are historical and safe
-        // to cache for a full day.
         const ttl = body.idx ? 86_400 : 3;
         await redis.set(key, data, { ex: ttl });
       } catch {
         // Cache write failure is non-fatal
       }
 
-      return Response.json(data, { headers: { "X-Cache": "MISS" } });
+      const resHeaders: Record<string, string> = { "X-Cache": "MISS" };
+      if (wasQueued) resHeaders["X-NadoLens-Queued"] = "true";
+      return Response.json(data, { headers: resHeaders });
     }
 
     return Response.json({ error: "Not found" }, { status: 404 });
