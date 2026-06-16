@@ -472,47 +472,65 @@ export async function fetchOnePage(
     ...(noCache ? { no_cache: true } : {}),
   }
 
-  try {
-    const res = await fetch(route, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-      signal,
-    })
+  const CLIENT_TRANSIENT_ATTEMPTS = 3
+  const CLIENT_TRANSIENT_BASE_MS = 1_000
+  const CLIENT_TRANSIENT_MAX_MS = 8_000
 
-    if (res.status === 429) {
-      return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true }
-    }
+  for (let attempt = 0; attempt < CLIENT_TRANSIENT_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        cache: 'no-store',
+        signal,
+      })
 
-    if (res.status >= 500) {
+      if (res.status === 429) {
+        return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true }
+      }
+
+      if (res.status >= 500) {
+        if (attempt < CLIENT_TRANSIENT_ATTEMPTS - 1) {
+          const delay = Math.min(CLIENT_TRANSIENT_BASE_MS * (2 ** attempt), CLIENT_TRANSIENT_MAX_MS)
+          await sleep(delay, signal)
+          continue
+        }
+        return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
+      }
+
+      if (!res.ok) {
+        return { trades: [], nextIdx: null, done: true }
+      }
+
+      const raw: unknown = await res.json()
+      const result = ArchiveMatchesResponseSchema.safeParse(raw)
+      if (!result.success || result.data.matches.length === 0) {
+        return { trades: [], nextIdx: null, done: true }
+      }
+
+      const pageMatches = result.data.matches
+      const txMap = new Map<string, number>()
+      for (const tx of result.data.txs) {
+        txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10))
+      }
+      const trades = parseMatchesBatch(pageMatches, txMap)
+      const done = pageMatches.length < MATCHES_LIMIT
+      const nextIdx = done
+        ? null
+        : pageMatches[pageMatches.length - 1].submission_idx
+      return { trades, nextIdx, done }
+    } catch {
+      if (attempt < CLIENT_TRANSIENT_ATTEMPTS - 1) {
+        const delay = Math.min(CLIENT_TRANSIENT_BASE_MS * (2 ** attempt), CLIENT_TRANSIENT_MAX_MS)
+        try { await sleep(delay, signal) } catch { break }
+        continue
+      }
       return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
     }
-
-    if (!res.ok) {
-      return { trades: [], nextIdx: null, done: true }
-    }
-
-    const raw: unknown = await res.json()
-    const result = ArchiveMatchesResponseSchema.safeParse(raw)
-    if (!result.success || result.data.matches.length === 0) {
-      return { trades: [], nextIdx: null, done: true }
-    }
-
-    const pageMatches = result.data.matches
-    const txMap = new Map<string, number>()
-    for (const tx of result.data.txs) {
-      txMap.set(tx.submission_idx, parseInt(tx.timestamp, 10))
-    }
-    const trades = parseMatchesBatch(pageMatches, txMap)
-    const done = pageMatches.length < MATCHES_LIMIT
-    const nextIdx = done
-      ? null
-      : pageMatches[pageMatches.length - 1].submission_idx
-    return { trades, nextIdx, done }
-  } catch {
-    return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
   }
+
+  return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
 }
 
 // ─── Position-scoped match prefetch ────────────────────────────────────────

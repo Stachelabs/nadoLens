@@ -48,28 +48,30 @@ import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
 import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore";
 
 const POSITIONS_POLL_MS = 6_000;
+const POSITIONS_POLL_PHASE2_MS = 12_000;
 const POLL_MAX_BACKOFF_MS = 60_000;
 const POLL_BACKOFF_THRESHOLD = 3;
-const MATCHES_429_BASE_DELAY = 20_000;
-const MATCHES_429_JITTER = 10_000;
+const MATCHES_429_BASE_DELAY = 3_000;
+const MATCHES_429_JITTER = 2_000;
 const MATCHES_429_MAX_ATTEMPTS = 3;
 const MATCHES_STAGGER_MAX_MS = 5_000;
 const REMAINING_MATCHES_DELAY_MS = 7_000;
-const RETRY_429_DEADLINE_MS = 5 * 60_000;
+const RETRY_429_DEADLINE_MS = 60_000;
+const DISCOVERY_INTERVAL_TICKS = 10;
+const DEMOTION_THRESHOLD = 2;
 
 function deriveActiveSubaccounts(
   allSubs: SubaccountEntry[],
   positions: Position[],
 ): SubaccountEntry[] {
-  const activePockets = new Set(
-    positions
-      .filter((p) => p.isolated)
-      .map((p) => p.subaccount.toLowerCase()),
+  const subsWithPositions = new Set(
+    positions.map((p) => p.subaccount.toLowerCase()),
   );
   return allSubs.filter(
-    (s) => !s.isolated || activePockets.has(s.subaccount.toLowerCase()),
+    (s) => subsWithPositions.has(s.subaccount.toLowerCase()),
   );
 }
+
 
 function buildPnlStats(
   trades: TradeMatch[],
@@ -154,6 +156,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const refreshUnrealizedImplRef = useRef<() => Promise<void>>(async () => {});
   const refreshSpotBalancesImplRef = useRef<() => Promise<void>>(async () => {});
   const triggerImmediatePollRef = useRef<() => void>(() => {});
+  const positionMatchesCompleteRef = useRef(false);
+  const demotionCounterRef = useRef<Map<string, number>>(new Map());
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Ref-stabilized: only changes when the actual subaccount strings change, preventing
@@ -174,6 +178,20 @@ export function useWalletData(rawAddress: string): WalletData {
   }, [data.stats?.cross_subaccounts, rawAddress]);
   const onWsFill = useCallback((event: FillEvent) => {
     pendingDiscoveryRef.current = true;
+    // Promote idle sub to active polling on fill
+    const fillSub = event.subaccount.toLowerCase();
+    const isActive = activeSubaccountsRef.current.some(
+      (s) => s.subaccount.toLowerCase() === fillSub,
+    );
+    if (!isActive) {
+      const entry = subaccountsRef.current.find(
+        (s) => s.subaccount.toLowerCase() === fillSub,
+      );
+      if (entry) {
+        activeSubaccountsRef.current = [...activeSubaccountsRef.current, entry];
+        demotionCounterRef.current.delete(fillSub);
+      }
+    }
     const pairLabel = productName(event.product_id) || `#${event.product_id}`;
     const direction = event.is_bid ? "Long" : "Short";
     const qty = Math.abs(fromX18BigInt(event.filled_qty));
@@ -216,6 +234,8 @@ export function useWalletData(rawAddress: string): WalletData {
     positionTradesRef.current = [];
     positionOpenTimeMapRef.current = {};
     positionSeenTradeIdsRef.current = new Set();
+    positionMatchesCompleteRef.current = false;
+    demotionCounterRef.current = new Map();
 
     // Seed from matches cache if available — instant trades on re-visit
     const cached = useWalletMatchesCacheStore.getState().getCache(rawAddress);
@@ -322,6 +342,7 @@ export function useWalletData(rawAddress: string): WalletData {
         }));
 
       if (pairs.length === 0) {
+        positionMatchesCompleteRef.current = true;
         setData(prev => ({ ...prev, positionMatchesComplete: true }));
         return;
       }
@@ -470,6 +491,7 @@ export function useWalletData(rawAddress: string): WalletData {
 
       const matchStatsMap = buildPositionStatsMap(positionTradesRef.current, true);
       positionStatsMapRef.current = matchStatsMap;
+      positionMatchesCompleteRef.current = true;
       setData(prev => ({
         ...prev,
         positionTrades: [...positionTradesRef.current],
@@ -681,8 +703,8 @@ export function useWalletData(rawAddress: string): WalletData {
 
       // ── Phase 2 + 3 (concurrent, background) ─────────────────────────────
 
-      // Phase 2: position-scoped matches → position-scoped funding (sequential)
-      const phase2 = (async () => {
+      // Phase 2a: position-scoped matches (Fly.io IP A)
+      const phase2a = (async () => {
         await fetchPositionScopedMatches(positionData.positions);
         if (!cancelled && positionTradesRef.current.length > 0) {
           usePositionMatchesCacheStore.getState().setCache(rawAddress, {
@@ -690,7 +712,10 @@ export function useWalletData(rawAddress: string): WalletData {
             positionOpenTimeMap: { ...positionOpenTimeMapRef.current },
           });
         }
-        if (cancelled) return;
+      })();
+
+      // Phase 2b: position-scoped funding (Fly.io IP B — separate rate budget, safe to parallelize)
+      const phase2b = (async () => {
         await loadPositionFundingPhase2b(positionData.positions);
       })();
 
@@ -1076,7 +1101,7 @@ export function useWalletData(rawAddress: string): WalletData {
           }
           pollErrorCountRef.current = 0;
 
-          // Discovery: periodic (30s), on SSE fill, or when a pocket has no parent mapping.
+          // Discovery: periodic (60s), on SSE fill, or when a pocket has no parent mapping.
           pollCountRef.current += 1;
           const hasUnmappedIsolated = pd.positions.some(
             (p) => p.isolated && !isolatedParentNameRef.current.has(p.subaccount.toLowerCase()),
@@ -1084,7 +1109,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const shouldDiscover =
             hasUnmappedIsolated ||
             pendingDiscoveryRef.current ||
-            pollCountRef.current % 6 === 0;
+            pollCountRef.current % DISCOVERY_INTERVAL_TICKS === 0;
           if (shouldDiscover) pendingDiscoveryRef.current = false;
 
           if (shouldDiscover) {
@@ -1130,10 +1155,31 @@ export function useWalletData(rawAddress: string): WalletData {
             }
           }
 
-          activeSubaccountsRef.current = deriveActiveSubaccounts(
+          const newActive = deriveActiveSubaccounts(
             subaccountsRef.current,
             pd.positions,
           );
+          const newActiveSet = new Set(newActive.map((s) => s.subaccount.toLowerCase()));
+
+          // Demotion: track promoted subs that lost all positions for 2 consecutive polls.
+          const prevActive = activeSubaccountsRef.current;
+          for (const s of prevActive) {
+            const key = s.subaccount.toLowerCase();
+            if (!newActiveSet.has(key) && !s.isolated) {
+              const count = (demotionCounterRef.current.get(key) ?? 0) + 1;
+              if (count >= DEMOTION_THRESHOLD) {
+                demotionCounterRef.current.delete(key);
+              } else {
+                demotionCounterRef.current.set(key, count);
+                if (!newActive.some((n) => n.subaccount.toLowerCase() === key)) {
+                  newActive.push(s);
+                }
+              }
+            } else {
+              demotionCounterRef.current.delete(key);
+            }
+          }
+          activeSubaccountsRef.current = newActive;
 
           // Detect fills: compare amount_x18 with previous poll.
           // prevAmountsRef is empty on the first poll (skip re-fetch — snapshots were just loaded).
@@ -1255,9 +1301,12 @@ export function useWalletData(rawAddress: string): WalletData {
 
       const schedulePoll = () => {
         const errors = pollErrorCountRef.current;
+        const basePoll = positionMatchesCompleteRef.current
+          ? POSITIONS_POLL_MS
+          : POSITIONS_POLL_PHASE2_MS;
         const delay = errors >= POLL_BACKOFF_THRESHOLD
-          ? Math.min(POSITIONS_POLL_MS * (2 ** (errors - POLL_BACKOFF_THRESHOLD + 1)), POLL_MAX_BACKOFF_MS)
-          : POSITIONS_POLL_MS;
+          ? Math.min(basePoll * (2 ** (errors - POLL_BACKOFF_THRESHOLD + 1)), POLL_MAX_BACKOFF_MS)
+          : basePoll;
         intervalRef.current = setTimeout(() => {
           void pollPositionsOnly().finally(() => {
             if (!cancelled) schedulePoll();
@@ -1428,13 +1477,9 @@ export function useWalletData(rawAddress: string): WalletData {
         }
       };
 
-      // Wait for all background tasks (trade pagination, snapshots, position matches).
-      // Ref assignments above are intentionally before this await so the refresh buttons
-      // are functional while background pagination is still running.
-      // Phase 2 (position-scoped matches) first — heaviest Archive load.
-      // Phase 3a (global history) starts AFTER to avoid concurrent rate limit burst.
-      // Snapshots run with phase 2 (low weight, usually cached).
-      await Promise.all([phase2, snapshotsTask]).catch((e: unknown) => {
+      // Phase 2a (matches, IP A) + Phase 2b (funding, IP B) + snapshots (IP C) run in parallel.
+      // Phase 3a (global history) starts AFTER to avoid concurrent rate limit burst on IP A.
+      await Promise.all([phase2a, phase2b, snapshotsTask]).catch((e: unknown) => {
         if (e instanceof DOMException && e.name === 'AbortError') return;
         console.error("[useWalletData] phase 2 error:", e);
       });
