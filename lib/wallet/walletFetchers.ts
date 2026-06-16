@@ -28,9 +28,9 @@ import { fromX18BigInt } from '@/types/nado'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-export const MATCHES_LIMIT = 500
+export const MATCHES_LIMIT = 250
 export const MAX_PAGES = 50
-export const MATCHES_BURST_MS = 220
+export const MATCHES_BURST_MS = 700
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -461,19 +461,19 @@ export async function fetchOnePage(
   productIds?: number[],
   noCache?: boolean,
 ): Promise<MatchesPageResult> {
+  const isPositionScoped = productIds && productIds.length > 0
+  const route = isPositionScoped ? '/api/positions_matches' : '/api/global_matches'
   const body: Record<string, unknown> = {
     subaccounts: subs,
     isolated: null,
     limit: MATCHES_LIMIT,
     ...(lastIdx ? { idx: lastIdx } : {}),
-    ...(productIds && productIds.length > 0
-      ? { product_ids: productIds }
-      : {}),
+    ...(isPositionScoped ? { product_ids: productIds } : {}),
     ...(noCache ? { no_cache: true } : {}),
   }
 
   try {
-    const res = await fetch('/api/matches', {
+    const res = await fetch(route, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

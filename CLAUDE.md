@@ -73,13 +73,13 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - SSE via `EventSource` to WS Proxy (`NEXT_PUBLIC_WS_PROXY_URL`)
 
 **Next.js server (Vercel)**
-- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/matches` · `/api/funding` · `/api/snapshots` · `/api/subaccounts/[address]` · `/api/status`
+- Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/positions_matches` · `/api/global_matches` · `/api/positions_funding` · `/api/global_funding` · `/api/snapshots` · `/api/subaccounts/[address]` · `/api/status`
 - Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates` · `/api/protocol/insurance-fund`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 - **ALWAYS** wrap API route handlers in `try/catch` → `categorizedErrorResponse(e, routeLabel)` (timeout→504, network/parse→502, unknown→500)
 - **ALWAYS** add `signal: AbortSignal.timeout(10_000)` to every upstream `fetch()` call
 - **ALWAYS** use `withArchiveRetry()` for direct Archive fetches (handles 429 + exponential backoff)
-- **ALWAYS** use `withTransientRetry()` for Fly.io services (matches, funding) and Gateway one-shots (products, insurance-fund) — 2 attempts, 300ms backoff on 5xx/network/timeout
+- **ALWAYS** use `withTransientRetry()` for Fly.io services (matches, funding) and Gateway one-shots (products, insurance-fund) — defaults: 2 attempts, 500ms backoff; wallet routes use maxAttempts: 3
 - **ALWAYS** fail-fast if required env vars are missing (`SERVICE_SECRET`, etc.) — never `?? ""`
 - Products + insurance-fund routes: stale cache fallback (`lastGood*` module variable) with `x-nadolens-fallback` header on failure
 - Shared utilities: `lib/api/apiErrorResponse.ts` · `lib/api/withTransientRetry.ts` · `lib/archiveRetry.ts` · `lib/api/validateResponse.ts`

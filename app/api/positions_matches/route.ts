@@ -1,9 +1,9 @@
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { withTransientRetry } from "@/lib/api/withTransientRetry";
-import { NADO_FUNDING_SERVICE_URL } from "@/lib/nado";
+import { NADO_MATCHES_SERVICE_URL } from "@/lib/nado";
 import {
-  InterestAndFundingPaymentsResponseSchema,
-  InterestAndFundingRequestSchema,
+  ArchiveMatchesResponseSchema,
+  PositionMatchesRequestSchema,
 } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
@@ -12,12 +12,11 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 type ErrResponse = { error: string };
+type MatchesResponse = z.infer<typeof ArchiveMatchesResponseSchema>;
 
 export async function POST(
   request: NextRequest,
-): Promise<
-  NextResponse<z.infer<typeof InterestAndFundingPaymentsResponseSchema> | ErrResponse>
-> {
+): Promise<NextResponse<MatchesResponse | ErrResponse>> {
   try {
     const serviceSecret = process.env.SERVICE_SECRET;
     if (!serviceSecret) {
@@ -25,51 +24,51 @@ export async function POST(
     }
 
     const rawBody: unknown = await request.json().catch(() => null);
-    const bodyResult = InterestAndFundingRequestSchema.safeParse(rawBody);
+    const bodyResult = PositionMatchesRequestSchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return NextResponse.json({ error: "Invalid funding request body" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid position matches request body" }, { status: 400 });
     }
 
-    if (!NADO_FUNDING_SERVICE_URL) {
+    if (!NADO_MATCHES_SERVICE_URL) {
       return NextResponse.json(
-        { error: "Funding service not configured" },
+        { error: "Matches service not configured" },
         { status: 503 },
       );
     }
 
     const response = await withTransientRetry(
       () =>
-        fetch(`${NADO_FUNDING_SERVICE_URL}/funding`, {
+        fetch(`${NADO_MATCHES_SERVICE_URL}/matches`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Service-Secret": serviceSecret,
           },
           body: JSON.stringify(bodyResult.data),
-          signal: AbortSignal.timeout(18_000),
+          signal: AbortSignal.timeout(15_000),
           cache: "no-store",
         }),
-      { maxAttempts: 1 },
+      { maxAttempts: 3 },
     );
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "Funding service request failed" },
+        { error: "Matches service request failed" },
         { status: response.status },
       );
     }
 
     const raw: unknown = await response.json();
-    const parsed = parseArchiveJson(InterestAndFundingPaymentsResponseSchema, raw);
+    const parsed = parseArchiveJson(ArchiveMatchesResponseSchema, raw);
     if (!parsed.ok) {
       return NextResponse.json(
-        { error: "Invalid funding response from service" },
+        { error: "Invalid matches response from service" },
         { status: 502 },
       );
     }
 
     return NextResponse.json(parsed.data);
   } catch (e) {
-    return categorizedErrorResponse(e, "[api/funding]");
+    return categorizedErrorResponse(e, "[api/positions_matches]");
   }
 }
