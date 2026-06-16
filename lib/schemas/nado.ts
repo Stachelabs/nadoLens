@@ -249,6 +249,22 @@ export const MatchesQueryRequestSchema = z.object({
   no_cache: z.boolean().optional(),
 })
 
+export const PositionMatchesRequestSchema = z.object({
+  subaccounts: z.array(z.string()).length(1),
+  product_ids: z.array(z.number().int().nonnegative()).min(1),
+  limit: z.number().int().positive().max(250).default(250),
+  idx: z.string().optional(),
+  isolated: z.boolean().nullable().optional().default(null),
+})
+
+export const GlobalMatchesRequestSchema = z.object({
+  subaccounts: z.array(z.string()).min(1).max(5),
+  limit: z.number().int().positive().max(250).default(250),
+  idx: z.string().optional(),
+  isolated: z.boolean().nullable().optional().default(null),
+  no_cache: z.boolean().optional(),
+})
+
 export const FundingRateEntrySchema = z.object({
   product_id: z.number(),
   funding_rate_x18: x18,

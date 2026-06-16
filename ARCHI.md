@@ -116,25 +116,52 @@ ISR cache: revalidate: 3600 (1h)
 Static fallback: 5 spots (USDT0, KBTC, WETH, USDC, NLP) + 3 perps (BTC, ETH, SOL)
 ```
 
-### `/api/matches/route.ts`
-Archive proxy for `matches` with Zod validation of body and response.
+### `/api/positions_matches/route.ts`
+Position-scoped matches proxy. Single subaccount + required product_ids. No Redis cache.
 
 ```
-POST /api/matches
-  body: { subaccounts: string[], limit?: number, idx?: string, isolated?: boolean|null }
-  → POST https://archive.prod.nado.xyz/v1
-     body: { matches: { subaccounts, limit, idx?, isolated } }
+POST /api/positions_matches
+  body: { subaccounts: [string] (exactly 1), product_ids: number[] (1+), limit?: 1-250, idx?: string, isolated?: null }
+  withTransientRetry maxAttempts: 3
+  AbortSignal.timeout(15_000)
+  → Fly.io matches service → Archive
   → { matches: [...], txs: [...] }
 ```
 
-### `/api/funding/route.ts`
-Archive proxy for `interest_and_funding` with Zod validation of body and response.
+### `/api/global_matches/route.ts`
+Global matches proxy with Redis incremental cache (soft TTL 5s, hard 300s).
 
 ```
-POST /api/funding
-  body: { subaccount: string, product_ids: number[], limit?: number, max_idx?: string }
-  → POST https://archive.prod.nado.xyz/v1
-     body: { interest_and_funding: { subaccount, product_ids, limit, max_idx? } }
+POST /api/global_matches
+  body: { subaccounts: string[] (1-5), limit?: 1-250, idx?: string, isolated?: null, no_cache?: boolean }
+  withTransientRetry maxAttempts: 3
+  AbortSignal.timeout(15_000)
+  First-page requests: Redis incremental merge cache (VHIT/VSTALE/VINCR-NEW)
+  → Fly.io matches service → Archive
+  → { matches: [...], txs: [...] }
+```
+
+### `/api/positions_funding/route.ts`
+Position-scoped funding proxy for open positions.
+
+```
+POST /api/positions_funding
+  body: { subaccount: string, product_ids: number[] (1+), limit?: 1-100, max_idx?: string }
+  withTransientRetry maxAttempts: 3
+  AbortSignal.timeout(15_000)
+  → Fly.io funding service → Archive
+  → { funding_payments: [...], interest_payments: [...], next_idx }
+```
+
+### `/api/global_funding/route.ts`
+Global funding proxy for full history.
+
+```
+POST /api/global_funding
+  body: { subaccount: string, product_ids: number[] (1+), limit?: 1-100, max_idx?: string }
+  withTransientRetry maxAttempts: 3
+  AbortSignal.timeout(15_000)
+  → Fly.io funding service → Archive
   → { funding_payments: [...], interest_payments: [...], next_idx }
 ```
 
@@ -381,8 +408,8 @@ All API routes follow these error patterns (hardened in observability pass 2026-
 - **try/catch**: Every route wraps its handler in `try/catch` → `categorizedErrorResponse(e, routeLabel)` which maps timeout→504, network/parse→502, unknown→500. Logs structured `console.error(routeLabel, { category, message, ...context })`
 - **Timeout**: `AbortSignal.timeout(10_000)` on every upstream `fetch()` — prevents indefinite hangs
 - **Zod validation**: All external responses validated via `safeParse()` before returning to client
-- **withArchiveRetry**: Archive fetches (snapshots, subaccounts, candlesticks, funding-rates, market-snapshots) wrapped in `withArchiveRetry()` — retries on 429, exponential backoff up to 30s, 5 attempts
-- **withTransientRetry**: Fly.io services (matches, funding) + Gateway one-shots (products, insurance-fund) wrapped in `withTransientRetry()` — retries on 5xx/network/timeout, 2 attempts, 300ms backoff
+- **withArchiveRetry**: Archive fetches (snapshots, subaccounts, candlesticks, funding-rates, market-snapshots) wrapped in `withArchiveRetry()` — retries on 429, exponential backoff, 4 attempts, 300ms base delay
+- **withTransientRetry**: Fly.io services (matches, funding) + Gateway one-shots (products, insurance-fund) wrapped in `withTransientRetry()` — retries on 5xx/network/timeout, defaults 2 attempts 500ms backoff; wallet routes use maxAttempts: 3
 - **Stale cache fallback**: products + insurance-fund keep `lastGood*` module variable; on failure return cached response with `x-nadolens-fallback` header. Pairs uses hardcoded FALLBACK array. Tickers uses `lastGoodTickers` stale cache
 - **SERVICE_SECRET**: matches/funding routes fail-fast if secret is missing (no silent empty string)
 - Shared utilities: `lib/api/apiErrorResponse.ts` · `lib/api/withTransientRetry.ts` · `lib/archiveRetry.ts` · `lib/api/validateResponse.ts`
@@ -442,7 +469,7 @@ All Nado proxy routes under `app/api/**/` follow this pattern:
 2. **Incoming body** (POST): `SomeRequestSchema.safeParse(await request.json())` → `400` if invalid.
 3. **Fetch** (with retry + timeout):
    - Archive routes → `withArchiveRetry(() => fetch(..., { signal: AbortSignal.timeout(10_000) }))` — retries on 429
-   - Fly.io services (matches, funding) → `withTransientRetry(() => fetch(..., { signal: AbortSignal.timeout(10_000) }))` — retries on 5xx/network/timeout
+   - Fly.io services (matches, funding) → `withTransientRetry(() => fetch(..., { signal: AbortSignal.timeout(15_000) }), { maxAttempts: 3 })` — retries on 5xx/network/timeout
    - Gateway one-shots (products, insurance-fund) → `withTransientRetry()` + stale cache fallback (`lastGood*` + `x-nadolens-fallback` header)
    - Fallback routes (pairs, tickers) → direct fetch with timeout, return cached/hardcoded data on failure
 4. **Response**: `parseArchiveJson(ResponseSchema, raw)` or `parseGatewayJson()` → `502` if shape invalid.
@@ -451,9 +478,9 @@ All Nado proxy routes under `app/api/**/` follow this pattern:
 
 Shared helpers:
 - `lib/api/apiErrorResponse.ts` — `categorizedErrorResponse(e, routeLabel, context?)` — granular status codes + structured logging
-- `lib/api/withTransientRetry.ts` — `withTransientRetry(fn, opts?)` — 2 attempts, 300ms backoff on 5xx/network/timeout
+- `lib/api/withTransientRetry.ts` — `withTransientRetry(fn, opts?)` — defaults: 2 attempts, 500ms backoff on 5xx/network/timeout; wallet routes override to maxAttempts: 3
 - `lib/api/validateResponse.ts` — `parseArchiveJson(schema, raw)`, `parseGatewayJson(schema, raw)`
-- `lib/archiveRetry.ts` — `withArchiveRetry(fn)` — exponential backoff on 429, reads `Retry-After` header
+- `lib/archiveRetry.ts` — `withArchiveRetry(fn, opts?)` — 4 attempts, 300ms base delay, exponential backoff on 429, reads `Retry-After` header
 
 ---
 

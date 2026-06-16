@@ -3,7 +3,7 @@ import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NADO_MATCHES_SERVICE_URL } from "@/lib/nado";
 import {
   ArchiveMatchesResponseSchema,
-  MatchesQueryRequestSchema,
+  GlobalMatchesRequestSchema,
   type ArchiveMatch,
 } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
@@ -27,11 +27,11 @@ type CachedFirstPage = {
   updatedAt: number;
 };
 
-function isFirstPageRequest(body: z.infer<typeof MatchesQueryRequestSchema>): boolean {
-  return !body.idx && !body.product_ids?.length && !body.no_cache;
+function isFirstPageRequest(body: z.infer<typeof GlobalMatchesRequestSchema>): boolean {
+  return !body.idx && !body.no_cache;
 }
 
-function firstPageCacheKey(body: z.infer<typeof MatchesQueryRequestSchema>): string {
+function firstPageCacheKey(body: z.infer<typeof GlobalMatchesRequestSchema>): string {
   return cacheKey(
     "vmatch",
     hashParams({ subaccounts: [...body.subaccounts].sort(), isolated: body.isolated }),
@@ -53,7 +53,7 @@ function highestIdx(matches: ArchiveMatch[]): string | null {
 }
 
 async function fetchFromService(
-  body: z.infer<typeof MatchesQueryRequestSchema>,
+  body: z.infer<typeof GlobalMatchesRequestSchema>,
   serviceSecret: string,
 ): Promise<MatchesResponse | null> {
   const response = await withTransientRetry(
@@ -65,10 +65,10 @@ async function fetchFromService(
           "X-Service-Secret": serviceSecret,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(18_000),
+        signal: AbortSignal.timeout(15_000),
         cache: "no-store",
       }),
-    { maxAttempts: 1 },
+    { maxAttempts: 3 },
   );
 
   if (!response.ok) return null;
@@ -88,9 +88,9 @@ export async function POST(
     }
 
     const rawBody: unknown = await request.json().catch(() => null);
-    const bodyResult = MatchesQueryRequestSchema.safeParse(rawBody);
+    const bodyResult = GlobalMatchesRequestSchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return NextResponse.json({ error: "Invalid matches request body" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid global matches request body" }, { status: 400 });
     }
 
     if (!NADO_MATCHES_SERVICE_URL) {
@@ -102,7 +102,7 @@ export async function POST(
 
     const body = bodyResult.data;
 
-    // ── Paginated / product-scoped / no_cache → pass through ──────────────
+    // ── Paginated / no_cache → pass through ──────────────────────────────
     if (!isFirstPageRequest(body)) {
       const data = await fetchFromService(body, serviceSecret);
       if (!data) {
@@ -144,7 +144,6 @@ export async function POST(
     // Fetch fresh from Fly.io
     const fresh = await fetchFromService(body, serviceSecret);
     if (!fresh) {
-      // Fly.io failed — return stale cache if available
       if (cached) {
         return NextResponse.json(
           { matches: cached.matches, txs: cached.txs },
@@ -201,7 +200,6 @@ export async function POST(
     });
 
     if (newMatches.length === 0) {
-      // No new trades — refresh timestamp
       const refreshed: CachedFirstPage = { ...cached, updatedAt: Date.now() };
       try {
         await redis.set(key, refreshed, { ex: HARD_TTL_S });
@@ -244,6 +242,6 @@ export async function POST(
       { headers: { "X-Cache": `VINCR-NEW(${newMatches.length})` } },
     );
   } catch (e) {
-    return categorizedErrorResponse(e, "[api/matches]");
+    return categorizedErrorResponse(e, "[api/global_matches]");
   }
 }

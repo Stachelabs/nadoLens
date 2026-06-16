@@ -22,7 +22,7 @@ export type FundingFetchResult = {
 export async function fetchFundingBySubaccount(
   subaccount: string,
   productIds: number[],
-  options?: { stopBeforeMs?: number; resumeFromIdx?: string | null },
+  options?: { stopBeforeMs?: number; resumeFromIdx?: string | null; route?: string },
   signal?: AbortSignal,
 ): Promise<FundingFetchResult> {
   if (productIds.length === 0) {
@@ -51,7 +51,8 @@ export async function fetchFundingBySubaccount(
       ...(maxIdx ? { max_idx: maxIdx } : {}),
     }
 
-    const res = await fetch('/api/funding', {
+    const fundingRoute = options?.route ?? '/api/global_funding'
+    const res = await fetch(fundingRoute, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -178,7 +179,7 @@ export async function fetchPositionScopedFunding(
       const activeProductIds = openPerpProductIds.filter(id => !completedProducts.has(id))
       if (activeProductIds.length === 0) break
 
-      const res = await fetch('/api/funding', {
+      const res = await fetch('/api/positions_funding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
