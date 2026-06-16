@@ -46,6 +46,7 @@ export type MatchesPageResult = {
   done: boolean
   rateLimited?: boolean
   serverError?: boolean
+  queued?: boolean
 }
 
 export type ParsedPositionsResult = {
@@ -486,8 +487,10 @@ export async function fetchOnePage(
         signal,
       })
 
+      const isQueued = res.headers.get("X-NadoLens-Queued") === "true"
+
       if (res.status === 429) {
-        return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true }
+        return { trades: [], nextIdx: lastIdx ?? null, done: false, rateLimited: true, queued: isQueued }
       }
 
       if (res.status >= 500) {
@@ -496,7 +499,7 @@ export async function fetchOnePage(
           await sleep(delay, signal)
           continue
         }
-        return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true }
+        return { trades: [], nextIdx: lastIdx ?? null, done: false, serverError: true, queued: isQueued }
       }
 
       if (!res.ok) {
@@ -506,7 +509,7 @@ export async function fetchOnePage(
       const raw: unknown = await res.json()
       const result = ArchiveMatchesResponseSchema.safeParse(raw)
       if (!result.success || result.data.matches.length === 0) {
-        return { trades: [], nextIdx: null, done: true }
+        return { trades: [], nextIdx: null, done: true, queued: isQueued }
       }
 
       const pageMatches = result.data.matches
@@ -519,7 +522,7 @@ export async function fetchOnePage(
       const nextIdx = done
         ? null
         : pageMatches[pageMatches.length - 1].submission_idx
-      return { trades, nextIdx, done }
+      return { trades, nextIdx, done, queued: isQueued }
     } catch {
       if (attempt < CLIENT_TRANSIENT_ATTEMPTS - 1) {
         const delay = Math.min(CLIENT_TRANSIENT_BASE_MS * (2 ** attempt), CLIENT_TRANSIENT_MAX_MS)

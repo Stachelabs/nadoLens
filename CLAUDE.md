@@ -90,6 +90,7 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
 - `min_machines_running = 1` — machine never sleeps, WS connection stays alive permanently
 - Exposes `POST /matches` (Archive proxy, Upstash Redis cache with TTL) · `GET /sse` (SSE → browser) · `GET /health`
+- **Token bucket**: In-memory sliding window rate limiter — 350 weight/10s budget, `X-NadoLens-Queued: true` header when wait > 2s, max 15s wait
 - Redis cache: Archive `/matches` responses cached by request hash — `no_cache` flag bypasses TTL
 - Static market subscriptions on startup: `liquidation` stream + `book_depth` for all products
 - SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount; subscriptions re-registered on WS reconnect
@@ -185,6 +186,7 @@ Archive:   https://archive.prod.nado.xyz/v1 (v2) — POST JSON
 - **ALWAYS** use AbortController in hooks that fetch — pass `signal` to every `fetch()`, abort in cleanup
 - **NEVER** mutate input arrays (`.sort()`) — always spread first: `[...arr].sort()`
 - **NEVER** use `(e as Error)` in catch blocks — use `e instanceof Error` guard instead
+- **WalletBanner**: 5 banner types (WHALE_LOADING, QUEUE_WAIT, RETRY_IN_PROGRESS, RETRY_EXHAUSTED, RECOVERY). Max 2 visible. CSS fade transitions. Derives state from `useWalletData` `bannerState` field
 
 ---
 

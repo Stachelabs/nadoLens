@@ -19,6 +19,7 @@ import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProduc
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
 import { InkLoader } from "@/components/ui/InkLoader";
 import { Button } from "@/components/ui/button";
+import { WalletBanner } from "@/components/wallet/WalletBanner";
 
 const LOAD_TIMEOUT_MS = 30_000;
 
@@ -44,6 +45,7 @@ function WalletContent({ address }: { address: string }) {
     positionMatchesComplete,
     matchedPositionKeys,
     snapshotReady,
+    bannerState,
   } = useWalletData(address);
 
   const { activeTab, setActiveTab } = useWalletAnalyticsStore();
@@ -109,6 +111,7 @@ function WalletContent({ address }: { address: string }) {
           {error}
         </div>
       )}
+      <WalletBanner banners={bannerState} />
       <WalletTabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "overview" && (

@@ -44,6 +44,7 @@ import {
   type SubaccountEntry,
   type MatchesPageResult,
 } from "@/lib/wallet/walletFetchers";
+import type { BannerEntry } from "@/components/wallet/WalletBanner";
 import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
 import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore";
 
@@ -101,6 +102,7 @@ export type WalletData = {
   refreshing: boolean;
   unrealizedRefreshing: boolean;
   spotBalancesRefreshing: boolean;
+  bannerState: BannerEntry[];
   refresh: () => Promise<void>;
   refreshUnrealizedPnl: () => Promise<void>;
   refreshSpotBalances: () => Promise<void>;
@@ -110,7 +112,7 @@ export type WalletData = {
 
 export function useWalletData(rawAddress: string): WalletData {
   const [data, setData] = useState<
-    Omit<WalletData, "refresh" | "refreshUnrealizedPnl" | "refreshSpotBalances">
+    Omit<WalletData, "refresh" | "refreshUnrealizedPnl" | "refreshSpotBalances" | "bannerState">
   >({
     stats: null,
     trades: [],
@@ -158,6 +160,14 @@ export function useWalletData(rawAddress: string): WalletData {
   const triggerImmediatePollRef = useRef<() => void>(() => {});
   const positionMatchesCompleteRef = useRef(false);
   const demotionCounterRef = useRef<Map<string, number>>(new Map());
+  const [isQueued, setIsQueued] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [lastRetryFailed, setLastRetryFailed] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRetryingRef = useRef(false);
+  const lastRetryFailedRef = useRef(false);
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Ref-stabilized: only changes when the actual subaccount strings change, preventing
@@ -295,6 +305,7 @@ export function useWalletData(rawAddress: string): WalletData {
         let pageIdx: string | undefined = undefined;
         for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
           const page = await fetchPage(chunkSubs, pageIdx);
+          if (page.queued) setIsQueued(true);
           if (cancelled || page.rateLimited || page.serverError) break;
           let boundaryHit = false;
           for (const trade of page.trades) {
@@ -410,6 +421,7 @@ export function useWalletData(rawAddress: string): WalletData {
             cursorByPair[pairKey],
             [pair.productId],
           );
+          if (result.queued) setIsQueued(true);
 
           if (result.rateLimited || result.serverError) {
             rateLimitedPairs.add(pairKey);
@@ -452,6 +464,7 @@ export function useWalletData(rawAddress: string): WalletData {
               cursorByPair[pairKey],
               [pair.productId],
             );
+            if (result.queued) setIsQueued(true);
 
             if (result.rateLimited || result.serverError) continue;
 
@@ -469,6 +482,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   cursorByPair[pairKey],
                   [pair.productId],
                 );
+                if (nextResult.queued) setIsQueued(true);
                 if (nextResult.rateLimited || nextResult.serverError) {
                   rateLimitedPairs.add(pairKey);
                   break;
@@ -804,12 +818,25 @@ export function useWalletData(rawAddress: string): WalletData {
             for (let c = 0; c < activeChunks.length; c++) {
               const subChunk = activeChunks[c]!;
               const p = await fetchPage(subChunk);
+              if (p.queued) setIsQueued(true);
               if (p.rateLimited || p.serverError) throw new Error("RATE_LIMIT");
               pages.push(p);
               if (c < activeChunks.length - 1) await sleep(MATCHES_BURST_MS);
             }
             activeFirstPages = pages;
             matchesLoaded = true;
+            setIsQueued(false);
+            if (isRetryingRef.current || lastRetryFailedRef.current) {
+              if (!cancelled) {
+                setShowRecovery(true);
+                if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+                recoveryTimerRef.current = setTimeout(() => setShowRecovery(false), 3_000);
+              }
+            }
+            isRetryingRef.current = false;
+            lastRetryFailedRef.current = false;
+            setIsRetrying(false);
+            setLastRetryFailed(false);
             setData((prev) => ({ ...prev, matchesError: null }));
             break;
           } catch (e) {
@@ -818,13 +845,21 @@ export function useWalletData(rawAddress: string): WalletData {
               if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
                 const delay = MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER;
                 const delaySec = Math.round(delay / 1000);
+                isRetryingRef.current = true;
+                setIsRetrying(true);
+                setRetryCountdown(Math.max(0, delaySec));
                 setData((prev) => ({
                   ...prev,
                   matchesError: `Retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
                 }));
                 await sleep(delay);
+                setRetryCountdown(0);
                 continue;
               }
+              isRetryingRef.current = false;
+              lastRetryFailedRef.current = true;
+              setIsRetrying(false);
+              setLastRetryFailed(true);
               setData((prev) => ({
                 ...prev,
                 matchesError: "Archive unavailable — wait a minute and refresh, or open fewer tabs.",
@@ -880,6 +915,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const chunkDeadline = Date.now() + RETRY_429_DEADLINE_MS;
           for (let retry = 0; !cancelled && Date.now() < chunkDeadline; retry++) {
             const page = await fetchPage(remainingChunks[c]!);
+            if (page.queued) setIsQueued(true);
             if (cancelled) break;
             if (!page.rateLimited && !page.serverError) {
               result = page;
@@ -985,6 +1021,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   state.chunk,
                   state.nextIdx ?? undefined,
                 );
+                if (page.queued) setIsQueued(true);
                 if (cancelled) break;
                 if (!page.rateLimited && !page.serverError) {
                   result = page;
@@ -1565,6 +1602,14 @@ export function useWalletData(rawAddress: string): WalletData {
         toast.dismiss(gatewayStaleToastRef.current);
         gatewayStaleToastRef.current = null;
       }
+      if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+      isRetryingRef.current = false;
+      lastRetryFailedRef.current = false;
+      setIsQueued(false);
+      setIsRetrying(false);
+      setRetryCountdown(0);
+      setLastRetryFailed(false);
+      setShowRecovery(false);
     };
   }, [rawAddress]);
 
@@ -1589,9 +1634,44 @@ export function useWalletData(rawAddress: string): WalletData {
 
   const error = [data.positionError, data.matchesError].filter(Boolean).join("\n") || null;
 
+  const bannerState = useMemo<BannerEntry[]>(() => {
+    const banners: BannerEntry[] = [];
+
+    if (showRecovery) {
+      banners.push({ type: "RECOVERY", message: "Back on track." });
+    }
+
+    if (lastRetryFailed && (data.positionError || data.matchesError)) {
+      banners.push({
+        type: "RETRY_EXHAUSTED",
+        message: "Couldn't reach the gateway.",
+        onRetry: () => refreshImplRef.current(),
+      });
+    } else if (isRetrying) {
+      banners.push({
+        type: "RETRY_IN_PROGRESS",
+        message: `Gateway hiccup. Retrying in ${retryCountdown}s...`,
+        countdown: retryCountdown,
+      });
+    }
+
+    if (isQueued) {
+      banners.push({ type: "QUEUE_WAIT", message: "High traffic — your data is next in line." });
+    }
+
+    const posCount = data.stats?.positions?.length ?? 0;
+    const crossCount = data.stats?.cross_subaccounts?.length ?? 0;
+    if ((posCount > 8 || crossCount > 5) && !data.positionMatchesComplete) {
+      banners.push({ type: "WHALE_LOADING", message: "Whale-sized portfolio — crunching the numbers..." });
+    }
+
+    return banners.slice(0, 2);
+  }, [showRecovery, lastRetryFailed, isRetrying, retryCountdown, isQueued, data.positionError, data.matchesError, data.stats?.positions?.length, data.stats?.cross_subaccounts?.length, data.positionMatchesComplete]);
+
   return {
     ...data,
     error,
+    bannerState,
     refresh: () => refreshImplRef.current(),
     refreshUnrealizedPnl: () => refreshUnrealizedImplRef.current(),
     refreshSpotBalances: () => refreshSpotBalancesImplRef.current(),
