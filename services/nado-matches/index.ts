@@ -222,7 +222,7 @@ function reconnect(attempt: number): void {
 
 const RATE_BUDGET = 350;
 const RATE_WINDOW_MS = 10_000;
-const RATE_MAX_WAIT_MS = 15_000;
+const RATE_MAX_WAIT_MS = 8_000;
 const RATE_QUEUED_THRESHOLD_MS = 2_000;
 
 type WeightEntry = { ts: number; weight: number };

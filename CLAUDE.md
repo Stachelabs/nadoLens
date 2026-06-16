@@ -90,7 +90,7 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
 - `min_machines_running = 1` — machine never sleeps, WS connection stays alive permanently
 - Exposes `POST /matches` (Archive proxy, Upstash Redis cache with TTL) · `GET /sse` (SSE → browser) · `GET /health`
-- **Token bucket**: In-memory sliding window rate limiter — 350 weight/10s budget, `X-NadoLens-Queued: true` header when wait > 2s, max 15s wait
+- **Token bucket**: In-memory sliding window rate limiter — 350 weight/10s budget, `X-NadoLens-Queued: true` header when wait > 2s, max 8s wait
 - Redis cache: Archive `/matches` responses cached by request hash — `no_cache` flag bypasses TTL
 - Static market subscriptions on startup: `liquidation` stream + `book_depth` for all products
 - SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount; subscriptions re-registered on WS reconnect
