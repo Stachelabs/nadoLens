@@ -412,18 +412,21 @@ All API routes follow these error patterns (hardened in observability pass 2026-
 - **withTransientRetry**: Fly.io services (matches, funding) + Gateway one-shots (products, insurance-fund) wrapped in `withTransientRetry()` — retries on 5xx/network/timeout, defaults 2 attempts 500ms backoff; wallet routes use maxAttempts: 3
 - **Stale cache fallback**: products + insurance-fund keep `lastGood*` module variable; on failure return cached response with `x-nadolens-fallback` header. Pairs uses hardcoded FALLBACK array. Tickers uses `lastGoodTickers` stale cache
 - **SERVICE_SECRET**: matches/funding routes fail-fast if secret is missing (no silent empty string)
+- **Token bucket (Fly.io matches)**: In-memory sliding window rate limiter (350 weight/10s, 50 headroom from 400 limit). Calculates `2 + (limit × subs / 10)` per request. Waits if budget exceeded (max 15s). Adds `X-NadoLens-Queued: true` header when wait > 2s. Health endpoint exposes `rate_weight_used`
 - Shared utilities: `lib/api/apiErrorResponse.ts` · `lib/api/withTransientRetry.ts` · `lib/archiveRetry.ts` · `lib/api/validateResponse.ts`
 
 ### Client Hooks
 - **AbortController**: `useWalletData` and all protocol hooks pass `signal` to every fetch. Cleanup aborts on unmount.
 - **Cancelled guards**: Pagination loops check `if (cancelled) break` at each iteration
 - **Error propagation**: All hooks expose `error: string | null` to components (including `pairsStore`)
+- **Banner state**: `useWalletData` derives `bannerState: BannerEntry[]` from retry/queue/whale signals. Tracks `isQueued` (from `X-NadoLens-Queued` header), retry state via refs (closure-safe), recovery auto-dismiss (3s timer). Max 2 banners. Cleanup on wallet switch resets all banner refs/state
 
 ### Error Boundaries
 - `app/error.tsx` — root-level catch-all
 - `app/protocol/error.tsx` — protocol-specific with retry button
 - `app/wallet/[address]/error.tsx` — wallet-specific with retry + go-back
 - Wallet page: 30s timeout fallback if `phase1Ready` never resolves
+- **WalletBanner**: 5 banner types (WHALE_LOADING, QUEUE_WAIT, RETRY_IN_PROGRESS, RETRY_EXHAUSTED, RECOVERY) with CSS fade transitions. Rendered between header and tab content on all wallet tabs
 
 ### Accessibility
 - Tab navigation (`ProtocolTabNav`, `WalletTabNav`): `role="tablist"` + `role="tab"` + `aria-selected`
