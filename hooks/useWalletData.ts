@@ -166,6 +166,8 @@ export function useWalletData(rawAddress: string): WalletData {
   const [lastRetryFailed, setLastRetryFailed] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRetryingRef = useRef(false);
+  const lastRetryFailedRef = useRef(false);
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Ref-stabilized: only changes when the actual subaccount strings change, preventing
@@ -303,6 +305,7 @@ export function useWalletData(rawAddress: string): WalletData {
         let pageIdx: string | undefined = undefined;
         for (let p = 0; p < MAX_INCREMENTAL_PAGES; p++) {
           const page = await fetchPage(chunkSubs, pageIdx);
+          if (page.queued) setIsQueued(true);
           if (cancelled || page.rateLimited || page.serverError) break;
           let boundaryHit = false;
           for (const trade of page.trades) {
@@ -418,6 +421,7 @@ export function useWalletData(rawAddress: string): WalletData {
             cursorByPair[pairKey],
             [pair.productId],
           );
+          if (result.queued) setIsQueued(true);
 
           if (result.rateLimited || result.serverError) {
             rateLimitedPairs.add(pairKey);
@@ -460,6 +464,7 @@ export function useWalletData(rawAddress: string): WalletData {
               cursorByPair[pairKey],
               [pair.productId],
             );
+            if (result.queued) setIsQueued(true);
 
             if (result.rateLimited || result.serverError) continue;
 
@@ -477,6 +482,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   cursorByPair[pairKey],
                   [pair.productId],
                 );
+                if (nextResult.queued) setIsQueued(true);
                 if (nextResult.rateLimited || nextResult.serverError) {
                   rateLimitedPairs.add(pairKey);
                   break;
@@ -820,11 +826,15 @@ export function useWalletData(rawAddress: string): WalletData {
             activeFirstPages = pages;
             matchesLoaded = true;
             setIsQueued(false);
-            if (isRetrying || lastRetryFailed) {
-              setShowRecovery(true);
-              if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
-              recoveryTimerRef.current = setTimeout(() => setShowRecovery(false), 3_000);
+            if (isRetryingRef.current || lastRetryFailedRef.current) {
+              if (!cancelled) {
+                setShowRecovery(true);
+                if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+                recoveryTimerRef.current = setTimeout(() => setShowRecovery(false), 3_000);
+              }
             }
+            isRetryingRef.current = false;
+            lastRetryFailedRef.current = false;
             setIsRetrying(false);
             setLastRetryFailed(false);
             setData((prev) => ({ ...prev, matchesError: null }));
@@ -835,8 +845,9 @@ export function useWalletData(rawAddress: string): WalletData {
               if (attempt < MATCHES_429_MAX_ATTEMPTS - 1) {
                 const delay = MATCHES_429_BASE_DELAY + Math.random() * MATCHES_429_JITTER;
                 const delaySec = Math.round(delay / 1000);
+                isRetryingRef.current = true;
                 setIsRetrying(true);
-                setRetryCountdown(delaySec);
+                setRetryCountdown(Math.max(0, delaySec));
                 setData((prev) => ({
                   ...prev,
                   matchesError: `Retrying in ~${delaySec}s (${attempt + 1}/${MATCHES_429_MAX_ATTEMPTS})…`,
@@ -845,6 +856,8 @@ export function useWalletData(rawAddress: string): WalletData {
                 setRetryCountdown(0);
                 continue;
               }
+              isRetryingRef.current = false;
+              lastRetryFailedRef.current = true;
               setIsRetrying(false);
               setLastRetryFailed(true);
               setData((prev) => ({
@@ -902,6 +915,7 @@ export function useWalletData(rawAddress: string): WalletData {
           const chunkDeadline = Date.now() + RETRY_429_DEADLINE_MS;
           for (let retry = 0; !cancelled && Date.now() < chunkDeadline; retry++) {
             const page = await fetchPage(remainingChunks[c]!);
+            if (page.queued) setIsQueued(true);
             if (cancelled) break;
             if (!page.rateLimited && !page.serverError) {
               result = page;
@@ -1007,6 +1021,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   state.chunk,
                   state.nextIdx ?? undefined,
                 );
+                if (page.queued) setIsQueued(true);
                 if (cancelled) break;
                 if (!page.rateLimited && !page.serverError) {
                   result = page;
@@ -1588,6 +1603,8 @@ export function useWalletData(rawAddress: string): WalletData {
         gatewayStaleToastRef.current = null;
       }
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+      isRetryingRef.current = false;
+      lastRetryFailedRef.current = false;
       setIsQueued(false);
       setIsRetrying(false);
       setRetryCountdown(0);

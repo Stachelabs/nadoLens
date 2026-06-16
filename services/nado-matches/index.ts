@@ -229,7 +229,9 @@ type WeightEntry = { ts: number; weight: number };
 const weightLog: WeightEntry[] = [];
 
 function requestWeight(body: MatchesBody): number {
-  return 2 + (body.limit * body.subaccounts.length) / 10;
+  const limit = Math.min(body.limit ?? 250, 500);
+  const subs = Math.min(body.subaccounts?.length ?? 1, 50);
+  return 2 + (limit * subs) / 10;
 }
 
 function evictStale(now: number): void {
