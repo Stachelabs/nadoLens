@@ -963,7 +963,7 @@ export function useWalletData(rawAddress: string): WalletData {
         if (!cancelled) {
           const allChunksFetched = remainingFirstPages.length === remainingChunks.length;
           const allDone = firstPages.every((p) => p.done) && allChunksFetched;
-          tradesCompleteRef.current = allDone;
+          tradesCompleteRef.current = allDone || !allChunksFetched;
           setData((prev) => {
             const fs = useWalletFundingStore.getState().forAddress(rawAddress);
             const pnlStats = buildPnlStats(allTrades, fs?.fundingPaidUsd ?? 0);
@@ -971,10 +971,10 @@ export function useWalletData(rawAddress: string): WalletData {
               ...prev,
               matchesError: allChunksFetched ? null : prev.matchesError,
               trades: allTrades,
-              globalMatchesComplete: allDone,
-              tradesComplete: allDone,
+              globalMatchesComplete: allDone || !allChunksFetched,
+              tradesComplete: allDone || !allChunksFetched,
               stats: prev.stats
-                ? { ...prev.stats, trades: allTrades, trades_complete: allDone, ...pnlStats }
+                ? { ...prev.stats, trades: allTrades, trades_complete: allDone || !allChunksFetched, ...pnlStats }
                 : null,
             };
           });
@@ -1095,14 +1095,18 @@ export function useWalletData(rawAddress: string): WalletData {
             if (page === MAX_PAGES - 1) truncatedByPageLimit = true;
           }
 
-          // Ensure UI keeps "loading history" when we hit local page cap.
           if (!cancelled) {
+            const partialComplete = anyChunkExhausted || truncatedByPageLimit;
+            tradesCompleteRef.current = true;
             setData((prev) => ({
               ...prev,
-              globalMatchesComplete: !truncatedByPageLimit,
-              tradesComplete: !truncatedByPageLimit,
+              globalMatchesComplete: true,
+              tradesComplete: true,
+              ...(partialComplete && !prev.matchesError
+                ? { matchesError: "Partial trade history loaded — some pages unavailable." }
+                : {}),
               stats: prev.stats
-                ? { ...prev.stats, trades_complete: !truncatedByPageLimit }
+                ? { ...prev.stats, trades_complete: true }
                 : null,
             }));
           }
