@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import type { WalletStats } from "@/types/nado";
@@ -192,30 +191,12 @@ export function WalletSummary({
               />
               <Row
                 label="Perp PnL"
-                value={
-                  globalMatchesComplete ? (
-                    `${isPerpPnlPositive ? "+" : ""}${fmtUsd.format(stats.trading_pnl_usd)}`
-                  ) : (
-                    <Skeleton
-                      className="h-4 w-28 shrink-0 rounded-sm"
-                      aria-hidden
-                    />
-                  )
-                }
+                value={`${isPerpPnlPositive ? "+" : ""}${fmtUsd.format(stats.trading_pnl_usd)}`}
                 valueClass={isPerpPnlPositive ? "text-bull" : "text-bear"}
               />
               <Row
                 label="All Time PnL"
-                value={
-                  globalMatchesComplete ? (
-                    `${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`
-                  ) : (
-                    <Skeleton
-                      className="h-4 w-28 shrink-0 rounded-sm"
-                      aria-hidden
-                    />
-                  )
-                }
+                value={`${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`}
                 valueClass={isAllTimePnlPositive ? "text-bull" : "text-bear"}
               />
             </Section>
@@ -246,81 +227,27 @@ export function WalletSummary({
           >
             <Row
               label="Total Volume"
-              value={
-                globalMatchesComplete ? (
-                  fmtUsdCompact.format(stats.total_volume_usd)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={fmtUsdCompact.format(stats.total_volume_usd)}
             />
             <Row
               label="Perp Volume"
-              value={
-                globalMatchesComplete ? (
-                  fmtUsdCompact.format(stats.perp_volume_usd)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={fmtUsdCompact.format(stats.perp_volume_usd)}
             />
             <Row
               label="Spot Volume"
-              value={
-                globalMatchesComplete ? (
-                  fmtUsdCompact.format(stats.spot_volume_usd)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={fmtUsdCompact.format(stats.spot_volume_usd)}
             />
             <Row
               label="Spot Trades"
-              value={
-                globalMatchesComplete ? (
-                  stats.spot_trades_count.toString()
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={stats.spot_trades_count.toString()}
             />
             <Row
               label="Perp Trades"
-              value={
-                globalMatchesComplete ? (
-                  stats.perp_trades_count.toString()
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={stats.perp_trades_count.toString()}
             />
             <Row
               label="Total Fees"
-              value={
-                globalMatchesComplete ? (
-                  fmtUsd.format(stats.total_fees_usd)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm bg-red-400/15"
-                    aria-hidden
-                  />
-                )
-              }
+              value={fmtUsd.format(stats.total_fees_usd)}
               valueClass="text-bear"
             />
             <Row
@@ -363,29 +290,11 @@ export function WalletSummary({
             />
             <Row
               label="First Trade"
-              value={
-                globalMatchesComplete ? (
-                  formatTimestamp(stats.first_trade_at)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={formatTimestamp(stats.first_trade_at)}
             />
             <Row
               label="Last Trade"
-              value={
-                globalMatchesComplete ? (
-                  timeAgo(stats.last_trade_at)
-                ) : (
-                  <Skeleton
-                    className="h-4 w-28 shrink-0 rounded-sm"
-                    aria-hidden
-                  />
-                )
-              }
+              value={timeAgo(stats.last_trade_at)}
             />
           </Section>
         </div>
