@@ -1815,7 +1815,7 @@ export function useWalletData(rawAddress: string): WalletData {
     return unsub;
   }, [rawAddress]);
 
-  const error = [data.positionError, data.matchesError].filter(Boolean).join("\n") || null;
+  const error = data.positionError || null;
 
   const bannerState = useMemo<BannerEntry[]>(() => {
     const banners: BannerEntry[] = [];
@@ -1841,6 +1841,12 @@ export function useWalletData(rawAddress: string): WalletData {
             void refreshImplRef.current();
           }
         },
+      });
+    } else if (!lastRetryFailed && data.matchesError && data.globalMatchesComplete) {
+      banners.push({
+        type: "RETRY_EXHAUSTED",
+        message: data.matchesError,
+        onRetry: () => void refreshImplRef.current(),
       });
     } else if (isRetrying) {
       banners.push({

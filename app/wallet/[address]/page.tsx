@@ -127,6 +127,8 @@ function WalletContent({ address }: { address: string }) {
           <WalletStats
             stats={stats}
             tradesComplete={tradesComplete}
+            globalMatchesComplete={globalMatchesComplete}
+            matchesError={matchesError}
           />
           <WalletSummary
             stats={stats}
