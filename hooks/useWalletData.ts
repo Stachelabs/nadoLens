@@ -247,9 +247,10 @@ export function useWalletData(rawAddress: string): WalletData {
     positionMatchesCompleteRef.current = false;
     demotionCounterRef.current = new Map();
 
-    // Seed from matches cache if available — instant trades on re-visit
+    // Seed from matches cache if available and fresh — instant trades on re-visit
     const cached = useWalletMatchesCacheStore.getState().getCache(rawAddress);
-    if (cached && cached.trades.length > 0) {
+    const matchesCacheStale = useWalletMatchesCacheStore.getState().isStale(rawAddress);
+    if (cached && !matchesCacheStale && cached.trades.length > 0) {
       tradesRef.current = cached.trades;
       latestKnownIdxRef.current = cached.latestKnownIdx;
       seenTradeIdsRef.current = new Set(cached.seenTradeIds);
@@ -267,7 +268,8 @@ export function useWalletData(rawAddress: string): WalletData {
 
     // Seed position stats from cache — instant Realized PnL on re-visit
     const posCached = usePositionMatchesCacheStore.getState().getCache(rawAddress);
-    if (posCached && posCached.positionTrades.length > 0) {
+    const posCacheStale = usePositionMatchesCacheStore.getState().isStale(rawAddress);
+    if (posCached && !posCacheStale && posCached.positionTrades.length > 0) {
       positionStatsMapRef.current = buildPositionStatsMap(posCached.positionTrades, true);
     }
 

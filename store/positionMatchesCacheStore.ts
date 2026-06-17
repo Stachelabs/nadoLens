@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { TradeMatch } from '@/types/nado'
 
 const MAX_CACHED_WALLETS = 2
+const STALE_TTL_MS = 5 * 60 * 1000
 
 export type PositionMatchesCacheEntry = {
   positionTrades: TradeMatch[]
@@ -13,6 +14,7 @@ type PositionMatchesCacheState = {
   wallets: Map<string, PositionMatchesCacheEntry>
   setCache: (addr: string, data: Omit<PositionMatchesCacheEntry, 'cachedAt'>) => void
   getCache: (addr: string) => PositionMatchesCacheEntry | undefined
+  isStale: (addr: string) => boolean
   trimCache: (protectedAddr: string | null) => void
 }
 
@@ -36,6 +38,12 @@ export const usePositionMatchesCacheStore = create<PositionMatchesCacheState>((s
 
   getCache: (addr) => {
     return get().wallets.get(addr)
+  },
+
+  isStale: (addr) => {
+    const entry = get().wallets.get(addr)
+    if (!entry) return true
+    return Date.now() - entry.cachedAt > STALE_TTL_MS
   },
 
   trimCache: (protectedAddr) => {

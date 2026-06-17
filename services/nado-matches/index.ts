@@ -218,6 +218,11 @@ function reconnect(attempt: number): void {
   setTimeout(() => connect(attempt), delay);
 }
 
+// ─── Redis observability counters ─────────────────────────────────────────────
+
+let redisWrites = 0;
+let redisErrors = 0;
+
 // ─── Token bucket rate limiter ────────────────────────────────────────────────
 
 const RATE_BUDGET = 350;
@@ -380,6 +385,8 @@ const server = Bun.serve({
     if (req.method === "GET" && url.pathname === "/health") {
       const mem = process.memoryUsage();
       evictStale(Date.now());
+      let redisOk = false;
+      try { await redis.ping(); redisOk = true; } catch { /* health check only */ }
       return Response.json({
         ok: true,
         ws_connected: wsConnected,
@@ -389,6 +396,9 @@ const server = Bun.serve({
         rate_budget: RATE_BUDGET,
         memory_mb: Math.round(mem.rss / 1024 / 1024),
         heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+        redis_ok: redisOk,
+        redis_writes: redisWrites,
+        redis_errors: redisErrors,
       });
     }
 
@@ -482,8 +492,10 @@ const server = Bun.serve({
           if (cached !== null) {
             return Response.json(cached, { headers: { "X-Cache": "HIT" } });
           }
-        } catch {
-          // Cache miss on error — proceed to Archive
+        } catch (err) {
+          redisErrors++;
+          const msg = err instanceof Error ? err.message : "unknown";
+          console.error(`[nado-matches] Redis GET failed: ${msg}`);
         }
       }
 
@@ -518,10 +530,13 @@ const server = Bun.serve({
       const data: unknown = await archiveRes.json();
 
       try {
-        const ttl = body.idx ? 86_400 : 3;
+        const ttl = body.idx ? 86_400 : 10;
         await redis.set(key, data, { ex: ttl });
-      } catch {
-        // Cache write failure is non-fatal
+        redisWrites++;
+      } catch (err) {
+        redisErrors++;
+        const msg = err instanceof Error ? err.message : "unknown";
+        console.error(`[nado-matches] Redis SET failed: ${msg}`);
       }
 
       const resHeaders: Record<string, string> = { "X-Cache": "MISS" };
@@ -535,4 +550,24 @@ const server = Bun.serve({
 
 console.log(`[nado-matches] HTTP server listening on port ${server.port}`);
 
+async function warmCache() {
+  const raw = process.env.WARMUP_WALLETS ?? "";
+  if (!raw) return;
+  const wallets = raw.split(",").map((w) => w.trim()).filter(Boolean);
+  for (const wallet of wallets) {
+    try {
+      await fetch(`http://localhost:${PORT}/matches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Service-Secret": SERVICE_SECRET },
+        body: JSON.stringify({ subaccounts: [wallet], limit: 250, isolated: null }),
+      });
+      console.log(`[warmup] cached ${wallet.slice(0, 10)}…`);
+    } catch {
+      console.warn(`[warmup] failed ${wallet.slice(0, 10)}…`);
+    }
+  }
+  console.log("[warmup] complete");
+}
+
+warmCache().catch(console.error);
 connect();

@@ -4,7 +4,7 @@ import { ArchiveSubaccountsResponseSchema } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
 import { withArchiveRetry } from "@/lib/archiveRetry";
-import { cacheKey, redis } from "@/lib/redis";
+import { cacheKey, logRedisError, redis } from "@/lib/redis";
 import { isAddress } from "viem";
 import { z } from "zod";
 
@@ -35,8 +35,8 @@ export async function GET(
       const revalidated = ArchiveSubaccountsResponseSchema.safeParse(cached);
       if (revalidated.success) return NextResponse.json(revalidated.data);
     }
-  } catch {
-    // Cache unavailable — proceed to Archive
+  } catch (err) {
+    logRedisError("get", key, err);
   }
 
   try {
@@ -69,8 +69,8 @@ export async function GET(
 
     try {
       await redis.set(key, parsed.data, { ex: 300 });
-    } catch {
-      // Cache write failure is non-fatal
+    } catch (err) {
+      logRedisError("set", key, err);
     }
 
     return NextResponse.json(parsed.data);

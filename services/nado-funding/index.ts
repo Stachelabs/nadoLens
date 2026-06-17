@@ -8,6 +8,9 @@ const SERVICE_SECRET = process.env.SERVICE_SECRET ?? "";
 
 const redis = Redis.fromEnv();
 
+let redisWrites = 0;
+let redisErrors = 0;
+
 type FundingBody = {
   subaccount: string;
   product_ids: number[];
@@ -108,10 +111,15 @@ const server = Bun.serve({
 
     if (req.method === "GET" && url.pathname === "/health") {
       const mem = process.memoryUsage();
+      let redisOk = false;
+      try { await redis.ping(); redisOk = true; } catch { /* health check only */ }
       return Response.json({
         ok: true,
         memory_mb: Math.round(mem.rss / 1024 / 1024),
         heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+        redis_ok: redisOk,
+        redis_writes: redisWrites,
+        redis_errors: redisErrors,
       });
     }
 
@@ -136,8 +144,10 @@ const server = Bun.serve({
             headers: { "X-Cache": "HIT" },
           });
         }
-      } catch {
-        // Cache miss on error — proceed to Archive
+      } catch (err) {
+        redisErrors++;
+        const msg = err instanceof Error ? err.message : "unknown";
+        console.error(`[nado-funding] Redis GET failed: ${msg}`);
       }
 
       let archiveRes: Response;
@@ -160,9 +170,12 @@ const server = Bun.serve({
       const data: unknown = await archiveRes.json();
 
       try {
-        await redis.set(key, data, { ex: 43_200 });
-      } catch {
-        // Cache write failure is non-fatal
+        await redis.set(key, data, { ex: 3_600 });
+        redisWrites++;
+      } catch (err) {
+        redisErrors++;
+        const msg = err instanceof Error ? err.message : "unknown";
+        console.error(`[nado-funding] Redis SET failed: ${msg}`);
       }
 
       return Response.json(data, { headers: { "X-Cache": "MISS" } });
