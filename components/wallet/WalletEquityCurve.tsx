@@ -63,7 +63,9 @@ const PERIOD_OPTIONS: { value: EquityPeriod; label: string }[] = [
 export function WalletEquityCurve({
   trades,
   globalMatchesComplete = true,
+  dataCompleteness,
 }: Props) {
+  const isPartial = dataCompleteness === 'truncated' || dataCompleteness === 'partial_error';
   const activeAddress = useWalletFundingStore((s) => s.activeAddress);
   const fundingPayments = useWalletFundingStore((s) => s.forActive()?.fundingPayments ?? []);
   const fundingLoadedSince = useWalletFundingStore((s) => s.forActive()?.fundingLoadedSince ?? Infinity);
@@ -165,8 +167,15 @@ export function WalletEquityCurve({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 text-[11px] uppercase tracking-wider text-muted-foreground/80">
-            Perp Equity Curve
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+              Perp Equity Curve
+            </span>
+            {isPartial && globalMatchesComplete && (
+              <span className="inline-flex items-center rounded-sm border border-[var(--warn)]/30 bg-[var(--warn)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--warn)]">
+                Partial data
+              </span>
+            )}
           </div>
           <div className="shrink-0 sm:ml-auto">
             <Select
