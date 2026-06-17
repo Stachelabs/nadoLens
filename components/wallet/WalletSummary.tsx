@@ -36,6 +36,16 @@ function formatTimestamp(nanoTs: string | null): string {
   });
 }
 
+function formatSinceBadge(nanoTs: string | null): string | null {
+  const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
+  if (ms === null) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear().toString().slice(-2);
+  return `Since ${month} '${year}`;
+}
+
 function timeAgo(nanoTs: string | null): string {
   const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
   if (ms === null) return "—";
@@ -55,6 +65,7 @@ function timeAgo(nanoTs: string | null): string {
 type Props = {
   stats: WalletStats;
   globalMatchesComplete?: boolean;
+  matchesError?: string | null;
   /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
   onRefresh?: () => void | Promise<void>;
   refreshing?: boolean;
@@ -92,12 +103,14 @@ function Row({
 function Section({
   title,
   loading,
+  badge,
   action,
   className,
   children,
 }: {
   title: string;
   loading?: boolean;
+  badge?: ReactNode;
   action?: ReactNode;
   className?: string;
   children: React.ReactNode;
@@ -110,6 +123,7 @@ function Section({
           {loading && (
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
           )}
+          {badge}
         </div>
         {action}
       </div>
@@ -121,6 +135,7 @@ function Section({
 export function WalletSummary({
   stats,
   globalMatchesComplete = true,
+  matchesError,
   onRefresh,
   refreshing = false,
   onRefreshUnrealized,
@@ -143,6 +158,14 @@ export function WalletSummary({
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0;
   const isFundingPositive = fundingPaidUsd >= 0;
 
+  const showSinceBadge = !globalMatchesComplete || !!matchesError;
+  const sinceText = showSinceBadge ? formatSinceBadge(stats.first_trade_at) : null;
+  const sinceSuffix = matchesError
+    ? " (partial)"
+    : !globalMatchesComplete
+      ? " (loading older...)"
+      : "";
+
   return (
     <Card className="border-border bg-card">
       <CardContent className="p-4">
@@ -162,6 +185,13 @@ export function WalletSummary({
             <Section
               title="Positions"
               loading={!globalMatchesComplete}
+              badge={
+                sinceText ? (
+                  <span className="normal-case tracking-normal text-[10px] font-normal text-muted-foreground/60">
+                    {sinceText}{sinceSuffix}
+                  </span>
+                ) : null
+              }
               action={
                 onRefreshUnrealized ? (
                   <Button

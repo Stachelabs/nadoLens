@@ -46,6 +46,7 @@ function WalletContent({ address }: { address: string }) {
     matchedPositionKeys,
     snapshotReady,
     bannerState,
+    matchesError,
   } = useWalletData(address);
 
   const { activeTab, setActiveTab } = useWalletAnalyticsStore();
@@ -130,6 +131,7 @@ function WalletContent({ address }: { address: string }) {
           <WalletSummary
             stats={stats}
             globalMatchesComplete={globalMatchesComplete}
+            matchesError={matchesError}
             onRefresh={refresh}
             refreshing={refreshing}
             onRefreshUnrealized={refreshUnrealizedPnl}

@@ -1658,6 +1658,8 @@ export function useWalletData(rawAddress: string): WalletData {
         type: "RETRY_IN_PROGRESS",
         message: `Gateway hiccup. Retrying in ${retryCountdown}s...`,
         countdown: retryCountdown,
+        onRetry: () => refreshImplRef.current(),
+        retryDisabled: retryCountdown > 0,
       });
     }
 
