@@ -4,12 +4,19 @@ import type { TradeMatch } from '@/types/nado'
 const MAX_CACHED_WALLETS = 2
 const STALE_TTL_MS = 5 * 60 * 1000
 
+export type PaginationResumeChunk = {
+  subs: string[]
+  nextIdx: string
+}
+
 export type MatchesCacheEntry = {
   trades: TradeMatch[]
   latestKnownIdx: string | null
   seenTradeIds: Set<string>
   globalMatchesComplete: boolean
   cachedAt: number
+  paginationResume: PaginationResumeChunk[] | null
+  pagesLoaded: number
 }
 
 type WalletMatchesCacheState = {
@@ -33,6 +40,8 @@ export const useWalletMatchesCacheStore = create<WalletMatchesCacheState>((set, 
         seenTradeIds: data.seenTradeIds ?? existing?.seenTradeIds ?? new Set(),
         globalMatchesComplete: data.globalMatchesComplete ?? existing?.globalMatchesComplete ?? false,
         cachedAt: Date.now(),
+        paginationResume: data.paginationResume ?? existing?.paginationResume ?? null,
+        pagesLoaded: data.pagesLoaded ?? existing?.pagesLoaded ?? 0,
       })
       if (next.size > MAX_CACHED_WALLETS) {
         for (const [key] of next) {

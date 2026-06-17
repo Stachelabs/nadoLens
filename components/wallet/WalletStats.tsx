@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
+import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import type { WalletStats } from "@/types/nado";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
@@ -18,14 +19,28 @@ const fmtPnl = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+function formatSince(nanoTs: string | null): string | null {
+  const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
+  if (ms === null) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear().toString().slice(-2);
+  return `since ${month} '${year}`;
+}
+
 type Props = {
   stats: WalletStats;
   tradesComplete?: boolean;
+  globalMatchesComplete?: boolean;
+  matchesError?: string | null;
 };
 
-export function WalletStats({ stats, tradesComplete = true }: Props) {
+export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, matchesError }: Props) {
   const isPnlPositive = stats.net_pnl_usd >= 0;
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count;
+  const showSince = !globalMatchesComplete || !!matchesError;
+  const sinceLabel = showSince ? formatSince(stats.first_trade_at) : null;
 
   const items = [
     {
@@ -62,10 +77,13 @@ export function WalletStats({ stats, tradesComplete = true }: Props) {
       label: "Trades (matches)",
       value: totalTrades.toString(),
       color: "text-foreground/70",
-      sub:
-        stats.perp_trades_count > 0 || stats.spot_trades_count > 0
+      sub: (() => {
+        const breakdown = stats.perp_trades_count > 0 || stats.spot_trades_count > 0
           ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
-          : null,
+          : null;
+        if (sinceLabel && breakdown) return `${breakdown} · ${sinceLabel}`;
+        return sinceLabel ?? breakdown;
+      })(),
     },
   ];
 
