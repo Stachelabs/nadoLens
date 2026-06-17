@@ -37,7 +37,8 @@ type Props = {
   dataCompleteness?: 'complete' | 'truncated' | 'partial_error';
 };
 
-export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, matchesError }: Props) {
+export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, matchesError, dataCompleteness }: Props) {
+  const isPartial = dataCompleteness === 'truncated' || dataCompleteness === 'partial_error';
   const isPnlPositive = stats.net_pnl_usd >= 0;
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count;
   const showSince = !globalMatchesComplete || !!matchesError;
@@ -110,6 +111,11 @@ export function WalletStats({ stats, tradesComplete = true, globalMatchesComplet
               {label}
               {!tradesComplete && (
                 <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse align-middle" />
+              )}
+              {isPartial && globalMatchesComplete && (
+                <span className="ml-1 text-[9px] font-medium text-[var(--warn)] normal-case tracking-normal">
+                  ~
+                </span>
               )}
             </div>
             <div className={cn("min-h-7 flex items-center justify-center")}>

@@ -187,7 +187,9 @@ export function WalletTradeHistory({
   onRefreshTrades,
   tradesRefreshing = false,
   globalMatchesComplete = true,
+  dataCompleteness,
 }: Props) {
+  const isPartial = dataCompleteness === 'truncated' || dataCompleteness === 'partial_error';
   const [page, setPage] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("aggregated");
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
@@ -358,6 +360,11 @@ export function WalletTradeHistory({
                 {displayRows.length}
                 {viewMode === "aggregated" ? " orders" : " fills"}
               </span>
+              {isPartial && globalMatchesComplete && (
+                <span className="ml-1.5 inline-flex items-center rounded-sm border border-[var(--warn)]/30 bg-[var(--warn)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--warn)] normal-case tracking-normal">
+                  Partial
+                </span>
+              )}
             </div>
             <Tabs
               value={viewMode}
@@ -705,7 +712,13 @@ export function WalletTradeHistory({
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
+        <div className="mt-3 pt-3 border-t border-border/30 space-y-1.5">
+          {isPartial && globalMatchesComplete && (
+            <p className="text-[11px] text-[var(--warn)]/80">
+              Showing most recent {trades.length.toLocaleString()} trades — older history was not loaded.
+            </p>
+          )}
+          <div className="flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground/80 tabular-nums">
             {displayRows.length === 0 ? (
               <>0 of 0</>
@@ -757,6 +770,7 @@ export function WalletTradeHistory({
             >
               »
             </Button>
+          </div>
           </div>
         </div>
       </CardContent>
