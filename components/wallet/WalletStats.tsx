@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { perpIconSrcFromPair } from "@/lib/wallet/perpPairIcon";
-import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import type { WalletStats } from "@/types/nado";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
@@ -19,30 +18,17 @@ const fmtPnl = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-function formatSince(nanoTs: string | null): string | null {
-  const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
-  if (ms === null) return null;
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return null;
-  const month = d.toLocaleString("en-US", { month: "short" });
-  const year = d.getFullYear().toString().slice(-2);
-  return `since ${month} '${year}`;
-}
-
 type Props = {
   stats: WalletStats;
   tradesComplete?: boolean;
   globalMatchesComplete?: boolean;
-  matchesError?: string | null;
   dataCompleteness?: 'complete' | 'truncated' | 'partial_error';
 };
 
-export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, matchesError, dataCompleteness }: Props) {
+export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, dataCompleteness }: Props) {
   const isPartial = dataCompleteness === 'truncated' || dataCompleteness === 'partial_error';
   const isPnlPositive = stats.net_pnl_usd >= 0;
   const totalTrades = stats.perp_trades_count + stats.spot_trades_count;
-  const showSince = !globalMatchesComplete || !!matchesError;
-  const sinceLabel = showSince ? formatSince(stats.first_trade_at) : null;
 
   const items = [
     {
@@ -79,13 +65,9 @@ export function WalletStats({ stats, tradesComplete = true, globalMatchesComplet
       label: "Trades (matches)",
       value: totalTrades.toString(),
       color: "text-foreground/70",
-      sub: (() => {
-        const breakdown = stats.perp_trades_count > 0 || stats.spot_trades_count > 0
-          ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
-          : null;
-        if (sinceLabel && breakdown) return `${breakdown} · ${sinceLabel}`;
-        return sinceLabel ?? breakdown;
-      })(),
+      sub: stats.perp_trades_count > 0 || stats.spot_trades_count > 0
+        ? `${stats.perp_trades_count} perp · ${stats.spot_trades_count} spot`
+        : null,
     },
   ];
 
@@ -107,8 +89,20 @@ export function WalletStats({ stats, tradesComplete = true, globalMatchesComplet
       {items.map(({ label, value, color, sub }) => (
         <Card key={label} className="border-border bg-card min-w-0 flex">
           <CardContent className="p-3 text-center flex flex-col items-center justify-center flex-1">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-1">
-              {label}
+            <div className="text-[11px] uppercase tracking-wider mb-1">
+              <span
+                className={tradesComplete ? "text-muted-foreground/80" : ""}
+                style={!tradesComplete ? {
+                  background: 'linear-gradient(90deg, var(--muted-foreground) 20%, var(--foreground) 50%, var(--muted-foreground) 80%)',
+                  backgroundSize: '200% 100%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'shimmer-text 2s linear infinite',
+                } : undefined}
+              >
+                {label}
+              </span>
               {!tradesComplete && (
                 <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse align-middle" />
               )}
