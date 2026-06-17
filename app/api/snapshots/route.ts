@@ -7,7 +7,7 @@ import {
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
 import { withArchiveRetry } from "@/lib/archiveRetry";
-import { cacheKey, hashParams, redis } from "@/lib/redis";
+import { cacheKey, hashParams, logRedisError, redis } from "@/lib/redis";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -44,8 +44,8 @@ export async function POST(
       const revalidated = AccountSnapshotsResponseSchema.safeParse(cached);
       if (revalidated.success) return NextResponse.json(revalidated.data);
     }
-  } catch {
-    // Cache unavailable — proceed to Archive
+  } catch (err) {
+    logRedisError("get", key, err);
   }
 
   const archiveBody: Record<string, unknown> = {
@@ -90,8 +90,8 @@ export async function POST(
 
     try {
       await redis.set(key, parsed.data, { ex: 300 });
-    } catch {
-      // Cache write failure is non-fatal
+    } catch (err) {
+      logRedisError("set", key, err);
     }
 
     return NextResponse.json(parsed.data);

@@ -8,7 +8,7 @@ import {
 } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
-import { cacheKey, hashParams, redis } from "@/lib/redis";
+import { cacheKey, hashParams, logRedisError, redis } from "@/lib/redis";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 type ErrResponse = { error: string };
 type MatchesResponse = z.infer<typeof ArchiveMatchesResponseSchema>;
 
-const SOFT_TTL_MS = 5_000;
+const SOFT_TTL_MS = 8_000;
 const HARD_TTL_S = 300;
 const MAX_MATCHES = 500;
 
@@ -34,7 +34,7 @@ function isFirstPageRequest(body: z.infer<typeof GlobalMatchesRequestSchema>): b
 function firstPageCacheKey(body: z.infer<typeof GlobalMatchesRequestSchema>): string {
   return cacheKey(
     "vmatch",
-    hashParams({ subaccounts: [...body.subaccounts].sort(), isolated: body.isolated }),
+    hashParams({ subaccounts: [...body.subaccounts].sort(), isolated: body.isolated, limit: body.limit }),
   );
 }
 
@@ -129,8 +129,8 @@ export async function POST(
       ) {
         cached = raw;
       }
-    } catch {
-      // Cache unavailable — proceed without
+    } catch (err) {
+      logRedisError("get", key, err);
     }
 
     // Soft hit: fresh enough to return immediately
@@ -168,8 +168,8 @@ export async function POST(
         };
         try {
           await redis.set(key, entry, { ex: HARD_TTL_S });
-        } catch {
-          // Non-fatal
+        } catch (err) {
+          logRedisError("set", key, err);
         }
       }
       return NextResponse.json(fresh, { headers: { "X-Cache": "VMISS" } });
@@ -180,8 +180,8 @@ export async function POST(
       const refreshed: CachedFirstPage = { ...cached, updatedAt: Date.now() };
       try {
         await redis.set(key, refreshed, { ex: HARD_TTL_S });
-      } catch {
-        // Non-fatal
+      } catch (err) {
+        logRedisError("set", key, err);
       }
       return NextResponse.json(
         { matches: cached.matches, txs: cached.txs },
@@ -203,8 +203,8 @@ export async function POST(
       const refreshed: CachedFirstPage = { ...cached, updatedAt: Date.now() };
       try {
         await redis.set(key, refreshed, { ex: HARD_TTL_S });
-      } catch {
-        // Non-fatal
+      } catch (err) {
+        logRedisError("set", key, err);
       }
       return NextResponse.json(
         { matches: cached.matches, txs: cached.txs },
@@ -233,8 +233,8 @@ export async function POST(
 
     try {
       await redis.set(key, entry, { ex: HARD_TTL_S });
-    } catch {
-      // Non-fatal
+    } catch (err) {
+      logRedisError("set", key, err);
     }
 
     return NextResponse.json(

@@ -14,6 +14,11 @@ export function hashParams(params: unknown): string {
     .slice(0, 16);
 }
 
+export function logRedisError(op: "get" | "set", key: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : "unknown";
+  console.error(`[redis:${op}] ${key.slice(0, 30)} — ${msg}`);
+}
+
 export async function withCache<T>(
   key: string,
   ttlSeconds: number,
@@ -22,16 +27,16 @@ export async function withCache<T>(
   try {
     const cached = await redis.get<T>(key);
     if (cached !== null) return cached;
-  } catch {
-    // Cache unavailable — fall through to fetcher
+  } catch (err) {
+    logRedisError("get", key, err);
   }
 
   const result = await fetcher();
 
   try {
     await redis.set(key, result, { ex: ttlSeconds });
-  } catch {
-    // Cache write failure is non-fatal
+  } catch (err) {
+    logRedisError("set", key, err);
   }
 
   return result;

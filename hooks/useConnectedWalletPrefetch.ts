@@ -29,9 +29,11 @@ export function useConnectedWalletPrefetch(): void {
     if (!isConnected || !address) return
 
     const existing = useWalletMatchesCacheStore.getState().getCache(address)
-    if (existing && existing.trades.length > 0 && existing.globalMatchesComplete) {
+    const matchesStale = useWalletMatchesCacheStore.getState().isStale(address)
+    if (existing && !matchesStale && existing.trades.length > 0 && existing.globalMatchesComplete) {
       const posExisting = usePositionMatchesCacheStore.getState().getCache(address)
-      if (posExisting && posExisting.positionTrades.length > 0) return
+      const posStale = usePositionMatchesCacheStore.getState().isStale(address)
+      if (posExisting && !posStale && posExisting.positionTrades.length > 0) return
     }
 
     const controller = new AbortController()
