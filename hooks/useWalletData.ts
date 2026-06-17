@@ -45,7 +45,7 @@ import {
   type MatchesPageResult,
 } from "@/lib/wallet/walletFetchers";
 import type { BannerEntry } from "@/components/wallet/WalletBanner";
-import { useWalletMatchesCacheStore } from "@/store/walletMatchesCacheStore";
+import { useWalletMatchesCacheStore, type PaginationResumeChunk } from "@/store/walletMatchesCacheStore";
 import { usePositionMatchesCacheStore } from "@/store/positionMatchesCacheStore";
 
 const POSITIONS_POLL_MS = 6_000;
@@ -58,6 +58,7 @@ const MATCHES_429_MAX_ATTEMPTS = 3;
 const MATCHES_STAGGER_MAX_MS = 5_000;
 const REMAINING_MATCHES_DELAY_MS = 7_000;
 const RETRY_429_DEADLINE_MS = 60_000;
+const AUTO_RETRY_DELAYS = [10_000, 20_000, 40_000] as const;
 const DISCOVERY_INTERVAL_TICKS = 10;
 const DEMOTION_THRESHOLD = 2;
 
@@ -168,6 +169,12 @@ export function useWalletData(rawAddress: string): WalletData {
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRetryingRef = useRef(false);
   const lastRetryFailedRef = useRef(false);
+  const paginationResumeRef = useRef<PaginationResumeChunk[] | null>(null);
+  const pagesLoadedRef = useRef(0);
+  const autoRetryAttemptRef = useRef(0);
+  const autoRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resumeMatchesImplRef = useRef<() => Promise<void>>(async () => {});
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Ref-stabilized: only changes when the actual subaccount strings change, preventing
@@ -1096,19 +1103,183 @@ export function useWalletData(rawAddress: string): WalletData {
           }
 
           if (!cancelled) {
-            const partialComplete = anyChunkExhausted || truncatedByPageLimit;
-            tradesCompleteRef.current = true;
-            setData((prev) => ({
-              ...prev,
-              globalMatchesComplete: true,
-              tradesComplete: true,
-              ...(partialComplete && !prev.matchesError
-                ? { matchesError: "Partial trade history loaded — some pages unavailable." }
-                : {}),
-              stats: prev.stats
-                ? { ...prev.stats, trades_complete: true }
-                : null,
-            }));
+            const exhaustedResume = anyChunkExhausted
+              ? chunkStates
+                  .filter((s) => s.nextIdx !== null)
+                  .map((s) => ({ subs: s.chunk as string[], nextIdx: s.nextIdx! }))
+              : [];
+
+            if (exhaustedResume.length > 0 && !truncatedByPageLimit) {
+              paginationResumeRef.current = exhaustedResume;
+              pagesLoadedRef.current = chunkStates.filter((s) => s.done && s.nextIdx === null).length > 0
+                ? MAX_PAGES : 1;
+
+              // Define resume function — runs outerMatches-like loop for exhausted chunks
+              resumeMatchesImplRef.current = async () => {
+                const resumeChunks = paginationResumeRef.current;
+                if (!resumeChunks || resumeChunks.length === 0 || cancelled) return;
+
+                setData((prev) => ({ ...prev, matchesError: null }));
+                const resumeStates = resumeChunks.map((rc) => ({
+                  chunk: rc.subs,
+                  done: false,
+                  nextIdx: rc.nextIdx as string | null,
+                }));
+
+                let localAllTrades = [...tradesRef.current];
+                let resumeExhausted = false;
+
+                for (let pg = 0; pg < MAX_PAGES && !cancelled; pg++) {
+                  const active = resumeStates.filter((s) => !s.done);
+                  if (active.length === 0) break;
+
+                  for (let a = 0; a < active.length; a++) {
+                    const st = active[a]!;
+                    let result: MatchesPageResult | null = null;
+                    const pageDeadline = Date.now() + RETRY_429_DEADLINE_MS;
+                    for (let retry = 0; !cancelled && Date.now() < pageDeadline; retry++) {
+                      const p = await fetchPage(st.chunk, st.nextIdx ?? undefined);
+                      if (p.queued) setIsQueued(true);
+                      if (cancelled) break;
+                      if (!p.rateLimited && !p.serverError) { result = p; break; }
+                      const delay = Math.min(
+                        MATCHES_429_BASE_DELAY * Math.pow(1.5, retry) + Math.random() * MATCHES_429_JITTER,
+                        60_000,
+                      );
+                      await sleep(delay, signal);
+                    }
+                    if (cancelled) return;
+                    if (!result) { resumeExhausted = true; st.done = true; continue; }
+
+                    st.done = result.done;
+                    st.nextIdx = result.nextIdx;
+                    const uniqueTrades = result.trades.filter((trade) => {
+                      const id = tradeIdentity(trade);
+                      if (seenTradeIdsRef.current.has(id)) return false;
+                      seenTradeIdsRef.current.add(id);
+                      return true;
+                    });
+                    localAllTrades = sortTradesNewestFirst([...localAllTrades, ...uniqueTrades]);
+                    if (a < active.length - 1) await sleep(MATCHES_BURST_MS);
+                  }
+
+                  tradesRef.current = localAllTrades;
+                  latestKnownIdxRef.current = localAllTrades[0]?.submission_idx ?? latestKnownIdxRef.current;
+
+                  const allResumed = resumeStates.every((s) => s.done) && !resumeExhausted;
+                  setData((prev) => {
+                    const fs = useWalletFundingStore.getState().forAddress(rawAddress);
+                    const pnlStats = buildPnlStats(localAllTrades, fs?.fundingPaidUsd ?? 0);
+                    return {
+                      ...prev,
+                      trades: localAllTrades,
+                      stats: prev.stats ? { ...prev.stats, trades: localAllTrades, ...pnlStats } : null,
+                    };
+                  });
+                  if (allResumed) break;
+                }
+
+                if (resumeExhausted) {
+                  const stillExhausted = resumeStates
+                    .filter((s) => s.nextIdx !== null)
+                    .map((s) => ({ subs: s.chunk, nextIdx: s.nextIdx! }));
+                  paginationResumeRef.current = stillExhausted.length > 0 ? stillExhausted : null;
+                  return;
+                }
+
+                // Full success
+                paginationResumeRef.current = null;
+                autoRetryAttemptRef.current = 0;
+                tradesCompleteRef.current = true;
+                setShowRecovery(true);
+                if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+                recoveryTimerRef.current = setTimeout(() => setShowRecovery(false), 3_000);
+                isRetryingRef.current = false;
+                lastRetryFailedRef.current = false;
+                setIsRetrying(false);
+                setLastRetryFailed(false);
+                setData((prev) => ({
+                  ...prev,
+                  globalMatchesComplete: true,
+                  tradesComplete: true,
+                  matchesError: null,
+                  stats: prev.stats ? { ...prev.stats, trades_complete: true } : null,
+                }));
+                useWalletMatchesCacheStore.getState().setCache(rawAddress, {
+                  trades: tradesRef.current,
+                  latestKnownIdx: latestKnownIdxRef.current,
+                  seenTradeIds: new Set(seenTradeIdsRef.current),
+                  globalMatchesComplete: true,
+                  paginationResume: null,
+                  pagesLoaded: 0,
+                });
+              };
+
+              // Schedule auto-retry chain
+              const scheduleAutoRetry = () => {
+                const attempt = autoRetryAttemptRef.current;
+                if (attempt >= AUTO_RETRY_DELAYS.length || cancelled) {
+                  lastRetryFailedRef.current = true;
+                  setLastRetryFailed(true);
+                  isRetryingRef.current = false;
+                  setIsRetrying(false);
+                  tradesCompleteRef.current = true;
+                  setData((prev) => ({
+                    ...prev,
+                    globalMatchesComplete: true,
+                    tradesComplete: true,
+                    matchesError: "Partial trade history — click Retry to resume loading.",
+                    stats: prev.stats ? { ...prev.stats, trades_complete: true } : null,
+                  }));
+                  return;
+                }
+
+                const delayMs = AUTO_RETRY_DELAYS[attempt];
+                let remaining = Math.round(delayMs / 1000);
+                isRetryingRef.current = true;
+                setIsRetrying(true);
+                setRetryCountdown(remaining);
+
+                if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = setInterval(() => {
+                  remaining--;
+                  setRetryCountdown(Math.max(0, remaining));
+                  if (remaining <= 0 && countdownIntervalRef.current) {
+                    clearInterval(countdownIntervalRef.current);
+                  }
+                }, 1000);
+
+                autoRetryTimerRef.current = setTimeout(async () => {
+                  if (cancelled) return;
+                  autoRetryAttemptRef.current++;
+                  setRetryCountdown(0);
+                  await resumeMatchesImplRef.current();
+                  if (!cancelled && paginationResumeRef.current) {
+                    scheduleAutoRetry();
+                  }
+                }, delayMs);
+              };
+
+              setData((prev) => ({
+                ...prev,
+                matchesError: "Loading history paused — retrying automatically...",
+              }));
+              scheduleAutoRetry();
+            } else {
+              const partialComplete = anyChunkExhausted || truncatedByPageLimit;
+              tradesCompleteRef.current = true;
+              setData((prev) => ({
+                ...prev,
+                globalMatchesComplete: true,
+                tradesComplete: true,
+                ...(partialComplete && !prev.matchesError
+                  ? { matchesError: "Partial trade history loaded — some pages unavailable." }
+                  : {}),
+                stats: prev.stats
+                  ? { ...prev.stats, trades_complete: true }
+                  : null,
+              }));
+            }
           }
         }
       })();
@@ -1537,6 +1708,8 @@ export function useWalletData(rawAddress: string): WalletData {
           latestKnownIdx: latestKnownIdxRef.current,
           seenTradeIds: new Set(seenTradeIdsRef.current),
           globalMatchesComplete: tradesCompleteRef.current,
+          paginationResume: paginationResumeRef.current,
+          pagesLoaded: pagesLoadedRef.current,
         });
       }
       } finally {
@@ -1609,6 +1782,10 @@ export function useWalletData(rawAddress: string): WalletData {
         gatewayStaleToastRef.current = null;
       }
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+      if (autoRetryTimerRef.current) clearTimeout(autoRetryTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      paginationResumeRef.current = null;
+      autoRetryAttemptRef.current = 0;
       isRetryingRef.current = false;
       lastRetryFailedRef.current = false;
       setIsQueued(false);
@@ -1648,17 +1825,36 @@ export function useWalletData(rawAddress: string): WalletData {
     }
 
     if (lastRetryFailed && (data.positionError || data.matchesError)) {
+      const hasPaginationResume = paginationResumeRef.current !== null;
       banners.push({
         type: "RETRY_EXHAUSTED",
-        message: "Couldn't reach the gateway.",
-        onRetry: () => refreshImplRef.current(),
+        message: hasPaginationResume
+          ? "Couldn't load complete history."
+          : "Couldn't reach the gateway.",
+        onRetry: () => {
+          if (hasPaginationResume) {
+            lastRetryFailedRef.current = false;
+            setLastRetryFailed(false);
+            autoRetryAttemptRef.current = 0;
+            void resumeMatchesImplRef.current();
+          } else {
+            void refreshImplRef.current();
+          }
+        },
       });
     } else if (isRetrying) {
       banners.push({
         type: "RETRY_IN_PROGRESS",
-        message: `Gateway hiccup. Retrying in ${retryCountdown}s...`,
+        message: paginationResumeRef.current
+          ? `Loading history — retrying in ${retryCountdown}s...`
+          : `Gateway hiccup. Retrying in ${retryCountdown}s...`,
         countdown: retryCountdown,
-        onRetry: () => refreshImplRef.current(),
+        onRetry: () => {
+          if (autoRetryTimerRef.current) clearTimeout(autoRetryTimerRef.current);
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          setRetryCountdown(0);
+          void resumeMatchesImplRef.current();
+        },
         retryDisabled: retryCountdown > 0,
       });
     }
