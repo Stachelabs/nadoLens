@@ -8,6 +8,7 @@ import type { WalletStats } from "@/types/nado";
 import { useWalletFundingStore } from "@/store/walletFundingStore";
 import { RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -157,6 +158,7 @@ export function WalletSummary({
   const isPerpPnlPositive = stats.trading_pnl_usd >= 0;
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0;
   const isFundingPositive = fundingPaidUsd >= 0;
+  const tradesLoading = !globalMatchesComplete;
 
   const showSinceBadge = !globalMatchesComplete || !!matchesError;
   const sinceText = showSinceBadge ? formatSinceBadge(stats.first_trade_at) : null;
@@ -221,13 +223,13 @@ export function WalletSummary({
               />
               <Row
                 label="Perp PnL"
-                value={`${isPerpPnlPositive ? "+" : ""}${fmtUsd.format(stats.trading_pnl_usd)}`}
-                valueClass={isPerpPnlPositive ? "text-bull" : "text-bear"}
+                value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : `${isPerpPnlPositive ? "+" : ""}${fmtUsd.format(stats.trading_pnl_usd)}`}
+                valueClass={tradesLoading ? undefined : isPerpPnlPositive ? "text-bull" : "text-bear"}
               />
               <Row
                 label="All Time PnL"
-                value={`${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`}
-                valueClass={isAllTimePnlPositive ? "text-bull" : "text-bear"}
+                value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : `${isAllTimePnlPositive ? "+" : ""}${fmtUsd.format(stats.net_pnl_usd)}`}
+                valueClass={tradesLoading ? undefined : isAllTimePnlPositive ? "text-bull" : "text-bear"}
               />
             </Section>
           </div>
@@ -257,28 +259,28 @@ export function WalletSummary({
           >
             <Row
               label="Total Volume"
-              value={fmtUsdCompact.format(stats.total_volume_usd)}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : fmtUsdCompact.format(stats.total_volume_usd)}
             />
             <Row
               label="Perp Volume"
-              value={fmtUsdCompact.format(stats.perp_volume_usd)}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : fmtUsdCompact.format(stats.perp_volume_usd)}
             />
             <Row
               label="Spot Volume"
-              value={fmtUsdCompact.format(stats.spot_volume_usd)}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : fmtUsdCompact.format(stats.spot_volume_usd)}
             />
             <Row
               label="Spot Trades"
-              value={stats.spot_trades_count.toString()}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : stats.spot_trades_count.toString()}
             />
             <Row
               label="Perp Trades"
-              value={stats.perp_trades_count.toString()}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : stats.perp_trades_count.toString()}
             />
             <Row
               label="Total Fees"
-              value={fmtUsd.format(stats.total_fees_usd)}
-              valueClass="text-bear"
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : fmtUsd.format(stats.total_fees_usd)}
+              valueClass={tradesLoading ? undefined : "text-bear"}
             />
             <Row
               label="Total Funding"
@@ -288,13 +290,24 @@ export function WalletSummary({
                 ) : globalFundingLoading ? (
                   <span
                     role="status"
-                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-sans text-xs font-normal leading-normal text-muted-foreground/80"
+                    className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-sans text-xs font-normal leading-normal"
                   >
                     <span
                       className="size-2 shrink-0 rounded-full bg-muted-foreground/40 animate-pulse"
                       aria-hidden
                     />
-                    Funding loading ...
+                    <span
+                      style={{
+                        background: 'linear-gradient(90deg, var(--muted-foreground) 20%, var(--foreground) 50%, var(--muted-foreground) 80%)',
+                        backgroundSize: '200% 100%',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        animation: 'shimmer-text 2s linear infinite',
+                      }}
+                    >
+                      Funding loading ...
+                    </span>
                   </span>
                 ) : (
                   <Button
@@ -320,11 +333,11 @@ export function WalletSummary({
             />
             <Row
               label="First Trade"
-              value={formatTimestamp(stats.first_trade_at)}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : formatTimestamp(stats.first_trade_at)}
             />
             <Row
               label="Last Trade"
-              value={timeAgo(stats.last_trade_at)}
+              value={tradesLoading ? <Skeleton className="h-4 w-24 rounded-sm" /> : timeAgo(stats.last_trade_at)}
             />
           </Section>
         </div>

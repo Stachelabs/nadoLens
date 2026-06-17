@@ -225,7 +225,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className="text-brand hover:text-brand/90"
             >
-              @stache.dev
+              @stache_dev
             </a>
           </span>
         </div>

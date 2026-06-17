@@ -20,8 +20,20 @@ import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingBy
 import { InkLoader } from "@/components/ui/InkLoader";
 import { Button } from "@/components/ui/button";
 import { WalletBanner } from "@/components/wallet/WalletBanner";
+import { Spinner } from "@/components/ui/Spinner";
+import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 
 const LOAD_TIMEOUT_MS = 30_000;
+
+function formatSinceDate(nanoTs: string | null): string | null {
+  const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
+  if (ms === null) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear().toString().slice(-2);
+  return `${month} '${year}`;
+}
 
 type Props = {
   params: Promise<{ address: string }>;
@@ -125,11 +137,34 @@ function WalletContent({ address }: { address: string }) {
             onRefreshSpotBalances={refreshSpotBalances}
             spotBalancesRefreshing={spotBalancesRefreshing}
           />
+          {!globalMatchesComplete && (
+            <div className="flex items-center justify-center gap-2.5 py-2">
+              <Spinner size={15} />
+              <span
+                style={{
+                  background:
+                    'linear-gradient(90deg, var(--muted-foreground) 20%, var(--foreground) 50%, var(--muted-foreground) 80%)',
+                  backgroundSize: '200% 100%',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  animation: 'shimmer-text 2s linear infinite',
+                }}
+                className="text-xs font-medium"
+              >
+                {(() => {
+                  const since = formatSinceDate(stats.first_trade_at);
+                  return since
+                    ? `Loading trades... Showing data since ${since}`
+                    : "Loading trades...";
+                })()}
+              </span>
+            </div>
+          )}
           <WalletStats
             stats={stats}
             tradesComplete={tradesComplete}
             globalMatchesComplete={globalMatchesComplete}
-            matchesError={matchesError}
             dataCompleteness={dataCompleteness}
           />
           <WalletSummary
