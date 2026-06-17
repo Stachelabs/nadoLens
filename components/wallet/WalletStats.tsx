@@ -34,6 +34,7 @@ type Props = {
   tradesComplete?: boolean;
   globalMatchesComplete?: boolean;
   matchesError?: string | null;
+  dataCompleteness?: 'complete' | 'truncated' | 'partial_error';
 };
 
 export function WalletStats({ stats, tradesComplete = true, globalMatchesComplete = true, matchesError }: Props) {

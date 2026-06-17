@@ -40,6 +40,7 @@ type Props = {
   trades: TradeMatch[];
   /** When false, global match pagination is still running — chart shows if data available. */
   globalMatchesComplete?: boolean;
+  dataCompleteness?: 'complete' | 'truncated' | 'partial_error';
 };
 
 const BULL_STROKE = "var(--color-bull)";

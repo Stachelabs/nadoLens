@@ -47,6 +47,7 @@ function WalletContent({ address }: { address: string }) {
     snapshotReady,
     bannerState,
     matchesError,
+    dataCompleteness,
   } = useWalletData(address);
 
   const { activeTab, setActiveTab } = useWalletAnalyticsStore();
@@ -129,6 +130,7 @@ function WalletContent({ address }: { address: string }) {
             tradesComplete={tradesComplete}
             globalMatchesComplete={globalMatchesComplete}
             matchesError={matchesError}
+            dataCompleteness={dataCompleteness}
           />
           <WalletSummary
             stats={stats}
@@ -163,6 +165,7 @@ function WalletContent({ address }: { address: string }) {
             onRefreshTrades={refresh}
             tradesRefreshing={refreshing}
             globalMatchesComplete={globalMatchesComplete}
+            dataCompleteness={dataCompleteness}
           />
         </>
       )}
@@ -172,6 +175,7 @@ function WalletContent({ address }: { address: string }) {
           <WalletEquityCurve
             trades={trades}
             globalMatchesComplete={globalMatchesComplete}
+            dataCompleteness={dataCompleteness}
           />
           <WalletFeesByProductChart
             trades={trades}

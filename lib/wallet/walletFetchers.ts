@@ -28,9 +28,9 @@ import { fromX18BigInt } from '@/types/nado'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-export const MATCHES_LIMIT = 250
-export const MAX_PAGES = 50
-export const MATCHES_BURST_MS = 700
+export const MATCHES_LIMIT = 500
+export const MAX_PAGES = 200
+export const MATCHES_BURST_MS = 1500
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -229,23 +229,40 @@ export async function fetchSubaccounts(
   const fallback: SubaccountEntry[] = [
     { subaccount: toSubaccount(address), isolated: false, subaccount_name: 'default' },
   ]
-  try {
-    const res = await fetch(`/api/subaccounts/${address}`, {
-      cache: 'no-store',
-      signal,
-    })
-    if (!res.ok) return fallback
-    const raw: unknown = await res.json()
-    const result = ArchiveSubaccountsResponseSchema.safeParse(raw)
-    if (!result.success || result.data.subaccounts.length === 0) return fallback
-    return result.data.subaccounts.map((s) => ({
-      subaccount: s.subaccount,
-      isolated: s.isolated ?? false,
-      subaccount_name: s.subaccount_name,
-    }))
-  } catch {
-    return fallback
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`/api/subaccounts/${address}`, {
+        cache: 'no-store',
+        signal,
+      })
+      if (!res.ok) {
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 1_000))
+          continue
+        }
+        console.warn('[fetchSubaccounts] both attempts failed — using default-only fallback')
+        return fallback
+      }
+      const raw: unknown = await res.json()
+      const result = ArchiveSubaccountsResponseSchema.safeParse(raw)
+      if (!result.success || result.data.subaccounts.length === 0) return fallback
+      return result.data.subaccounts.map((s) => ({
+        subaccount: s.subaccount,
+        isolated: s.isolated ?? false,
+        subaccount_name: s.subaccount_name,
+      }))
+    } catch {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1_000))
+        continue
+      }
+      console.warn('[fetchSubaccounts] both attempts failed — using default-only fallback')
+      return fallback
+    }
   }
+
+  return fallback
 }
 
 export async function fetchIsolatedParentMaps(

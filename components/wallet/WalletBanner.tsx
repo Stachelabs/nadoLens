@@ -10,7 +10,8 @@ export type BannerType =
   | "QUEUE_WAIT"
   | "RETRY_IN_PROGRESS"
   | "RETRY_EXHAUSTED"
-  | "RECOVERY";
+  | "RECOVERY"
+  | "DATA_TRUNCATED";
 
 export type BannerEntry = {
   type: BannerType;
@@ -35,6 +36,8 @@ function severityOf(type: BannerType): BannerSeverity {
       return "error";
     case "RECOVERY":
       return "success";
+    case "DATA_TRUNCATED":
+      return "info";
   }
 }
 
