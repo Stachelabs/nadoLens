@@ -1514,7 +1514,6 @@ export function useWalletData(rawAddress: string): WalletData {
                   maintenance_margin: pd.maintenanceMargin,
                   spot_balances: pd.spotBalances,
                   spot_balances_by_subaccount: pd.spotBalancesBySubaccount,
-                  cross_subaccounts: pd.crossSubaccounts,
                   unrealized_pnl_usd: pollTotals.unrealizedTotal,
                   ...(tradeHistoryUpdated ? { trades: tradesRef.current } : {}),
                   ...tradeStats,
