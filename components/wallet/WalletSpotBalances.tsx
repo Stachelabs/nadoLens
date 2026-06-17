@@ -111,11 +111,13 @@ export function WalletSpotBalances({
             const amount = balance?.amount ?? 0;
             const valueUsd = balance?.value_usd ?? 0;
             const negative = amount < 0;
+            const amountLabel = formatAmount(amount);
+            const usdLabel = fmtUsd.format(valueUsd);
 
             return (
               <div
                 key={asset.product_id}
-                className="flex flex-1 items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2 min-w-[234px]"
+                className="flex min-w-[292px] flex-[1_1_292px] items-center gap-2.5 rounded-md border border-border bg-background px-3 py-2"
               >
                 <Image
                   src={asset.icon}
@@ -124,24 +126,24 @@ export function WalletSpotBalances({
                   height={20}
                   className="shrink-0 rounded-full"
                 />
-                <span className="text-sm font-semibold text-foreground">
+                <span className="shrink-0 text-sm font-semibold text-foreground">
                   {asset.symbol}
                 </span>
                 <span
                   className={cn(
-                    "text-sm tabular-nums",
+                    "shrink-0 text-sm tabular-nums",
                     negative ? "text-bear" : "text-foreground",
                   )}
                 >
-                  {formatAmount(amount)}
+                  {amountLabel}
                 </span>
                 <span
                   className={cn(
-                    "text-xs tabular-nums",
+                    "shrink-0 text-xs tabular-nums",
                     negative ? "text-bear" : "text-muted-foreground",
                   )}
                 >
-                  {fmtUsd.format(valueUsd)}
+                  {usdLabel}
                 </span>
               </div>
             );
