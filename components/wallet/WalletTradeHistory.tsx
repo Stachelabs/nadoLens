@@ -177,6 +177,7 @@ type Props = {
   tradesRefreshing?: boolean;
   /** When false and no trades yet, show skeleton placeholder rows. */
   globalMatchesComplete?: boolean;
+  dataCompleteness?: 'complete' | 'truncated' | 'partial_error';
 };
 
 export function WalletTradeHistory({

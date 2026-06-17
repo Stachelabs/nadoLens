@@ -100,6 +100,7 @@ export type WalletData = {
   error: string | null;
   positionError: string | null;
   matchesError: string | null;
+  dataCompleteness: 'complete' | 'truncated' | 'partial_error';
   refreshing: boolean;
   unrealizedRefreshing: boolean;
   spotBalancesRefreshing: boolean;
@@ -128,6 +129,7 @@ export function useWalletData(rawAddress: string): WalletData {
     error: null,
     positionError: null,
     matchesError: null,
+    dataCompleteness: 'complete',
     refreshing: false,
     unrealizedRefreshing: false,
     spotBalancesRefreshing: false,
@@ -723,6 +725,7 @@ export function useWalletData(rawAddress: string): WalletData {
         error: null,
         positionError: null,
         matchesError: null,
+        dataCompleteness: 'complete',
       });
 
       // ── Phase 2 + 3 (concurrent, background) ─────────────────────────────
@@ -1077,6 +1080,13 @@ export function useWalletData(rawAddress: string): WalletData {
                 : {}),
               globalMatchesComplete: allDone || page === MAX_PAGES - 1,
               tradesComplete: allDone || page === MAX_PAGES - 1,
+              dataCompleteness: allDone
+                ? 'complete'
+                : anyChunkExhausted
+                  ? 'partial_error'
+                  : page === MAX_PAGES - 1
+                    ? 'truncated'
+                    : prev.dataCompleteness,
               stats: prev.stats
                 ? {
                     ...prev.stats,
@@ -1206,6 +1216,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   ...prev,
                   globalMatchesComplete: true,
                   tradesComplete: true,
+                  dataCompleteness: 'complete',
                   matchesError: null,
                   stats: prev.stats ? { ...prev.stats, trades_complete: true } : null,
                 }));
@@ -1233,6 +1244,7 @@ export function useWalletData(rawAddress: string): WalletData {
                     ...prev,
                     globalMatchesComplete: true,
                     tradesComplete: true,
+                    dataCompleteness: 'partial_error',
                     matchesError: "Partial trade history — click Retry to resume loading.",
                     stats: prev.stats ? { ...prev.stats, trades_complete: true } : null,
                   }));
@@ -1277,6 +1289,11 @@ export function useWalletData(rawAddress: string): WalletData {
                 ...prev,
                 globalMatchesComplete: true,
                 tradesComplete: true,
+                dataCompleteness: truncatedByPageLimit
+                  ? 'truncated'
+                  : anyChunkExhausted
+                    ? 'partial_error'
+                    : 'complete',
                 ...(partialComplete && !prev.matchesError
                   ? { matchesError: "Partial trade history loaded — some pages unavailable." }
                   : {}),
@@ -1772,6 +1789,7 @@ export function useWalletData(rawAddress: string): WalletData {
           spotBalancesRefreshing: false,
           globalMatchesComplete: true,
           tradesComplete: true,
+          dataCompleteness: 'partial_error',
           stats: p.stats ? { ...p.stats, trades_complete: true } : null,
           positionError: null,
           matchesError: "Failed to load wallet data",
@@ -1881,8 +1899,15 @@ export function useWalletData(rawAddress: string): WalletData {
       banners.push({ type: "WHALE_LOADING", message: "Whale-sized portfolio — crunching the numbers..." });
     }
 
+    if (data.dataCompleteness === 'truncated' && data.globalMatchesComplete) {
+      banners.push({
+        type: "DATA_TRUNCATED",
+        message: `Showing most recent ${data.trades.length.toLocaleString()} trades. Older history was not loaded.`,
+      });
+    }
+
     return banners.slice(0, 2);
-  }, [showRecovery, lastRetryFailed, isRetrying, retryCountdown, isQueued, data.positionError, data.matchesError, data.stats?.positions?.length, data.stats?.cross_subaccounts?.length, data.positionMatchesComplete]);
+  }, [showRecovery, lastRetryFailed, isRetrying, retryCountdown, isQueued, data.positionError, data.matchesError, data.stats?.positions?.length, data.stats?.cross_subaccounts?.length, data.positionMatchesComplete, data.dataCompleteness, data.globalMatchesComplete, data.trades.length]);
 
   return {
     ...data,
