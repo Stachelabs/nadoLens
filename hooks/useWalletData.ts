@@ -175,6 +175,7 @@ export function useWalletData(rawAddress: string): WalletData {
   const autoRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const resumeMatchesImplRef = useRef<() => Promise<void>>(async () => {});
+  const resumeInFlightRef = useRef(false);
   // Subscribe to fill events via SSE for all cross subaccounts — toast notification only.
   // Falls back to [default] until stats.cross_subaccounts is populated after Phase 1.
   // Ref-stabilized: only changes when the actual subaccount strings change, preventing
@@ -1118,6 +1119,8 @@ export function useWalletData(rawAddress: string): WalletData {
               resumeMatchesImplRef.current = async () => {
                 const resumeChunks = paginationResumeRef.current;
                 if (!resumeChunks || resumeChunks.length === 0 || cancelled) return;
+                if (resumeInFlightRef.current) return;
+                resumeInFlightRef.current = true;
 
                 setData((prev) => ({ ...prev, matchesError: null }));
                 const resumeStates = resumeChunks.map((rc) => ({
@@ -1184,6 +1187,7 @@ export function useWalletData(rawAddress: string): WalletData {
                     .filter((s) => s.nextIdx !== null)
                     .map((s) => ({ subs: s.chunk, nextIdx: s.nextIdx! }));
                   paginationResumeRef.current = stillExhausted.length > 0 ? stillExhausted : null;
+                  resumeInFlightRef.current = false;
                   return;
                 }
 
@@ -1213,6 +1217,7 @@ export function useWalletData(rawAddress: string): WalletData {
                   paginationResume: null,
                   pagesLoaded: 0,
                 });
+                resumeInFlightRef.current = false;
               };
 
               // Schedule auto-retry chain
@@ -1786,6 +1791,7 @@ export function useWalletData(rawAddress: string): WalletData {
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
       paginationResumeRef.current = null;
       autoRetryAttemptRef.current = 0;
+      resumeInFlightRef.current = false;
       isRetryingRef.current = false;
       lastRetryFailedRef.current = false;
       setIsQueued(false);
