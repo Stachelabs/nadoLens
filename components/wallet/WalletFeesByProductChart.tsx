@@ -82,10 +82,11 @@ export function WalletFeesByProductChart({ trades, globalMatchesComplete }: Prop
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
           Perp Fees by Product
         </div>
+        <div className="shrink-0 sm:ml-auto">
         <Select value={period} onValueChange={(v) => setPeriod(v as EquityPeriod)}>
           <SelectTrigger
             size="sm"
@@ -105,6 +106,7 @@ export function WalletFeesByProductChart({ trades, globalMatchesComplete }: Prop
             </SelectGroup>
           </SelectContent>
         </Select>
+        </div>
       </div>
 
       {feesLoading ? (
