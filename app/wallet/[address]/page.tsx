@@ -1,6 +1,7 @@
 "use client";
 
 import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
+import { normalizeSubaccountDisplayName, subaccountDisplayLabelSortKey } from "@/lib/wallet/subaccountLabel";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { notFound } from "next/navigation";
@@ -78,10 +79,18 @@ function WalletContent({ address }: { address: string }) {
     return () => clearTimeout(timer);
   }, [phase1Ready]);
 
-  const positionCrossSubaccountLabels = useMemo(
-    () => stats?.spot_balances_by_subaccount.map((g) => g.label) ?? [],
-    [stats],
-  );
+  const positionCrossSubaccountLabels = useMemo(() => {
+    if (!stats) return [];
+    const labels = new Set<string>();
+    for (const pos of stats.positions) {
+      if (pos.isolated && pos.parent_subaccount_name) {
+        labels.add(normalizeSubaccountDisplayName(pos.parent_subaccount_name));
+      } else {
+        labels.add(normalizeSubaccountDisplayName(pos.subaccount_name));
+      }
+    }
+    return [...labels].sort((a, b) => subaccountDisplayLabelSortKey(a) - subaccountDisplayLabelSortKey(b));
+  }, [stats]);
 
   const tradeCrossSubaccountLabels = useMemo(
     () => stats?.cross_subaccounts.map((c) => c.label) ?? [],
