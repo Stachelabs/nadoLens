@@ -10,17 +10,21 @@ const redis = Redis.fromEnv();
 
 let redisWrites = 0;
 let redisErrors = 0;
+let archiveFetches = 0;
+let cacheHits = 0;
 
 type FundingBody = {
   subaccount: string;
   product_ids: number[];
   limit: number;
   max_idx?: string;
+  no_cache?: boolean;
 };
 
 function cacheKey(body: FundingBody): string {
+  const { no_cache: _, ...hashBody } = body;
   const hash = createHash("sha256")
-    .update(JSON.stringify(body))
+    .update(JSON.stringify(hashBody))
     .digest("hex")
     .slice(0, 16);
   return `nado:funding:${hash}`;
@@ -29,6 +33,58 @@ function cacheKey(body: FundingBody): string {
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
+
+// ─── Token bucket rate limiter ────────────────────────────────────────────────
+
+const RATE_BUDGET = 350;
+const RATE_WINDOW_MS = 10_000;
+const RATE_MAX_WAIT_MS = 8_000;
+const RATE_QUEUED_THRESHOLD_MS = 2_000;
+const FUNDING_WEIGHT = 5;
+
+type WeightEntry = { ts: number; weight: number };
+const weightLog: WeightEntry[] = [];
+
+function evictStale(now: number): void {
+  const cutoff = now - RATE_WINDOW_MS;
+  while (weightLog.length > 0 && weightLog[0]!.ts < cutoff) {
+    weightLog.shift();
+  }
+}
+
+function currentWeight(): number {
+  let total = 0;
+  for (const e of weightLog) total += e.weight;
+  return total;
+}
+
+async function acquireWeight(weight: number): Promise<{ waited: number }> {
+  const start = Date.now();
+  const deadline = start + RATE_MAX_WAIT_MS;
+
+  while (true) {
+    const now = Date.now();
+    evictStale(now);
+
+    if (currentWeight() + weight <= RATE_BUDGET) {
+      weightLog.push({ ts: now, weight });
+      return { waited: now - start };
+    }
+
+    if (now >= deadline) {
+      weightLog.push({ ts: now, weight });
+      console.warn(`[nado-funding] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
+      return { waited: now - start };
+    }
+
+    const oldest = weightLog[0];
+    const waitUntil = oldest ? oldest.ts + RATE_WINDOW_MS : now + 100;
+    const waitMs = Math.min(waitUntil - now + 10, deadline - now, 500);
+    if (waitMs > 0) await sleep(waitMs);
+  }
+}
+
+// ─── Archive fetch with retry ─────────────────────────────────────────────────
 
 async function fetchWithRetry(
   body: FundingBody,
@@ -54,6 +110,7 @@ async function fetchWithRetry(
     callerSignal?.addEventListener("abort", () => ac.abort(), { once: true });
 
     try {
+      archiveFetches++;
       const res = await fetch(ARCHIVE_URL, {
         method: "POST",
         signal: ac.signal,
@@ -104,6 +161,8 @@ async function fetchWithRetry(
   throw lastError;
 }
 
+// ─── Server ───────────────────────────────────────────────────────────────────
+
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
@@ -113,6 +172,7 @@ const server = Bun.serve({
       const mem = process.memoryUsage();
       let redisOk = false;
       try { await redis.ping(); redisOk = true; } catch { /* health check only */ }
+      evictStale(Date.now());
       return Response.json({
         ok: true,
         memory_mb: Math.round(mem.rss / 1024 / 1024),
@@ -120,6 +180,10 @@ const server = Bun.serve({
         redis_ok: redisOk,
         redis_writes: redisWrites,
         redis_errors: redisErrors,
+        rate_weight_used: Math.round(currentWeight()),
+        rate_budget: RATE_BUDGET,
+        archive_fetches: archiveFetches,
+        cache_hits: cacheHits,
       });
     }
 
@@ -136,18 +200,27 @@ const server = Bun.serve({
       }
 
       const key = cacheKey(body);
+      const responseHeaders: Record<string, string> = {};
 
-      try {
-        const cached = await redis.get<unknown>(key);
-        if (cached !== null) {
-          return Response.json(cached, {
-            headers: { "X-Cache": "HIT" },
-          });
+      if (!body.no_cache) {
+        try {
+          const cached = await redis.get<unknown>(key);
+          if (cached !== null) {
+            cacheHits++;
+            return Response.json(cached, {
+              headers: { "X-Cache": "HIT" },
+            });
+          }
+        } catch (err) {
+          redisErrors++;
+          const msg = err instanceof Error ? err.message : "unknown";
+          console.error(`[nado-funding] Redis GET failed: ${msg}`);
         }
-      } catch (err) {
-        redisErrors++;
-        const msg = err instanceof Error ? err.message : "unknown";
-        console.error(`[nado-funding] Redis GET failed: ${msg}`);
+      }
+
+      const { waited } = await acquireWeight(FUNDING_WEIGHT);
+      if (waited >= RATE_QUEUED_THRESHOLD_MS) {
+        responseHeaders["X-NadoLens-Queued"] = "true";
       }
 
       let archiveRes: Response;
@@ -178,7 +251,9 @@ const server = Bun.serve({
         console.error(`[nado-funding] Redis SET failed: ${msg}`);
       }
 
-      return Response.json(data, { headers: { "X-Cache": "MISS" } });
+      return Response.json(data, {
+        headers: { "X-Cache": "MISS", ...responseHeaders },
+      });
     }
 
     return Response.json({ error: "Not found" }, { status: 404 });

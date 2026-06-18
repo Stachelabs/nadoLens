@@ -6,6 +6,9 @@ import type { FundingPaymentEntry } from '@/lib/wallet/buildEquityCurve'
 const FUNDING_BURST_MS = 220
 const FUNDING_LIMIT = 100
 const FUNDING_MAX_PAGES = 100
+const FUNDING_429_BASE_DELAY = 3_000
+const FUNDING_429_JITTER = 2_000
+const FUNDING_429_MAX_ATTEMPTS = 3
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -52,15 +55,31 @@ export async function fetchFundingBySubaccount(
     }
 
     const fundingRoute = options?.route ?? '/api/global_funding'
-    const res = await fetch(fundingRoute, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-      signal,
-    })
+    let res: Response | undefined
+    let rateLimitExhausted = false
 
-    if (res.status === 429) {
+    for (let attempt = 0; attempt <= FUNDING_429_MAX_ATTEMPTS; attempt++) {
+      if (signal?.aborted) break
+      res = await fetch(fundingRoute, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        cache: 'no-store',
+        signal,
+      })
+
+      if (res.status !== 429) break
+
+      if (attempt < FUNDING_429_MAX_ATTEMPTS) {
+        const delay = FUNDING_429_BASE_DELAY * Math.pow(2, attempt) +
+          Math.random() * FUNDING_429_JITTER
+        await sleep(delay)
+      } else {
+        rateLimitExhausted = true
+      }
+    }
+
+    if (rateLimitExhausted || !res) {
       return { totalFundingUsd, payments, complete: false, rateLimited: true, nextMaxIdx: maxIdx ?? null }
     }
     if (!res.ok) {
