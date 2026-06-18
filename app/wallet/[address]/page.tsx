@@ -15,6 +15,7 @@ import { WalletTradeHistory } from "@/components/wallet/WalletTradeHistory";
 import { WalletEquityCurve } from "@/components/wallet/WalletEquityCurve";
 import { WalletSummary } from "@/components/wallet/WalletSummary";
 import { WalletTabNav } from "@/components/wallet/WalletTabNav";
+import { WalletVolumeByProductChart } from "@/components/wallet/WalletVolumeByProductChart";
 import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProductChart";
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
 import { InkLoader } from "@/components/ui/InkLoader";
@@ -211,6 +212,10 @@ function WalletContent({ address }: { address: string }) {
             trades={trades}
             globalMatchesComplete={globalMatchesComplete}
             dataCompleteness={dataCompleteness}
+          />
+          <WalletVolumeByProductChart
+            trades={trades}
+            globalMatchesComplete={globalMatchesComplete}
           />
           <WalletFeesByProductChart
             trades={trades}
