@@ -278,7 +278,7 @@ export const FundingRatesResponseSchema = z.record(
   FundingRateEntrySchema,
 )
 
-const FundingOrInterestPaymentSchema = z.object({
+export const FundingOrInterestPaymentSchema = z.object({
   product_id: z.number(),
   idx: z.string(),
   timestamp: z.string(),
@@ -287,6 +287,7 @@ const FundingOrInterestPaymentSchema = z.object({
   rate_x18: x18.optional(),
   oracle_price_x18: x18.optional(),
 })
+export type FundingOrInterestPayment = z.infer<typeof FundingOrInterestPaymentSchema>
 
 export const InterestAndFundingPaymentsResponseSchema = z.object({
   interest_payments: z.array(FundingOrInterestPaymentSchema).optional().default([]),
@@ -295,6 +296,21 @@ export const InterestAndFundingPaymentsResponseSchema = z.object({
 })
 
 export const InterestAndFundingRequestSchema = z.object({
+  subaccount: z.string(),
+  product_ids: z.array(z.number().int().nonnegative()).min(1),
+  limit: z.number().int().positive().max(100).default(100),
+  max_idx: z.string().optional(),
+})
+
+export const GlobalFundingRequestSchema = z.object({
+  subaccount: z.string(),
+  product_ids: z.array(z.number().int().nonnegative()),
+  limit: z.number().int().positive().max(100).default(100),
+  max_idx: z.string().optional(),
+  no_cache: z.boolean().optional(),
+})
+
+export const PositionFundingRequestSchema = z.object({
   subaccount: z.string(),
   product_ids: z.array(z.number().int().nonnegative()).min(1),
   limit: z.number().int().positive().max(100).default(100),

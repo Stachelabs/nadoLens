@@ -7,6 +7,7 @@ import { usePairsStore } from '@/store/pairsStore'
 import {
   fetchFundingBySubaccount,
 } from '@/lib/wallet/fetchWalletFunding'
+import { useWalletFundingCacheStore } from '@/store/walletFundingCacheStore'
 
 // ─── Per-address state ──────────────────────────────────────────────────────
 
@@ -185,6 +186,23 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
       set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: true })) }))
 
       try {
+        // Seed from cache if fresh
+        const cache = useWalletFundingCacheStore.getState()
+        const cached = cache.getCache(addr)
+        if (cached && !cache.isStale(addr)) {
+          set(prev => ({
+            wallets: updateSlot(prev.wallets, addr, () => ({
+              fundingPayments: cached.payments,
+              fundingPaidUsd: cached.totalFundingUsd,
+              globalFundingComplete: cached.globalFundingComplete,
+              subaccountCursors: cached.subaccountCursors,
+              fundingLoadedSince: cached.fundingLoadedSince,
+              globalFundingLoading: false,
+            })),
+          }))
+          return
+        }
+
         const productIds = await ensurePerpProductIds()
         if (productIds.length === 0) {
           set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: false })) }))
@@ -244,6 +262,18 @@ export const useWalletFundingStore = create<WalletFundingState>((set, get) => ({
             fundingLoadedSince: globalComplete ? 0 : s.fundingLoadedSince,
           })),
         }))
+
+        // Persist to cache
+        const finalSlot = get().wallets.get(addr)
+        if (finalSlot) {
+          useWalletFundingCacheStore.getState().setCache(addr, {
+            payments: finalSlot.fundingPayments,
+            totalFundingUsd: finalSlot.fundingPaidUsd,
+            globalFundingComplete: finalSlot.globalFundingComplete,
+            subaccountCursors: finalSlot.subaccountCursors,
+            fundingLoadedSince: finalSlot.fundingLoadedSince,
+          })
+        }
       } catch (e) {
         if (get().wallets.has(addr)) {
           set(prev => ({ wallets: updateSlot(prev.wallets, addr, () => ({ globalFundingLoading: false })) }))

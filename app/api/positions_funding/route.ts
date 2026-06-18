@@ -3,7 +3,7 @@ import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NADO_FUNDING_SERVICE_URL } from "@/lib/nado";
 import {
   InterestAndFundingPaymentsResponseSchema,
-  InterestAndFundingRequestSchema,
+  PositionFundingRequestSchema,
 } from "@/lib/schemas/nado";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseArchiveJson } from "@/lib/api/validateResponse";
@@ -25,9 +25,9 @@ export async function POST(
     }
 
     const rawBody: unknown = await request.json().catch(() => null);
-    const bodyResult = InterestAndFundingRequestSchema.safeParse(rawBody);
+    const bodyResult = PositionFundingRequestSchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return NextResponse.json({ error: "Invalid funding request body" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid position funding request body" }, { status: 400 });
     }
 
     if (!NADO_FUNDING_SERVICE_URL) {
