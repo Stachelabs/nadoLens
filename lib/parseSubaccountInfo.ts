@@ -14,7 +14,7 @@ export type ParsedSubaccountInfo = {
   availableMargin: number
   dropTolerance: number
   unrealizedTotal: number
-  equityUsd: number
+  equityUsd: number | null
 }
 
 export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubaccountInfo | null {
@@ -188,6 +188,6 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     unrealizedTotal,
     equityUsd: unweightedHealthEntry
       ? fromX18BigInt(unweightedHealthEntry.health)
-      : totalCollateral + unrealizedTotal,
+      : null,
   }
 }

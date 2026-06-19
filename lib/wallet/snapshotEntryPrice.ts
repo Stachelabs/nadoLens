@@ -100,10 +100,11 @@ export function applySnapshotEntryPrices(
  */
 export function recomputeUnrealizedTotals(
   positions: Position[],
-  oldEquity: number,
+  oldEquity: number | null,
   oldUnrealizedTotal: number,
-): { unrealizedTotal: number; equityUsd: number } {
+): { unrealizedTotal: number; equityUsd: number | null } {
   const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
+  if (oldEquity === null) return { unrealizedTotal, equityUsd: null };
   const totalCollateral = oldEquity - oldUnrealizedTotal;
   return { unrealizedTotal, equityUsd: totalCollateral + unrealizedTotal };
 }

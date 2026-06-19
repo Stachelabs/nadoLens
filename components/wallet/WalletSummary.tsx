@@ -176,7 +176,7 @@ export function WalletSummary({
             <Section title="Trader Equity">
               <Row
                 label="Equity"
-                value={fmtUsd.format(stats.total_equity_usd)}
+                value={stats.total_equity_usd !== null ? fmtUsd.format(stats.total_equity_usd) : "—"}
               />
               <Row
                 label="Maintenance"
