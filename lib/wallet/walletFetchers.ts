@@ -52,7 +52,7 @@ export type MatchesPageResult = {
 export type ParsedPositionsResult = {
   positions: Position[]
   spotBalances: SpotBalance[]
-  equityUsd: number
+  equityUsd: number | null
   availableMargin: number
   maintenanceMargin: number
   healthScore: number
@@ -133,7 +133,7 @@ export function tradeIdentity(trade: TradeMatch): string {
 const PARSE_FALLBACK: ParsedPositionsResult = {
   positions: [],
   spotBalances: [],
-  equityUsd: 0,
+  equityUsd: null,
   availableMargin: 0,
   maintenanceMargin: 0,
   healthScore: 1,
@@ -431,7 +431,9 @@ export async function fetchAllPositions(
         subaccountDisplayLabelSortKey(b.label),
     )
 
-  const equityUsd = results.reduce((s, r) => s + r.equityUsd, 0)
+  const equityUsd: number | null = results.every((r) => r.equityUsd === null)
+    ? null
+    : results.reduce((s, r) => s + (r.equityUsd ?? 0), 0)
   const availableMargin = results.reduce((s, r) => s + r.availableMargin, 0)
   const maintenanceMargin = results.reduce((s, r) => s + r.maintenanceMargin, 0)
   const primaryIdx = subs.findIndex((s) => !s.isolated)
@@ -443,7 +445,7 @@ export async function fetchAllPositions(
     .flatMap((sub, i): SubaccountHealthEntry[] => {
       const r = results[i]
       if (!r) return []
-      if (r.equityUsd === 0 && r.positions.length === 0) return []
+      if ((r.equityUsd === null || r.equityUsd === 0) && r.positions.length === 0) return []
       const entry: SubaccountHealthEntry = {
         subaccount: sub.subaccount,
         subaccount_name: normalizeSubaccountDisplayName(sub.subaccount_name),

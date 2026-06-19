@@ -14,7 +14,7 @@ export type ParsedSubaccountInfo = {
   availableMargin: number
   dropTolerance: number
   unrealizedTotal: number
-  equityUsd: number
+  equityUsd: number | null
 }
 
 export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubaccountInfo | null {
@@ -57,6 +57,7 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
   // health = assets - liabilities (already provided by the API as the `health` field).
   const initialHealthEntry = data.healths[0]
   const maintHealthEntry = data.healths[1]
+  const unweightedHealthEntry = data.healths[2]
   const maintHealthUsd = maintHealthEntry ? fromX18BigInt(maintHealthEntry.health) : 0
 
   const positions: Position[] = data.perp_balances
@@ -185,6 +186,8 @@ export function parseSubaccountInfo(raw: unknown, isolated = false): ParsedSubac
     availableMargin,
     dropTolerance,
     unrealizedTotal,
-    equityUsd: totalCollateral + unrealizedTotal,
+    equityUsd: unweightedHealthEntry
+      ? fromX18BigInt(unweightedHealthEntry.health)
+      : null,
   }
 }

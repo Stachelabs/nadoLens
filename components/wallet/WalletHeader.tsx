@@ -57,7 +57,7 @@ export function WalletHeader({ stats }: Props) {
                 </HoverCardContent>
               </HoverCard>
               <div className="text-lg font-bold text-foreground tabular-nums">
-                {fmtUsd.format(stats.total_equity_usd)}
+                {stats.total_equity_usd !== null ? fmtUsd.format(stats.total_equity_usd) : "—"}
               </div>
             </div>
 

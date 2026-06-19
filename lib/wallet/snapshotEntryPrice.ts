@@ -95,15 +95,14 @@ export function applySnapshotEntryPrices(
 }
 
 /**
- * Recompute unrealizedTotal and equityUsd after snapshot entry prices have
- * been applied (which corrects unrealized_pnl on each position).
+ * Recompute unrealizedTotal after snapshot entry prices correct position PnL.
+ * Equity from Gateway healths is authoritative — passed through unchanged.
  */
 export function recomputeUnrealizedTotals(
   positions: Position[],
-  oldEquity: number,
-  oldUnrealizedTotal: number,
-): { unrealizedTotal: number; equityUsd: number } {
+  oldEquity: number | null,
+  _oldUnrealizedTotal: number,
+): { unrealizedTotal: number; equityUsd: number | null } {
   const unrealizedTotal = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
-  const totalCollateral = oldEquity - oldUnrealizedTotal;
-  return { unrealizedTotal, equityUsd: totalCollateral + unrealizedTotal };
+  return { unrealizedTotal, equityUsd: oldEquity };
 }

@@ -132,7 +132,7 @@ export type WalletStats = {
   // Positions (live, polled 6s)
   health_score: number
   subaccount_healths: SubaccountHealthEntry[]
-  total_equity_usd: number
+  total_equity_usd: number | null
   available_margin: number
   maintenance_margin: number
   unrealized_pnl_usd: number
