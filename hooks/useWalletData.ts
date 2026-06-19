@@ -70,7 +70,7 @@ function deriveActiveSubaccounts(
     positions.map((p) => p.subaccount.toLowerCase()),
   );
   return allSubs.filter(
-    (s) => subsWithPositions.has(s.subaccount.toLowerCase()),
+    (s) => !s.isolated || subsWithPositions.has(s.subaccount.toLowerCase()),
   );
 }
 
