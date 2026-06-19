@@ -137,6 +137,7 @@ export function WalletPositions({
   snapshotReady = true,
   loading = false,
 }: Props) {
+  const positionsBusy = unrealizedRefreshing || loading || !snapshotReady;
   const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
   const fundedSubaccounts = useWalletFundingStore((s) => s.forActive()?.positionFundedSubaccounts ?? []);
   const matchedSet = useMemo(() => new Set(matchedPositionKeys), [matchedPositionKeys]);
@@ -254,14 +255,14 @@ export function WalletPositions({
                   variant="ghost"
                   size="icon-xs"
                   className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-                  disabled={unrealizedRefreshing}
+                  disabled={positionsBusy}
                   onClick={() => void onRefreshUnrealized()}
                   aria-label="Refresh mark prices and unrealized PnL"
                 >
                   <RefreshCw
                     className={cn(
                       "size-3",
-                      unrealizedRefreshing && "animate-spin",
+                      positionsBusy && "animate-spin",
                     )}
                     aria-hidden
                   />
@@ -306,7 +307,7 @@ export function WalletPositions({
                 <RefreshCw
                   className={cn(
                     "size-3",
-                    unrealizedRefreshing && "animate-spin",
+                    positionsBusy && "animate-spin",
                   )}
                   aria-hidden
                 />
