@@ -300,7 +300,7 @@ export function WalletPositions({
                 variant="ghost"
                 size="icon-xs"
                 className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-                disabled={unrealizedRefreshing}
+                disabled={positionsBusy}
                 onClick={() => void onRefreshUnrealized()}
                 aria-label="Refresh mark prices and unrealized PnL"
               >
