@@ -8,6 +8,7 @@ import { Footer } from '@/components/Footer'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { Toaster } from 'sonner'
 import { ReferralCTA } from '@/components/ReferralCTA'
+import { TwitterCTA } from '@/components/TwitterCTA'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
@@ -120,6 +121,7 @@ export default async function RootLayout({
             </div>
             <Toaster position="bottom-right" theme="dark" richColors />
             <ReferralCTA />
+            <TwitterCTA />
           </Providers>
         </ThemeProvider>
         <Analytics />
