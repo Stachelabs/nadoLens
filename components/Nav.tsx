@@ -117,17 +117,20 @@ export function Nav() {
             );
           })()}
 
-          <span
+          <Link
+            href="/airdrop"
             className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "pointer-events-none gap-1.5 text-muted-foreground/80",
+              buttonVariants({
+                variant: pathname === "/airdrop" ? "secondary" : "ghost",
+                size: "sm",
+              }),
+              pathname === "/airdrop"
+                ? "border border-primary/40 bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             Airdrop
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              Soon
-            </span>
-          </span>
+          </Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -272,17 +275,19 @@ export function Nav() {
                     My Wallet
                   </Link>
                 )}
-                <span
+                <Link
+                  href="/airdrop"
+                  onClick={() => setSheetOpen(false)}
                   className={cn(
                     buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/80",
+                    "justify-start",
+                    pathname === "/airdrop"
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   Airdrop
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    Soon
-                  </span>
-                </span>
+                </Link>
               </nav>
 
               <div className="mt-4 flex flex-col gap-1 border-t border-border px-2 pt-3">

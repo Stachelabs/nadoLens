@@ -16,7 +16,7 @@ const TWEET_ID = "2064809235179831686";
 const RT_URL = `https://twitter.com/intent/retweet?tweet_id=${TWEET_ID}`;
 const FOLLOW_URL = "https://x.com/Stache_dev";
 const STORAGE_KEY = "nadolens-twitter-cta-shown";
-const DELAY_MS = 4 * 60 * 1000;
+const DELAY_MS = 3 * 60 * 1000;
 
 function XIcon({ className }: { className?: string }) {
   return (
