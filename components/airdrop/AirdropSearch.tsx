@@ -11,7 +11,28 @@ import { z } from "zod";
 
 const ETH_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
+const EpochSchema = z.object({
+  epoch: z.number(),
+  description: z.string(),
+  startTime: z.number(),
+  endTime: z.number(),
+  totalPoints: z.number(),
+  points: z.number(),
+  rank: z.number(),
+  tier: z.number(),
+  tierName: z.string(),
+});
+
 const AirdropResponseSchema = z.object({
+  points: z
+    .object({
+      allTimePoints: z.number(),
+      allTimeRank: z.number(),
+      allTimeTier: z.number(),
+      allTimeTierName: z.string(),
+      epochs: z.array(EpochSchema),
+    })
+    .nullable(),
   inkAmount: z.string().nullable(),
   totalVolume: z.number().nullable(),
   volumeByProduct: z

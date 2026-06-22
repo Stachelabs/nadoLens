@@ -14,12 +14,20 @@ export const SCENARIOS = {
 } as const;
 
 export const POOL_BREAKDOWN = [
-  { name: "S1 Distributed", value: 24_941_776, color: "hsl(var(--primary))" },
-  { name: "Builder Codes", value: 1_000_000, color: "hsl(var(--chart-2))" },
-  { name: "Comp / Reserve", value: 1_000_000, color: "hsl(var(--chart-3))" },
-  { name: "S2 Projected", value: 7_620_000, color: "hsl(var(--chart-4))" },
-  { name: "Remaining", value: 8_080_000, color: "hsl(var(--chart-5))" },
+  { name: "S1 Distributed", value: 24_941_776, color: "#8b5cf6" },
+  { name: "Builder Codes", value: 1_000_000, color: "#a78bfa" },
+  { name: "Comp / Reserve", value: 1_000_000, color: "#6d28d9" },
+  { name: "S2 Projected", value: 7_620_000, color: "#60a5fa" },
+  { name: "Remaining", value: 8_080_000, color: "#4a5568" },
 ] as const;
+
+export const TIER_NAMES: Record<number, string> = {
+  1: "Breeze",
+  2: "Gust",
+  3: "Wind",
+  4: "Storm",
+  5: "Tornado",
+};
 
 // ─── Volume → weekly points curve (S2 scaling approximation) ──────────────────
 
@@ -36,27 +44,47 @@ export function volumeToWeeklyPoints(dailyVolumeM: number): number {
 
 type VolumeByProduct = { productId: number; volume: number };
 
+type EpochData = {
+  epoch: number;
+  description: string;
+  startTime: number;
+  endTime: number;
+  totalPoints: number;
+  points: number;
+  rank: number;
+  tier: number;
+  tierName: string;
+};
+
+type PointsData = {
+  allTimePoints: number;
+  allTimeRank: number;
+  allTimeTier: number;
+  allTimeTierName: string;
+  epochs: EpochData[];
+};
+
 type AirdropData = {
+  points: PointsData | null;
   inkAmount: string | null;
   totalVolume: number | null;
   volumeByProduct: VolumeByProduct[] | null;
   errors: string[];
 };
 
+export type { EpochData, PointsData, AirdropData };
+
 type AirdropStore = {
-  // Fetch state
   address: string;
   airdropData: AirdropData | null;
   isLoading: boolean;
   error: string | null;
 
-  // Simulator params
   manualPoints: number;
   dailyVolumeM: number;
   weeksOfFarm: number;
   inkFdv: number;
 
-  // Actions
   setAddress: (address: string) => void;
   setAirdropData: (data: AirdropData) => void;
   setLoading: (v: boolean) => void;

@@ -9,9 +9,29 @@ export const dynamic = "force-dynamic";
 
 const AddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 
-const InkAirdropResponseSchema = z.object({
-  amount: z.string(),
+// ─── nado_points response ────────────────────────────────────────────────────
+
+const EpochSchema = z.object({
+  epoch: z.number(),
+  description: z.string(),
+  start_time: z.string(),
+  end_time: z.string(),
+  total_points: z.string(),
+  points: z.string(),
+  rank: z.number(),
+  tier: z.number(),
 });
+
+const NadoPointsResponseSchema = z.object({
+  points_per_epoch: z.array(EpochSchema),
+  all_time_points: z.object({
+    points: z.string(),
+    rank: z.number(),
+    tier: z.number(),
+  }),
+});
+
+// ─── account_snapshots response ──────────────────────────────────────────────
 
 const SnapshotEventSchema = z.object({
   product_id: z.number(),
@@ -22,18 +42,62 @@ const AccountSnapshotSchema = z.object({
   snapshots: z.record(z.string(), z.record(z.string(), z.array(SnapshotEventSchema))),
 });
 
+// ─── ink_airdrop response (future $INK token distribution) ───────────────────
+
+const InkAirdropResponseSchema = z.object({
+  amount: z.string(),
+});
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
 function addressToSubaccount(address: string): string {
   const addr = address.toLowerCase().replace("0x", "");
   const nameHex = Buffer.from("default").toString("hex").padEnd(24, "0");
   return `0x${addr}${nameHex}`;
 }
 
+const ARCHIVE_HEADERS = {
+  "Content-Type": "application/json",
+  "Accept-Encoding": "gzip",
+};
+
+const TIER_NAMES: Record<number, string> = {
+  1: "Breeze",
+  2: "Gust",
+  3: "Wind",
+  4: "Storm",
+  5: "Tornado",
+};
+
+// ─── response type ───────────────────────────────────────────────────────────
+
+type EpochData = {
+  epoch: number;
+  description: string;
+  startTime: number;
+  endTime: number;
+  totalPoints: number;
+  points: number;
+  rank: number;
+  tier: number;
+  tierName: string;
+};
+
 type AirdropResponse = {
+  points: {
+    allTimePoints: number;
+    allTimeRank: number;
+    allTimeTier: number;
+    allTimeTierName: string;
+    epochs: EpochData[];
+  } | null;
   inkAmount: string | null;
   totalVolume: number | null;
   volumeByProduct: { productId: number; volume: number }[] | null;
   errors: string[];
 };
+
+// ─── route ───────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,24 +113,19 @@ export async function GET(request: NextRequest) {
     const subaccount = addressToSubaccount(address);
     const errors: string[] = [];
 
-    const archiveHeaders = {
-      "Content-Type": "application/json",
-      "Accept-Encoding": "gzip",
-    };
-
-    const [inkResult, snapshotResult] = await Promise.allSettled([
+    const [pointsResult, snapshotResult, inkResult] = await Promise.allSettled([
       withArchiveRetry(() =>
         fetch(NADO_ARCHIVE_REST, {
           method: "POST",
-          headers: archiveHeaders,
-          body: JSON.stringify({ ink_airdrop: { address } }),
+          headers: ARCHIVE_HEADERS,
+          body: JSON.stringify({ nado_points: { address } }),
           signal: AbortSignal.timeout(10_000),
         }),
       ),
       withArchiveRetry(() =>
         fetch(NADO_ARCHIVE_REST, {
           method: "POST",
-          headers: archiveHeaders,
+          headers: ARCHIVE_HEADERS,
           body: JSON.stringify({
             account_snapshots: {
               subaccounts: [subaccount],
@@ -76,25 +135,57 @@ export async function GET(request: NextRequest) {
           signal: AbortSignal.timeout(10_000),
         }),
       ),
+      withArchiveRetry(() =>
+        fetch(NADO_ARCHIVE_REST, {
+          method: "POST",
+          headers: ARCHIVE_HEADERS,
+          body: JSON.stringify({ ink_airdrop: { address } }),
+          signal: AbortSignal.timeout(10_000),
+        }),
+      ),
     ]);
 
-    let inkAmount: string | null = null;
-    let totalVolume: number | null = null;
-    let volumeByProduct: { productId: number; volume: number }[] | null = null;
+    // ── nado_points ──────────────────────────────────────────────────────────
 
-    if (inkResult.status === "fulfilled" && inkResult.value.ok) {
-      const raw: unknown = await inkResult.value.json();
-      const parsed = InkAirdropResponseSchema.safeParse(raw);
+    let points: AirdropResponse["points"] = null;
+
+    if (pointsResult.status === "fulfilled" && pointsResult.value.ok) {
+      const raw: unknown = await pointsResult.value.json();
+      const parsed = NadoPointsResponseSchema.safeParse(raw);
       if (parsed.success) {
-        inkAmount = parsed.data.amount;
+        const { all_time_points, points_per_epoch } = parsed.data;
+        points = {
+          allTimePoints: fromX18BigInt(all_time_points.points),
+          allTimeRank: all_time_points.rank,
+          allTimeTier: all_time_points.tier,
+          allTimeTierName: TIER_NAMES[all_time_points.tier] ?? "Unknown",
+          epochs: points_per_epoch
+            .filter((e) => e.points !== "0")
+            .map((e) => ({
+              epoch: e.epoch,
+              description: e.description,
+              startTime: Number(e.start_time),
+              endTime: Number(e.end_time),
+              totalPoints: fromX18BigInt(e.total_points),
+              points: fromX18BigInt(e.points),
+              rank: e.rank,
+              tier: e.tier,
+              tierName: TIER_NAMES[e.tier] ?? "Unknown",
+            })),
+        };
       } else {
-        errors.push("ink_airdrop: invalid response shape");
+        errors.push("nado_points: invalid response shape");
       }
     } else {
       errors.push(
-        `ink_airdrop: ${inkResult.status === "rejected" ? "network error" : `status ${inkResult.value.status}`}`,
+        `nado_points: ${pointsResult.status === "rejected" ? "network error" : `status ${pointsResult.value.status}`}`,
       );
     }
+
+    // ── account_snapshots (volume) ───────────────────────────────────────────
+
+    let totalVolume: number | null = null;
+    let volumeByProduct: { productId: number; volume: number }[] | null = null;
 
     if (snapshotResult.status === "fulfilled" && snapshotResult.value.ok) {
       const raw: unknown = await snapshotResult.value.json();
@@ -128,14 +219,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (inkAmount === null && totalVolume === null) {
+    // ── ink_airdrop (future $INK token) ──────────────────────────────────────
+
+    let inkAmount: string | null = null;
+
+    if (inkResult.status === "fulfilled" && inkResult.value.ok) {
+      const raw: unknown = await inkResult.value.json();
+      const parsed = InkAirdropResponseSchema.safeParse(raw);
+      if (parsed.success) {
+        inkAmount = parsed.data.amount;
+      } else {
+        errors.push("ink_airdrop: invalid response shape");
+      }
+    } else {
+      errors.push(
+        `ink_airdrop: ${inkResult.status === "rejected" ? "network error" : `status ${inkResult.value.status}`}`,
+      );
+    }
+
+    // ── response ─────────────────────────────────────────────────────────────
+
+    if (points === null && totalVolume === null && inkAmount === null) {
       return NextResponse.json(
-        { error: "Both Archive calls failed", details: errors },
+        { error: "All Archive calls failed", details: errors },
         { status: 502 },
       );
     }
 
     const response: AirdropResponse = {
+      points,
       inkAmount,
       totalVolume,
       volumeByProduct,
