@@ -10,24 +10,16 @@ export const dynamic = "force-dynamic";
 const AddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/);
 
 const InkAirdropResponseSchema = z.object({
-  status: z.literal("ok"),
-  data: z.object({
-    ink_airdrop: z.object({
-      amount: z.string(),
-    }),
-  }),
+  amount: z.string(),
+});
+
+const SnapshotEventSchema = z.object({
+  product_id: z.number(),
+  quote_volume_cumulative: z.string().optional(),
 });
 
 const AccountSnapshotSchema = z.object({
-  status: z.literal("ok"),
-  data: z.object({
-    account_snapshots: z.array(
-      z.object({
-        product_id: z.number(),
-        quote_volume_cumulative: z.string(),
-      }),
-    ),
-  }),
+  snapshots: z.record(z.string(), z.record(z.string(), z.array(SnapshotEventSchema))),
 });
 
 function addressToSubaccount(address: string): string {
@@ -57,11 +49,16 @@ export async function GET(request: NextRequest) {
     const subaccount = addressToSubaccount(address);
     const errors: string[] = [];
 
+    const archiveHeaders = {
+      "Content-Type": "application/json",
+      "Accept-Encoding": "gzip",
+    };
+
     const [inkResult, snapshotResult] = await Promise.allSettled([
       withArchiveRetry(() =>
         fetch(NADO_ARCHIVE_REST, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: archiveHeaders,
           body: JSON.stringify({ ink_airdrop: { address } }),
           signal: AbortSignal.timeout(10_000),
         }),
@@ -69,7 +66,7 @@ export async function GET(request: NextRequest) {
       withArchiveRetry(() =>
         fetch(NADO_ARCHIVE_REST, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: archiveHeaders,
           body: JSON.stringify({
             account_snapshots: {
               subaccounts: [subaccount],
@@ -89,7 +86,7 @@ export async function GET(request: NextRequest) {
       const raw: unknown = await inkResult.value.json();
       const parsed = InkAirdropResponseSchema.safeParse(raw);
       if (parsed.success) {
-        inkAmount = parsed.data.data.ink_airdrop.amount;
+        inkAmount = parsed.data.amount;
       } else {
         errors.push("ink_airdrop: invalid response shape");
       }
@@ -103,10 +100,21 @@ export async function GET(request: NextRequest) {
       const raw: unknown = await snapshotResult.value.json();
       const parsed = AccountSnapshotSchema.safeParse(raw);
       if (parsed.success) {
-        const snapshots = parsed.data.data.account_snapshots;
-        volumeByProduct = snapshots.map((s) => ({
-          productId: s.product_id,
-          volume: fromX18BigInt(s.quote_volume_cumulative),
+        const volumeMap = new Map<number, number>();
+        for (const tsMap of Object.values(parsed.data.snapshots)) {
+          for (const events of Object.values(tsMap)) {
+            for (const ev of events) {
+              if (ev.quote_volume_cumulative) {
+                const vol = fromX18BigInt(ev.quote_volume_cumulative);
+                const existing = volumeMap.get(ev.product_id) ?? 0;
+                if (vol > existing) volumeMap.set(ev.product_id, vol);
+              }
+            }
+          }
+        }
+        volumeByProduct = [...volumeMap.entries()].map(([productId, volume]) => ({
+          productId,
+          volume,
         }));
         totalVolume = volumeByProduct.reduce((sum, p) => sum + p.volume, 0);
       } else {
