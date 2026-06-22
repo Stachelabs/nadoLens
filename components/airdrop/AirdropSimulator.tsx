@@ -100,18 +100,6 @@ export function AirdropSimulator() {
               }
               className="font-mono"
             />
-            <div className="flex flex-wrap gap-1.5">
-              {[100, 500, 1000, 2500, 5000, 10000, 20000].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setManualPoints(v)}
-                  className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-                >
-                  {v >= 1000 ? `${v / 1000}K` : v}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Daily Volume */}
@@ -190,27 +178,28 @@ export function AirdropSimulator() {
             ))}
           </div>
 
-          <Card className="p-4">
-            <h3 className="mb-2 text-xs font-medium text-muted-foreground">
-              Simulation Details
-            </h3>
-            <dl className="grid grid-cols-2 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Est. S2 Points (pool)</dt>
-              <dd className="text-right font-medium text-foreground">
-                {sim.estimatedS2Points.toLocaleString()}
-              </dd>
-              <dt className="text-muted-foreground">Total Pool (adjusted)</dt>
-              <dd className="text-right font-medium text-foreground">
-                {sim.totalPoolWithFarming.toLocaleString()}
-              </dd>
-              <dt className="text-muted-foreground">Your Share</dt>
-              <dd className="text-right font-medium text-foreground">
-                {formatPct(sim.shareOfPool)}
-              </dd>
-            </dl>
-          </Card>
         </div>
       </div>
+
+      <Card className="p-4">
+        <h3 className="mb-2 text-xs font-medium text-muted-foreground">
+          Simulation Details
+        </h3>
+        <dl className="grid grid-cols-2 gap-y-2 text-sm sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto]">
+          <dt className="text-muted-foreground">Est. S2 Points (pool)</dt>
+          <dd className="text-right font-medium text-foreground sm:pr-6">
+            {sim.estimatedS2Points.toLocaleString()}
+          </dd>
+          <dt className="text-muted-foreground">Total Pool (adjusted)</dt>
+          <dd className="text-right font-medium text-foreground sm:pr-6">
+            {sim.totalPoolWithFarming.toLocaleString()}
+          </dd>
+          <dt className="text-muted-foreground">Your Share</dt>
+          <dd className="text-right font-medium text-foreground">
+            {formatPct(sim.shareOfPool)}
+          </dd>
+        </dl>
+      </Card>
     </div>
   );
 }

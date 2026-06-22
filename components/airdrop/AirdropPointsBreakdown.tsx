@@ -38,7 +38,7 @@ export function AirdropPointsBreakdown() {
       <h2 className="mb-4 text-lg font-semibold text-foreground">
         Points Pool Breakdown
       </h2>
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+      <div className="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row sm:items-start">
         <div className="h-[200px] w-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
