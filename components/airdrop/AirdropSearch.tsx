@@ -7,6 +7,18 @@ import { cn } from "@/lib/utils";
 import { Search, Wallet } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
+import { z } from "zod";
+
+const ETH_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+const AirdropResponseSchema = z.object({
+  inkAmount: z.string().nullable(),
+  totalVolume: z.number().nullable(),
+  volumeByProduct: z
+    .array(z.object({ productId: z.number(), volume: z.number() }))
+    .nullable(),
+  errors: z.array(z.string()),
+});
 
 export function AirdropSearch() {
   const { address: connectedAddress } = useAccount();
@@ -18,6 +30,7 @@ export function AirdropSearch() {
 
   const [inputValue, setInputValue] = useState(storeAddress);
   const abortRef = useRef<AbortController | null>(null);
+  const genRef = useRef(0);
 
   useEffect(() => {
     if (connectedAddress && !storeAddress) {
@@ -31,14 +44,20 @@ export function AirdropSearch() {
       if (abortRef.current) abortRef.current.abort();
       const controller = new AbortController();
       abortRef.current = controller;
+      const gen = ++genRef.current;
 
       setLoading(true);
       setError(null);
 
       try {
         const res = await fetch(`/api/airdrop?address=${addr}`, {
-          signal: controller.signal,
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(15_000),
+          ]),
         });
+        if (gen !== genRef.current) return;
+
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
             error?: string;
@@ -46,10 +65,17 @@ export function AirdropSearch() {
           setError(body.error ?? `Request failed (${res.status})`);
           return;
         }
-        const data = await res.json();
-        setAirdropData(data);
+        const raw: unknown = await res.json();
+        const parsed = AirdropResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          setError("Invalid response from server");
+          return;
+        }
+        if (gen !== genRef.current) return;
+        setAirdropData(parsed.data);
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
+        if (gen !== genRef.current) return;
         setError(e instanceof Error ? e.message : "Unknown error");
       }
     },
@@ -57,7 +83,7 @@ export function AirdropSearch() {
   );
 
   useEffect(() => {
-    if (storeAddress && /^0x[a-fA-F0-9]{40}$/.test(storeAddress)) {
+    if (storeAddress && ETH_ADDRESS_RE.test(storeAddress)) {
       fetchAirdrop(storeAddress);
     }
     return () => {
@@ -68,7 +94,7 @@ export function AirdropSearch() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = inputValue.trim();
-    if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+    if (ETH_ADDRESS_RE.test(trimmed)) {
       setAddress(trimmed);
     } else {
       setError("Invalid Ethereum address");

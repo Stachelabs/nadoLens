@@ -106,8 +106,10 @@ export async function GET(request: NextRequest) {
             for (const ev of events) {
               if (ev.quote_volume_cumulative) {
                 const vol = fromX18BigInt(ev.quote_volume_cumulative);
-                const existing = volumeMap.get(ev.product_id) ?? 0;
-                if (vol > existing) volumeMap.set(ev.product_id, vol);
+                if (Number.isFinite(vol) && vol >= 0) {
+                  const existing = volumeMap.get(ev.product_id) ?? 0;
+                  if (vol > existing) volumeMap.set(ev.product_id, vol);
+                }
               }
             }
           }
