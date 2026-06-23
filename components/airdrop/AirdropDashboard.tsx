@@ -1,6 +1,5 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
 import { Rocket } from "lucide-react";
 import { AirdropPointsBreakdown } from "./AirdropPointsBreakdown";
 import { AirdropSearch } from "./AirdropSearch";
@@ -40,7 +39,9 @@ export function AirdropDashboard() {
         <AirdropPointsBreakdown />
       </section>
 
-      <Card className="flex flex-col items-center gap-4 border-brand/20 bg-card p-8 text-center transition-colors duration-500 hover:border-brand/50">
+      <div className="relative overflow-hidden rounded-xl p-px">
+        <div className="absolute inset-0 animate-[border-spin_4s_linear_infinite] rounded-xl bg-[conic-gradient(from_0deg,transparent_60%,var(--brand)_78%,transparent_96%)]" />
+        <div className="relative flex flex-col items-center gap-4 rounded-xl bg-card p-8 text-center">
         <div className="flex size-14 items-center justify-center rounded-xl bg-brand/10">
           <Rocket className="size-7 text-brand" />
         </div>
@@ -77,7 +78,8 @@ export function AirdropDashboard() {
             />
           </svg>
         </a>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
