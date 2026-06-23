@@ -42,12 +42,11 @@ export function TwitterCTA() {
     if (open || moduleDismissed) return;
 
     const remaining = DELAY_MS - (Date.now() - moduleLoadTime);
-    if (remaining <= 0) {
-      setOpen(true);
-      return;
-    }
 
-    timerRef.current = setTimeout(() => setOpen(true), remaining);
+    timerRef.current = setTimeout(
+      () => setOpen(true),
+      Math.max(remaining, 0),
+    );
 
     return () => {
       if (timerRef.current) {
