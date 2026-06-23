@@ -97,6 +97,19 @@ export function Nav() {
             );
           })}
 
+          <Link
+            href="/airdrop"
+            className={cn(
+              buttonVariants({
+                variant: pathname === "/airdrop" ? "secondary" : "ghost",
+                size: "sm",
+              }),
+              !pathname?.startsWith("/airdrop") && "text-muted-foreground",
+            )}
+          >
+            Airdrop
+          </Link>
+
           {isConnected && address && (() => {
             const isMyWallet = pathname === `/wallet/${address}`;
             return (
@@ -116,21 +129,6 @@ export function Nav() {
               </Link>
             );
           })()}
-
-          <Link
-            href="/airdrop"
-            className={cn(
-              buttonVariants({
-                variant: pathname === "/airdrop" ? "secondary" : "ghost",
-                size: "sm",
-              }),
-              pathname === "/airdrop"
-                ? "border border-primary/40 bg-primary/10 text-primary"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            Airdrop
-          </Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -262,6 +260,19 @@ export function Nav() {
                     );
                   },
                 )}
+                <Link
+                  href="/airdrop"
+                  onClick={() => setSheetOpen(false)}
+                  className={cn(
+                    buttonVariants({ variant: "ghost" }),
+                    "justify-start",
+                    pathname === "/airdrop"
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Airdrop
+                </Link>
                 {isConnected && address && (
                   <Link
                     href={`/wallet/${address}`}
@@ -275,19 +286,6 @@ export function Nav() {
                     My Wallet
                   </Link>
                 )}
-                <Link
-                  href="/airdrop"
-                  onClick={() => setSheetOpen(false)}
-                  className={cn(
-                    buttonVariants({ variant: "ghost" }),
-                    "justify-start",
-                    pathname === "/airdrop"
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Airdrop
-                </Link>
               </nav>
 
               <div className="mt-4 flex flex-col gap-1 border-t border-border px-2 pt-3">

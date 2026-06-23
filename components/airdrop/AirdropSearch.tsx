@@ -115,10 +115,15 @@ export function AirdropSearch() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = inputValue.trim();
-    if (ETH_ADDRESS_RE.test(trimmed)) {
-      setAddress(trimmed);
-    } else {
+    setError(null);
+    if (!ETH_ADDRESS_RE.test(trimmed)) {
       setError("Invalid Ethereum address");
+      return;
+    }
+    if (trimmed === storeAddress) {
+      fetchAirdrop(trimmed);
+    } else {
+      setAddress(trimmed);
     }
   }
 

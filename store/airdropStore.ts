@@ -8,18 +8,18 @@ export const S2_WEEKLY_POOL_FLOOR = 300_000;
 export const S2_WEEKLY_POOL_CAP = 950_000;
 
 export const SCENARIOS = {
-  bear: { label: "Bear", pct: 0.03, color: "var(--bear)" },
-  base: { label: "Base", pct: 0.065, color: "var(--bull)" },
-  bull: { label: "Bull", pct: 0.10, color: "hsl(var(--primary))" },
+  bear: { label: "Bear", pct: 0.04, color: "var(--bear)" },
+  base: { label: "Base", pct: 0.08, color: "hsl(var(--foreground))" },
+  bull: { label: "Bull", pct: 0.12, color: "var(--bull)" },
 } as const;
 
-export const POOL_BREAKDOWN = [
+export const POOL_BREAKDOWN_FIXED = [
   { name: "S1 Distributed", value: 24_941_776, color: "#8b5cf6" },
   { name: "Builder Codes", value: 1_000_000, color: "#a78bfa" },
   { name: "Comp / Reserve", value: 1_000_000, color: "#6d28d9" },
-  { name: "S2 Projected", value: 7_620_000, color: "#60a5fa" },
-  { name: "Remaining", value: 8_080_000, color: "#4a5568" },
 ] as const;
+
+export const FIXED_TOTAL = POOL_BREAKDOWN_FIXED.reduce((s, e) => s + e.value, 0);
 
 export const TIER_NAMES: Record<number, string> = {
   1: "Breeze",
@@ -84,6 +84,7 @@ type AirdropStore = {
   dailyVolumeM: number;
   weeksOfFarm: number;
   inkFdv: number;
+  airdropPct: number;
 
   setAddress: (address: string) => void;
   setAirdropData: (data: AirdropData) => void;
@@ -93,6 +94,7 @@ type AirdropStore = {
   setDailyVolumeM: (vol: number) => void;
   setWeeksOfFarm: (weeks: number) => void;
   setInkFdv: (fdv: number) => void;
+  setAirdropPct: (pct: number) => void;
   reset: () => void;
 };
 
@@ -105,6 +107,7 @@ const INITIAL_STATE = {
   dailyVolumeM: 500,
   weeksOfFarm: 20,
   inkFdv: 1_000_000_000,
+  airdropPct: 8,
 };
 
 export const useAirdropStore = create<AirdropStore>((set) => ({
@@ -118,6 +121,7 @@ export const useAirdropStore = create<AirdropStore>((set) => ({
   setDailyVolumeM: (dailyVolumeM) => set({ dailyVolumeM }),
   setWeeksOfFarm: (weeksOfFarm) => set({ weeksOfFarm }),
   setInkFdv: (inkFdv) => set({ inkFdv }),
+  setAirdropPct: (airdropPct) => set({ airdropPct }),
   reset: () => set(INITIAL_STATE),
 }));
 
@@ -128,6 +132,7 @@ export function computeSimulation(state: {
   dailyVolumeM: number;
   weeksOfFarm: number;
   inkFdv: number;
+  airdropPct: number;
 }) {
   const weeklyPts = volumeToWeeklyPoints(state.dailyVolumeM);
   const estimatedS2Points = weeklyPts * state.weeksOfFarm;
@@ -137,12 +142,19 @@ export function computeSimulation(state: {
   const shareOfPool =
     totalPoolWithFarming > 0 ? yourPoints / totalPoolWithFarming : 0;
 
+  const pctDecimal = state.airdropPct / 100;
+  const airdropValue = shareOfPool * pctDecimal * state.inkFdv;
+  const dollarPerPoint =
+    totalPoolWithFarming > 0
+      ? (pctDecimal * state.inkFdv) / totalPoolWithFarming
+      : 0;
+
   const scenarios = (
     Object.keys(SCENARIOS) as Array<keyof typeof SCENARIOS>
   ).map((key) => {
     const s = SCENARIOS[key];
-    const airdropValue = shareOfPool * s.pct * state.inkFdv;
-    const dollarPerPoint =
+    const scenarioValue = shareOfPool * s.pct * state.inkFdv;
+    const scenarioDpp =
       totalPoolWithFarming > 0
         ? (s.pct * state.inkFdv) / totalPoolWithFarming
         : 0;
@@ -151,8 +163,8 @@ export function computeSimulation(state: {
       label: s.label,
       pct: s.pct,
       color: s.color,
-      airdropValue,
-      dollarPerPoint,
+      airdropValue: scenarioValue,
+      dollarPerPoint: scenarioDpp,
     };
   });
 
@@ -161,6 +173,8 @@ export function computeSimulation(state: {
     estimatedS2Points,
     totalPoolWithFarming,
     shareOfPool,
+    airdropValue,
+    dollarPerPoint,
     scenarios,
   };
 }
