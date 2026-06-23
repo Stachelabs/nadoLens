@@ -40,7 +40,7 @@ export function AirdropDashboard() {
         <AirdropPointsBreakdown />
       </section>
 
-      <Card className="flex flex-col items-center gap-4 border-brand/20 bg-card p-8 text-center">
+      <Card className="flex flex-col items-center gap-4 border-brand/20 bg-card p-8 text-center transition-colors duration-500 hover:border-brand/50">
         <div className="flex size-14 items-center justify-center rounded-xl bg-brand/10">
           <Rocket className="size-7 text-brand" />
         </div>
