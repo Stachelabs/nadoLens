@@ -23,7 +23,7 @@ const REFLINK = "https://app.nado.xyz/perpetuals?join=ak8qEBT";
 const productLinks = [
   { label: "Wallet Explorer", href: "/wallet" },
   { label: "Protocol Analytics", href: "/protocol" },
-  { label: "Airdrop Tracker", href: "#", soon: true },
+  { label: "Airdrop Tracker", href: "/airdrop" },
   { label: "TG Notifications", href: "#", soon: true },
 ];
 
