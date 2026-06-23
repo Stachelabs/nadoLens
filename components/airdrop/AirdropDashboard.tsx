@@ -40,7 +40,7 @@ export function AirdropDashboard() {
       </section>
 
       <div className="relative overflow-hidden rounded-xl p-px">
-        <div className="absolute inset-0 animate-[border-spin_4s_linear_infinite] rounded-xl bg-[conic-gradient(from_0deg,transparent_60%,var(--brand)_78%,transparent_96%)]" />
+        <div className="absolute -inset-[100%] animate-[border-spin_4s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_50%,var(--brand)_75%,transparent_100%)]" />
         <div className="relative flex flex-col items-center gap-4 rounded-xl bg-card p-8 text-center">
         <div className="flex size-14 items-center justify-center rounded-xl bg-brand/10">
           <Rocket className="size-7 text-brand" />
