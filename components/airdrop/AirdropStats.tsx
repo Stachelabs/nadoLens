@@ -225,14 +225,6 @@ export function AirdropStats() {
 
   const idle = !address && !isLoading;
 
-  if (error) {
-    return (
-      <Card className="border-destructive/50 bg-destructive/5 p-4">
-        <p className="text-sm text-destructive">{error}</p>
-      </Card>
-    );
-  }
-
   const volumeDisplay =
     data?.totalVolume !== null && data?.totalVolume !== undefined
       ? formatNumber(data.totalVolume)
@@ -241,6 +233,11 @@ export function AirdropStats() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <Card className="border-destructive/50 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </Card>
+      )}
       {/* Points stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
