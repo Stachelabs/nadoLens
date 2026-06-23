@@ -52,7 +52,7 @@ function StatCard({
       </div>
       <p className="text-xs text-muted-foreground">{label}</p>
       {loading ? (
-        <Skeleton className="h-6 w-20" />
+        <Skeleton className="h-7 w-20" />
       ) : (
         <p className="text-xl font-semibold text-foreground">{value}</p>
       )}
@@ -223,7 +223,7 @@ export function AirdropStats() {
     }
   }, [hasPoints, pts, setManualPoints]);
 
-  if (!address) return null;
+  const idle = !address && !isLoading;
 
   if (error) {
     return (
