@@ -107,7 +107,7 @@ export function WalletStats({ stats, tradesComplete = true, globalMatchesComplet
                 <span className="inline-block ml-1 w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse align-middle" />
               )}
               {isPartial && globalMatchesComplete && (
-                <span className="ml-1 text-[9px] font-medium text-[var(--warn)] normal-case tracking-normal">
+                <span className="ml-1 text-[9px] font-medium text-warn normal-case tracking-normal">
                   ~
                 </span>
               )}

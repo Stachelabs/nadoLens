@@ -54,9 +54,9 @@ function XIcon({ className }: { className?: string }) {
 }
 
 const socialLinks = [
+  { href: "https://x.com/stache_dev", label: "Twitter", icon: XIcon },
   { href: "https://discord.com/users/889580761349517373", label: "Discord", icon: DiscordIcon },
   { href: "https://t.me/stache_dev", label: "Telegram", icon: TelegramIcon },
-  { href: "https://x.com/stache_dev", label: "Twitter", icon: XIcon },
 ];
 
 export function Nav() {
@@ -97,6 +97,19 @@ export function Nav() {
             );
           })}
 
+          <Link
+            href="/airdrop"
+            className={cn(
+              buttonVariants({
+                variant: pathname === "/airdrop" ? "secondary" : "ghost",
+                size: "sm",
+              }),
+              !pathname?.startsWith("/airdrop") && "text-muted-foreground",
+            )}
+          >
+            Airdrop
+          </Link>
+
           {isConnected && address && (() => {
             const isMyWallet = pathname === `/wallet/${address}`;
             return (
@@ -116,18 +129,6 @@ export function Nav() {
               </Link>
             );
           })()}
-
-          <span
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "pointer-events-none gap-1.5 text-muted-foreground/80",
-            )}
-          >
-            Airdrop
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              Soon
-            </span>
-          </span>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -259,6 +260,19 @@ export function Nav() {
                     );
                   },
                 )}
+                <Link
+                  href="/airdrop"
+                  onClick={() => setSheetOpen(false)}
+                  className={cn(
+                    buttonVariants({ variant: "ghost" }),
+                    "justify-start",
+                    pathname === "/airdrop"
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Airdrop
+                </Link>
                 {isConnected && address && (
                   <Link
                     href={`/wallet/${address}`}
@@ -272,17 +286,6 @@ export function Nav() {
                     My Wallet
                   </Link>
                 )}
-                <span
-                  className={cn(
-                    buttonVariants({ variant: "ghost" }),
-                    "pointer-events-none justify-start gap-1.5 text-muted-foreground/80",
-                  )}
-                >
-                  Airdrop
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    Soon
-                  </span>
-                </span>
               </nav>
 
               <div className="mt-4 flex flex-col gap-1 border-t border-border px-2 pt-3">

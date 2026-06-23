@@ -75,6 +75,7 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 **Next.js server (Vercel)**
 - Routes: `/api/pairs` · `/api/wallet/[address]` · `/api/positions_matches` · `/api/global_matches` · `/api/positions_funding` · `/api/global_funding` · `/api/snapshots` · `/api/subaccounts/[address]` · `/api/status`
 - Protocol routes: `/api/protocol/tickers` · `/api/protocol/market-snapshots` · `/api/protocol/products` · `/api/protocol/candlesticks` · `/api/protocol/funding-rates` · `/api/protocol/insurance-fund`
+- Airdrop route: `/api/airdrop?address=0x...` — triple parallel Archive calls: `nado_points` (points/tier/rank/history) + `account_snapshots` (volume) + `ink_airdrop` (future $INK token). Partial success supported via `Promise.allSettled`
 - **ALWAYS** validate all bodies and external responses with Zod `safeParse()`
 - **ALWAYS** wrap API route handlers in `try/catch` → `categorizedErrorResponse(e, routeLabel)` (timeout→504, network/parse→502, unknown→500)
 - **ALWAYS** add `signal: AbortSignal.timeout(10_000)` to every upstream `fetch()` call
@@ -130,6 +131,12 @@ pnpm docs:query:nado "<question>"
 # Ex: pnpm docs:query:nado "pagination idx" --top-k 3
 ```
 Rebuild index: `pnpm docs:build:nado`
+
+### Points & Airdrop endpoints
+
+- **`nado_points`**: `POST archive.prod.nado.xyz/v1` with `{"nado_points":{"address":"0x..."}}` → `{points_per_epoch: [{epoch, description, points(x18), rank, tier}...], all_time_points: {points(x18), rank, tier}}`. Undocumented but public (confirmed by Nado team). Tier mapping: 1=Breeze, 2=Gust, 3=Wind, 4=Storm, 5=Tornado
+- **`ink_airdrop`**: `POST archive.prod.nado.xyz/v1` with `{"ink_airdrop":{"address":"0x..."}}` → `{amount: string}`. Future $INK token distribution — returns "0" until airdrop goes live. Weight=2, documented in docs.nado.xyz
+- **`account_snapshots`**: volume via `quote_volume_cumulative` (x18) — nested response: `{snapshots: {subaccount: {timestamp: [events]}}}`
 
 ### Critical rules
 

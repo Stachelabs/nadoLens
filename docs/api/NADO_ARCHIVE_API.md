@@ -494,6 +494,72 @@ Example "default" → 64656661756c740000000000
 Result: 0x{walletAddress}{subaccountNameHex}
 ```
 
+---
+
+## Nado Points (undocumented, public)
+
+**Get all-time points, rank, tier + per-epoch distribution history**
+
+```json
+POST /
+{
+  "nado_points": {
+    "address": "0xc5a752A4B8d751859d29af9069486B5b48Fa9499"
+  }
+}
+```
+
+Response:
+```json
+{
+  "points_per_epoch": [
+    {
+      "epoch": 4,
+      "description": "Week 1",
+      "start_time": "1769821200",
+      "end_time": "1770339600",
+      "total_points": "1097026000013000000000000",
+      "points": "355168255000000000000",
+      "rank": 314,
+      "tier": 5
+    }
+  ],
+  "all_time_points": {
+    "points": "7765089484913353750000",
+    "rank": 387,
+    "tier": 5
+  }
+}
+```
+
+Notes:
+- All points values are **x18 strings** — use `fromX18BigInt()`
+- Tier mapping: 1=Breeze, 2=Gust, 3=Wind, 4=Storm, 5=Tornado
+- Each epoch `tier` is the **weekly** tier; `all_time_points.tier` is the **all-time** tier
+- Epochs with `points: "0"` = no activity that week
+- Confirmed public by Nado team (Przemek) — not listed in official docs
+
+---
+
+## INK Airdrop (documented, future)
+
+**Get $INK token airdrop allocation (not yet active)**
+
+```json
+POST /
+{
+  "ink_airdrop": {
+    "address": "0xc5a752A4B8d751859d29af9069486B5b48Fa9499"
+  }
+}
+```
+
+Response: `{"amount": "0"}` — returns "0" until $INK token airdrop goes live.
+
+Weight: 2. Rate limit: 1200 req/min.
+
+---
+
 ### Number precision
 
 All amounts are x18 (multiplied by 1e18).

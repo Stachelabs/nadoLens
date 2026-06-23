@@ -9,7 +9,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import { wagmiConfig } from "@/lib/wagmi";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePairs } from "@/hooks/usePairs";
 import { useProtocolPrefetch } from "@/hooks/useProtocolPrefetch";
 import { useConnectedWalletPrefetch } from "@/hooks/useConnectedWalletPrefetch";
@@ -42,18 +42,21 @@ export function Providers({
   const { resolvedTheme } = useTheme();
   const initialState = cookieToInitialState(wagmiConfig, cookie ?? undefined);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const rkTheme = useMemo(
+    () =>
+      mounted && resolvedTheme === "light"
+        ? lightTheme({ accentColor: "#a855f7" })
+        : darkTheme({ accentColor: "#a855f7" }),
+    [mounted, resolvedTheme],
+  );
+
   return (
     <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          locale="en"
-          coolMode
-          theme={
-            resolvedTheme === "light"
-              ? lightTheme({ accentColor: "#a855f7" })
-              : darkTheme({ accentColor: "#a855f7" })
-          }
-        >
+        <RainbowKitProvider locale="en" coolMode theme={rkTheme}>
           <PairsInitializer />
           <ProtocolPrefetchInitializer />
           <ConnectedWalletPrefetchInitializer />

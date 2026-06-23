@@ -10,13 +10,17 @@ import {
 import { cn } from "@/lib/utils";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useAccount } from "wagmi";
 
 const TWEET_ID = "2064809235179831686";
 const RT_URL = `https://twitter.com/intent/retweet?tweet_id=${TWEET_ID}`;
 const FOLLOW_URL = "https://x.com/Stache_dev";
-const STORAGE_KEY = "nadolens-twitter-cta-shown";
-const DELAY_MS = 4 * 60 * 1000;
+const DELAY_MS = 3 * 60 * 1000;
+
+// Module-level: survives client-side navigation, resets on full reload (Cmd+R)
+// Guard with typeof window so the timestamp is only set in the browser —
+// without this, SSR sets it at build/request time and the client inherits a stale value.
+const moduleLoadTime = typeof window !== "undefined" ? Date.now() : 0;
+let moduleDismissed = false;
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -27,28 +31,22 @@ function XIcon({ className }: { className?: string }) {
 }
 
 export function TwitterCTA() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (moduleDismissed) return false;
+    return Date.now() - moduleLoadTime >= DELAY_MS;
+  });
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { isConnected } = useAccount();
 
   useEffect(() => {
-    if (!isConnected) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      return;
-    }
+    if (open || moduleDismissed) return;
 
-    try {
-      if (localStorage.getItem(STORAGE_KEY)) return;
-    } catch {
-      return;
-    }
+    const remaining = DELAY_MS - (Date.now() - moduleLoadTime);
 
-    timerRef.current = setTimeout(() => {
-      setOpen(true);
-    }, DELAY_MS);
+    timerRef.current = setTimeout(
+      () => setOpen(true),
+      Math.max(remaining, 0),
+    );
 
     return () => {
       if (timerRef.current) {
@@ -56,16 +54,12 @@ export function TwitterCTA() {
         timerRef.current = null;
       }
     };
-  }, [isConnected]);
+  }, [open]);
 
   function handleClose(value: boolean) {
     setOpen(value);
     if (!value) {
-      try {
-        localStorage.setItem(STORAGE_KEY, "1");
-      } catch {
-        // localStorage unavailable
-      }
+      moduleDismissed = true;
     }
   }
 
