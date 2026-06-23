@@ -36,6 +36,7 @@ export function ScrambleWord({ text, className, delay = 0, cycles = 20 }: Scramb
       className={`cursor-pointer inline-block whitespace-nowrap ${className ?? ""}`}
       style={lockedWidth ? { width: lockedWidth } : undefined}
       onMouseEnter={() => { if (hasFiredOnce.current) scramble(); }}
+      suppressHydrationWarning
     >
       {display}
     </span>

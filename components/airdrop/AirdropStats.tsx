@@ -273,8 +273,20 @@ export function AirdropStats() {
         />
       </div>
 
+      {/* Distribution history skeleton */}
+      {isLoading && (
+        <Card className="space-y-3 p-4">
+          <Skeleton className="h-4 w-40" />
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-md" />
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Distribution history */}
-      {hasPoints && pts.epochs.length > 0 && (
+      {!isLoading && hasPoints && pts.epochs.length > 0 && (
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium text-muted-foreground">
@@ -321,8 +333,20 @@ export function AirdropStats() {
         </Card>
       )}
 
+      {/* Volume by product skeleton */}
+      {isLoading && (
+        <Card className="space-y-3 p-4">
+          <Skeleton className="h-4 w-36" />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-md" />
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Volume by product */}
-      {data?.volumeByProduct && data.volumeByProduct.length > 0 && (
+      {!isLoading && data?.volumeByProduct && data.volumeByProduct.length > 0 && (
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
