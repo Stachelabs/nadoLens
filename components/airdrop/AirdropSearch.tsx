@@ -50,6 +50,7 @@ export function AirdropSearch() {
   const setError = useAirdropStore((s) => s.setError);
 
   const [inputValue, setInputValue] = useState(storeAddress);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const genRef = useRef(0);
 
@@ -115,9 +116,10 @@ export function AirdropSearch() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = inputValue.trim();
+    setValidationError(null);
     setError(null);
     if (!ETH_ADDRESS_RE.test(trimmed)) {
-      setError("Invalid Ethereum address");
+      setValidationError("Invalid Ethereum address");
       return;
     }
     if (trimmed === storeAddress) {
@@ -128,6 +130,7 @@ export function AirdropSearch() {
   }
 
   return (
+    <div className="space-y-2">
     <form onSubmit={handleSubmit} className="flex gap-2">
       <div className="relative flex-1">
         <Wallet className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -149,5 +152,9 @@ export function AirdropSearch() {
         <span className="hidden sm:inline">Lookup</span>
       </button>
     </form>
+    {validationError && (
+      <p className="text-sm text-destructive">{validationError}</p>
+    )}
+    </div>
   );
 }

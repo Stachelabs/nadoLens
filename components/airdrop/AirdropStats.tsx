@@ -44,15 +44,15 @@ function StatCard({
   return (
     <Card className="flex flex-col items-center gap-2 p-4 text-center">
       <div
-        className={`flex size-10 items-center justify-center rounded-lg ${accent ? "bg-airdrop/15" : "bg-primary/10"}`}
+        className={accent ? "flex size-10 items-center justify-center rounded-lg bg-airdrop/15" : "flex size-10 items-center justify-center rounded-lg bg-primary/10"}
       >
         <Icon
-          className={`size-5 ${accent ? "text-airdrop" : "text-primary"}`}
+          className={accent ? "size-5 text-airdrop" : "size-5 text-primary"}
         />
       </div>
       <p className="text-xs text-muted-foreground">{label}</p>
       {loading ? (
-        <Skeleton className="h-6 w-20" />
+        <Skeleton className="h-7 w-20" />
       ) : (
         <p className="text-xl font-semibold text-foreground">{value}</p>
       )}
@@ -223,15 +223,7 @@ export function AirdropStats() {
     }
   }, [hasPoints, pts, setManualPoints]);
 
-  if (!address) return null;
-
-  if (error) {
-    return (
-      <Card className="border-destructive/50 bg-destructive/5 p-4">
-        <p className="text-sm text-destructive">{error}</p>
-      </Card>
-    );
-  }
+  const idle = !address && !isLoading;
 
   const volumeDisplay =
     data?.totalVolume !== null && data?.totalVolume !== undefined
@@ -241,6 +233,11 @@ export function AirdropStats() {
 
   return (
     <div className="space-y-4">
+      {error && (
+        <Card className="border-destructive/50 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </Card>
+      )}
       {/* Points stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -273,8 +270,20 @@ export function AirdropStats() {
         />
       </div>
 
+      {/* Distribution history skeleton */}
+      {isLoading && (
+        <Card className="space-y-3 p-4">
+          <Skeleton className="h-4 w-40" />
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-md" />
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Distribution history */}
-      {hasPoints && pts.epochs.length > 0 && (
+      {!isLoading && hasPoints && pts.epochs.length > 0 && (
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium text-muted-foreground">
@@ -321,8 +330,20 @@ export function AirdropStats() {
         </Card>
       )}
 
+      {/* Volume by product skeleton */}
+      {isLoading && (
+        <Card className="space-y-3 p-4">
+          <Skeleton className="h-4 w-36" />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-md" />
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Volume by product */}
-      {data?.volumeByProduct && data.volumeByProduct.length > 0 && (
+      {!isLoading && data?.volumeByProduct && data.volumeByProduct.length > 0 && (
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
