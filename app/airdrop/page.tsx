@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function AirdropPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-3xl">
           <ScrambleWord text="Airdrop Dashboard" delay={200} cycles={8} />
         </h1>
