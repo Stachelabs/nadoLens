@@ -7,7 +7,7 @@ const REFLINK = "https://app.nado.xyz?join=ak8qEBT";
 export function NadoCTA() {
   return (
     <div className="relative overflow-hidden rounded-xl p-px">
-      <div className="absolute -inset-[100%] animate-[border-spin_4s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_50%,var(--brand)_75%,transparent_100%)]" />
+      <div className="absolute -inset-full animate-[border-spin_4s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_50%,var(--brand)_75%,transparent_100%)]" />
       <div className="relative flex flex-col items-center gap-4 rounded-xl bg-card p-8 text-center">
         <div className="flex size-14 items-center justify-center rounded-xl bg-brand/10">
           <Rocket className="size-7 text-brand" />
@@ -21,8 +21,8 @@ export function NadoCTA() {
         </h3>
         <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
           Don&apos;t miss out on one of the hottest airdrops to come. Trade
-          perps & spot on Nado and get a share of the $INK airdrop supply from
-          Kraken.
+          perps & spot on Nado and get a share of the $INK airdropped supply
+          from Kraken.
         </p>
         <a
           href={REFLINK}

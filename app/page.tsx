@@ -13,7 +13,7 @@ export default function Home() {
       <LiveMetrics />
       <FeatureCards />
       <motion.section
-        className="mx-auto w-full max-w-5xl px-4 pb-24"
+        className="mx-auto w-full max-w-5xl px-4 pb-20"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
