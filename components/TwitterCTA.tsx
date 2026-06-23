@@ -17,7 +17,9 @@ const FOLLOW_URL = "https://x.com/Stache_dev";
 const DELAY_MS = 3 * 60 * 1000;
 
 // Module-level: survives client-side navigation, resets on full reload (Cmd+R)
-const moduleLoadTime = Date.now();
+// Guard with typeof window so the timestamp is only set in the browser —
+// without this, SSR sets it at build/request time and the client inherits a stale value.
+const moduleLoadTime = typeof window !== "undefined" ? Date.now() : 0;
 let moduleDismissed = false;
 
 function XIcon({ className }: { className?: string }) {
@@ -40,7 +42,10 @@ export function TwitterCTA() {
     if (open || moduleDismissed) return;
 
     const remaining = DELAY_MS - (Date.now() - moduleLoadTime);
-    if (remaining <= 0) return;
+    if (remaining <= 0) {
+      setOpen(true);
+      return;
+    }
 
     timerRef.current = setTimeout(() => setOpen(true), remaining);
 
