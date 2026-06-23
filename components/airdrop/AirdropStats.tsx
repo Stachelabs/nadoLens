@@ -44,10 +44,10 @@ function StatCard({
   return (
     <Card className="flex flex-col items-center gap-2 p-4 text-center">
       <div
-        className={`flex size-10 items-center justify-center rounded-lg ${accent ? "bg-airdrop/15" : "bg-primary/10"}`}
+        className={accent ? "flex size-10 items-center justify-center rounded-lg bg-airdrop/15" : "flex size-10 items-center justify-center rounded-lg bg-primary/10"}
       >
         <Icon
-          className={`size-5 ${accent ? "text-airdrop" : "text-primary"}`}
+          className={accent ? "size-5 text-airdrop" : "size-5 text-primary"}
         />
       </div>
       <p className="text-xs text-muted-foreground">{label}</p>
