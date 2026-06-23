@@ -16,7 +16,11 @@ export default function AirdropPage() {
           <ScrambleWord text="Airdrop Dashboard" delay={200} cycles={8} />
         </h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Turn your Nado Points into an estimated $INK value
+          Turn your Nado Points into an estimated{" "}
+          <span className="bg-linear-to-r from-brand/70 to-brand bg-clip-text text-transparent">
+            $INK
+          </span>{" "}
+          value
         </p>
       </div>
       <AirdropDashboard />
