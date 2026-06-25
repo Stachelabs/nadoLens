@@ -160,7 +160,7 @@ export function AirdropSimulator() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label className="text-xs text-muted-foreground">
-              Season total duration (weeks)
+              Season 2 Total Duration (Weeks)
             </Label>
             <span className="text-xs font-medium text-foreground">
               {weeksOfFarm} W
