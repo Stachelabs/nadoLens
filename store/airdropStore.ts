@@ -33,11 +33,11 @@ export const TIER_NAMES: Record<number, string> = {
 
 export function volumeToWeeklyPoints(dailyVolumeM: number): number {
   if (dailyVolumeM <= 0) return S2_WEEKLY_POOL_FLOOR;
+  const ratio = Math.min(1, dailyVolumeM / 2000);
   const raw =
     S2_WEEKLY_POOL_FLOOR +
-    (S2_WEEKLY_POOL_CAP - S2_WEEKLY_POOL_FLOOR) *
-      (1 - Math.exp(-dailyVolumeM / 800));
-  return Math.min(Math.round(raw), S2_WEEKLY_POOL_CAP);
+    (S2_WEEKLY_POOL_CAP - S2_WEEKLY_POOL_FLOOR) * Math.pow(ratio, 1.5);
+  return Math.round(raw);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -73,6 +73,25 @@ type AirdropData = {
 };
 
 export type { EpochData, PointsData, AirdropData };
+
+// ─── S2 live data helpers ───────────────────────────────────────────────────
+
+const S2_START_TIMESTAMP = 1779408000;
+
+export function computeActualS2FromEpochs(epochs: EpochData[]): number {
+  return epochs
+    .filter((e) => e.startTime >= S2_START_TIMESTAMP)
+    .reduce((sum, e) => sum + e.totalPoints, 0);
+}
+
+export function countS2EpochsElapsed(epochs: EpochData[]): number {
+  const completed = epochs.filter(
+    (e) => e.startTime >= S2_START_TIMESTAMP,
+  ).length;
+  return completed > 0 ? completed + 1 : 0;
+}
+
+// ─── Store ──────────────────────────────────────────────────────────────────
 
 type AirdropStore = {
   address: string;
@@ -133,9 +152,22 @@ export function computeSimulation(state: {
   weeksOfFarm: number;
   inkFdv: number;
   airdropPct: number;
+  actualS2Distributed?: number;
+  s2EpochsElapsed?: number;
 }) {
   const weeklyPts = volumeToWeeklyPoints(state.dailyVolumeM);
-  const estimatedS2Points = weeklyPts * state.weeksOfFarm;
+  const hasLiveData =
+    state.actualS2Distributed !== undefined &&
+    state.s2EpochsElapsed !== undefined &&
+    state.s2EpochsElapsed > 0;
+
+  // With live data, weeksOfFarm = additional future weeks to estimate
+  // Without live data, weeksOfFarm = total S2 weeks to project
+  const remainingWeeks = state.weeksOfFarm;
+  const projectedRemaining = weeklyPts * remainingWeeks;
+  const estimatedS2Points = hasLiveData
+    ? state.actualS2Distributed! + projectedRemaining
+    : weeklyPts * state.weeksOfFarm;
   const totalPoolWithFarming =
     TOTAL_POINTS_POOL + estimatedS2Points - 7_620_000;
   const yourPoints = state.manualPoints;
@@ -176,5 +208,7 @@ export function computeSimulation(state: {
     airdropValue,
     dollarPerPoint,
     scenarios,
+    actualS2Distributed: hasLiveData ? state.actualS2Distributed! : undefined,
+    projectedRemaining: hasLiveData ? projectedRemaining : undefined,
   };
 }

@@ -2,10 +2,10 @@
 
 import { Card } from "@/components/ui/card";
 import {
+  computeActualS2FromEpochs,
   computeSimulation,
-  FIXED_TOTAL,
+  countS2EpochsElapsed,
   POOL_BREAKDOWN_FIXED,
-  TOTAL_POINTS_POOL,
   useAirdropStore,
 } from "@/store/airdropStore";
 import { useMemo } from "react";
@@ -43,25 +43,40 @@ export function AirdropPointsBreakdown() {
   const inkFdv = useAirdropStore((s) => s.inkFdv);
   const manualPoints = useAirdropStore((s) => s.manualPoints);
   const airdropPct = useAirdropStore((s) => s.airdropPct);
+  const epochs = useAirdropStore((s) => s.airdropData?.points?.epochs);
 
   const { entries, total } = useMemo(() => {
+    const actualS2 = epochs ? computeActualS2FromEpochs(epochs) : undefined;
+    const s2Elapsed = epochs ? countS2EpochsElapsed(epochs) : undefined;
+
     const sim = computeSimulation({
       manualPoints,
       dailyVolumeM,
       weeksOfFarm,
       inkFdv,
       airdropPct,
+      actualS2Distributed: actualS2,
+      s2EpochsElapsed: s2Elapsed,
     });
-    const s2 = sim.estimatedS2Points;
-    const dynamicTotal = FIXED_TOTAL + s2;
-    const remaining = Math.max(0, TOTAL_POINTS_POOL - dynamicTotal);
+
     const allEntries: BreakdownEntry[] = [
       ...POOL_BREAKDOWN_FIXED.map((e) => ({ ...e })),
-      { name: "S2 Projected", value: s2, color: "#60a5fa" },
-      { name: "Remaining", value: remaining, color: "#4a5568" },
     ];
-    return { entries: allEntries, total: dynamicTotal + remaining };
-  }, [dailyVolumeM, weeksOfFarm, inkFdv, manualPoints, airdropPct]);
+
+    if (sim.actualS2Distributed !== undefined && sim.projectedRemaining !== undefined) {
+      allEntries.push(
+        { name: "S2 Distributed", value: sim.actualS2Distributed, color: "#818cf8" },
+        { name: "S2 Remaining", value: sim.projectedRemaining, color: "#60a5fa" },
+      );
+    } else {
+      allEntries.push(
+        { name: "S2 Estimated", value: sim.estimatedS2Points, color: "#60a5fa" },
+      );
+    }
+
+    const dynamicTotal = allEntries.reduce((s, e) => s + e.value, 0);
+    return { entries: allEntries, total: dynamicTotal };
+  }, [dailyVolumeM, weeksOfFarm, inkFdv, manualPoints, airdropPct, epochs]);
 
   return (
     <Card className="p-5">

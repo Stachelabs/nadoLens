@@ -1,10 +1,11 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
-import { useAirdropStore } from "@/store/airdropStore";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useAirdropStore } from "@/store/airdropStore";
 import { Search, Wallet } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { z } from "zod";
@@ -49,17 +50,26 @@ export function AirdropSearch() {
   const setLoading = useAirdropStore((s) => s.setLoading);
   const setError = useAirdropStore((s) => s.setError);
 
+  const router = useRouter();
   const [inputValue, setInputValue] = useState(storeAddress);
   const [validationError, setValidationError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const genRef = useRef(0);
 
   useEffect(() => {
+    if (storeAddress && storeAddress !== inputValue) {
+      setInputValue(storeAddress);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync input from store on external changes only
+  }, [storeAddress]);
+
+  useEffect(() => {
     if (connectedAddress && !storeAddress) {
       setInputValue(connectedAddress);
       setAddress(connectedAddress);
+      router.replace(`/airdrop/${connectedAddress}`);
     }
-  }, [connectedAddress, storeAddress, setAddress]);
+  }, [connectedAddress, storeAddress, setAddress, router]);
 
   const fetchAirdrop = useCallback(
     async (addr: string) => {
@@ -127,34 +137,35 @@ export function AirdropSearch() {
     } else {
       setAddress(trimmed);
     }
+    router.push(`/airdrop/${trimmed}`);
   }
 
   return (
     <div className="space-y-2">
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <div className="relative flex-1">
-        <Wallet className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="0x... wallet address"
-          className="pl-10 font-mono text-sm"
-        />
-      </div>
-      <button
-        type="submit"
-        className={cn(
-          buttonVariants({ variant: "default", size: "default" }),
-          "gap-1.5",
-        )}
-      >
-        <Search className="size-4" />
-        <span className="hidden sm:inline">Lookup</span>
-      </button>
-    </form>
-    {validationError && (
-      <p className="text-sm text-destructive">{validationError}</p>
-    )}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <div className="relative flex-1">
+          <Wallet className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="0x... wallet address"
+            className="pl-10 font-mono text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          className={cn(
+            buttonVariants({ variant: "default", size: "default" }),
+            "gap-1.5",
+          )}
+        >
+          <Search className="size-4" />
+          <span className="hidden sm:inline">Lookup</span>
+        </button>
+      </form>
+      {validationError && (
+        <p className="text-sm text-destructive">{validationError}</p>
+      )}
     </div>
   );
 }
