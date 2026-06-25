@@ -26,7 +26,7 @@ export default function AirdropLayout({
               rel="noopener noreferrer"
               className="underline transition-colors hover:text-foreground"
             >
-              Read more about Nado point system
+              Read more about Nado Points
             </a>
           </span>
         </p>
@@ -37,7 +37,7 @@ export default function AirdropLayout({
           className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground underline transition-colors hover:text-foreground sm:hidden"
         >
           <BookOpen className="size-3.5" />
-          Read more about Nado point system
+          Read more about Nado Points
         </a>
       </div>
       {children}
