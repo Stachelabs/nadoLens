@@ -33,11 +33,11 @@ export const TIER_NAMES: Record<number, string> = {
 
 export function volumeToWeeklyPoints(dailyVolumeM: number): number {
   if (dailyVolumeM <= 0) return S2_WEEKLY_POOL_FLOOR;
+  const ratio = Math.min(1, dailyVolumeM / 2000);
   const raw =
     S2_WEEKLY_POOL_FLOOR +
-    (S2_WEEKLY_POOL_CAP - S2_WEEKLY_POOL_FLOOR) *
-      (1 - Math.exp(-dailyVolumeM / 800));
-  return Math.min(Math.round(raw), S2_WEEKLY_POOL_CAP);
+    (S2_WEEKLY_POOL_CAP - S2_WEEKLY_POOL_FLOOR) * Math.pow(ratio, 1.5);
+  return Math.round(raw);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
