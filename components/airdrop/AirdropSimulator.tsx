@@ -5,7 +5,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { computeSimulation, useAirdropStore } from "@/store/airdropStore";
+import {
+  computeActualS2FromEpochs,
+  computeSimulation,
+  countS2EpochsElapsed,
+  useAirdropStore,
+} from "@/store/airdropStore";
 import { useMemo } from "react";
 
 function XIcon({ className }: { className?: string }) {
@@ -86,18 +91,21 @@ export function AirdropSimulator() {
   const airdropPct = useAirdropStore((s) => s.airdropPct);
   const setInkFdv = useAirdropStore((s) => s.setInkFdv);
   const setAirdropPct = useAirdropStore((s) => s.setAirdropPct);
+  const epochs = useAirdropStore((s) => s.airdropData?.points?.epochs);
 
-  const sim = useMemo(
-    () =>
-      computeSimulation({
-        manualPoints,
-        dailyVolumeM,
-        weeksOfFarm,
-        inkFdv,
-        airdropPct,
-      }),
-    [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct],
-  );
+  const sim = useMemo(() => {
+    const actualS2 = epochs ? computeActualS2FromEpochs(epochs) : undefined;
+    const s2Elapsed = epochs ? countS2EpochsElapsed(epochs) : undefined;
+    return computeSimulation({
+      manualPoints,
+      dailyVolumeM,
+      weeksOfFarm,
+      inkFdv,
+      airdropPct,
+      actualS2Distributed: actualS2,
+      s2EpochsElapsed: s2Elapsed,
+    });
+  }, [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct, epochs]);
 
   return (
     <div className="space-y-6">
@@ -113,7 +121,7 @@ export function AirdropSimulator() {
       <Card className="space-y-5 p-5 **:data-[slot=slider-range]:bg-airdrop">
         {/* Points */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Your Points</Label>
+          <Label className="text-xs text-muted-foreground">Points</Label>
           <Input
             type="number"
             min={0}

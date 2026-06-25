@@ -203,7 +203,6 @@ export function AirdropStats() {
   const data = useAirdropStore((s) => s.airdropData);
   const isLoading = useAirdropStore((s) => s.isLoading);
   const error = useAirdropStore((s) => s.error);
-  const address = useAirdropStore((s) => s.address);
   const setManualPoints = useAirdropStore((s) => s.setManualPoints);
   const didPrefill = useRef(false);
 
@@ -222,8 +221,6 @@ export function AirdropStats() {
       }
     }
   }, [hasPoints, pts, setManualPoints]);
-
-  const idle = !address && !isLoading;
 
   const volumeDisplay =
     data?.totalVolume !== null && data?.totalVolume !== undefined
