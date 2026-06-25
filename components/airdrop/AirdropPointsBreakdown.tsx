@@ -8,7 +8,7 @@ import {
   POOL_BREAKDOWN_FIXED,
   useAirdropStore,
 } from "@/store/airdropStore";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Cell, Pie, PieChart, Tooltip } from "recharts";
 
 type BreakdownEntry = { name: string; value: number; color: string };
@@ -31,13 +31,16 @@ function CustomTooltip({
         {name}
       </p>
       <p className="text-xs text-muted-foreground">
-        {value.toLocaleString()} pts ({pct}%)
+        {value.toLocaleString("en-US")} pts ({pct}%)
       </p>
     </div>
   );
 }
 
 export function AirdropPointsBreakdown() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const dailyVolumeM = useAirdropStore((s) => s.dailyVolumeM);
   const weeksOfFarm = useAirdropStore((s) => s.weeksOfFarm);
   const inkFdv = useAirdropStore((s) => s.inkFdv);
@@ -83,24 +86,26 @@ export function AirdropPointsBreakdown() {
       <h2 className="mb-4 text-lg font-semibold text-foreground">
         Points Pool Breakdown
       </h2>
-      <div className="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row sm:items-start">
+      <div className="mx-auto flex w-fit flex-col items-center gap-4 sm:flex-row sm:items-center">
         <div className="h-[200px] w-[200px]">
-          <PieChart width={200} height={200}>
-            <Pie
-              data={entries}
-              cx="50%"
-              cy="50%"
-              innerRadius={50}
-              outerRadius={90}
-              paddingAngle={2}
-              dataKey="value"
-            >
-              {entries.map((entry) => (
-                <Cell key={entry.name} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip total={total} />} />
-          </PieChart>
+          {mounted && (
+            <PieChart width={200} height={200}>
+              <Pie
+                data={entries}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={90}
+                paddingAngle={2}
+                dataKey="value"
+              >
+                {entries.map((entry) => (
+                  <Cell key={entry.name} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip total={total} />} />
+            </PieChart>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">
