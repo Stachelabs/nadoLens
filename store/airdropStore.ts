@@ -85,7 +85,10 @@ export function computeActualS2FromEpochs(epochs: EpochData[]): number {
 }
 
 export function countS2EpochsElapsed(epochs: EpochData[]): number {
-  return epochs.filter((e) => e.startTime >= S2_START_TIMESTAMP).length;
+  const completed = epochs.filter(
+    (e) => e.startTime >= S2_START_TIMESTAMP,
+  ).length;
+  return completed > 0 ? completed + 1 : 0;
 }
 
 // ─── Store ──────────────────────────────────────────────────────────────────
