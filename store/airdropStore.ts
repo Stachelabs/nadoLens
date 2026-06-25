@@ -76,7 +76,7 @@ export type { EpochData, PointsData, AirdropData };
 
 // ─── S2 live data helpers ───────────────────────────────────────────────────
 
-const S2_START_TIMESTAMP = 1747785600;
+const S2_START_TIMESTAMP = 1779408000;
 
 export function computeActualS2FromEpochs(epochs: EpochData[]): number {
   return epochs
@@ -158,9 +158,9 @@ export function computeSimulation(state: {
     state.s2EpochsElapsed !== undefined &&
     state.s2EpochsElapsed > 0;
 
-  const remainingWeeks = hasLiveData
-    ? Math.max(0, state.weeksOfFarm - state.s2EpochsElapsed!)
-    : state.weeksOfFarm;
+  // With live data, weeksOfFarm = additional future weeks to estimate
+  // Without live data, weeksOfFarm = total S2 weeks to project
+  const remainingWeeks = state.weeksOfFarm;
   const projectedRemaining = weeklyPts * remainingWeeks;
   const estimatedS2Points = hasLiveData
     ? state.actualS2Distributed! + projectedRemaining

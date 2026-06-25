@@ -5,9 +5,7 @@ import {
   computeActualS2FromEpochs,
   computeSimulation,
   countS2EpochsElapsed,
-  FIXED_TOTAL,
   POOL_BREAKDOWN_FIXED,
-  TOTAL_POINTS_POOL,
   useAirdropStore,
 } from "@/store/airdropStore";
 import { useMemo } from "react";
@@ -68,19 +66,16 @@ export function AirdropPointsBreakdown() {
     if (sim.actualS2Distributed !== undefined && sim.projectedRemaining !== undefined) {
       allEntries.push(
         { name: "S2 Distributed", value: sim.actualS2Distributed, color: "#818cf8" },
-        { name: "S2 Projected", value: sim.projectedRemaining, color: "#60a5fa" },
+        { name: "S2 Remaining", value: sim.projectedRemaining, color: "#60a5fa" },
       );
     } else {
       allEntries.push(
-        { name: "S2 Projected", value: sim.estimatedS2Points, color: "#60a5fa" },
+        { name: "S2 Estimated", value: sim.estimatedS2Points, color: "#60a5fa" },
       );
     }
 
     const dynamicTotal = allEntries.reduce((s, e) => s + e.value, 0);
-    const remaining = Math.max(0, TOTAL_POINTS_POOL - dynamicTotal);
-    allEntries.push({ name: "Remaining", value: remaining, color: "#4a5568" });
-
-    return { entries: allEntries, total: dynamicTotal + remaining };
+    return { entries: allEntries, total: dynamicTotal };
   }, [dailyVolumeM, weeksOfFarm, inkFdv, manualPoints, airdropPct, epochs]);
 
   return (
