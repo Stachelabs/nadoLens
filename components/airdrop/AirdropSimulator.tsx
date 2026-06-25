@@ -11,7 +11,7 @@ import {
   countS2EpochsElapsed,
   useAirdropStore,
 } from "@/store/airdropStore";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -93,9 +93,19 @@ export function AirdropSimulator() {
   const setAirdropPct = useAirdropStore((s) => s.setAirdropPct);
   const epochs = useAirdropStore((s) => s.airdropData?.points?.epochs);
 
+  const s2Elapsed = useMemo(
+    () => (epochs ? countS2EpochsElapsed(epochs) : 0),
+    [epochs],
+  );
+
+  useEffect(() => {
+    if (s2Elapsed > 0 && weeksOfFarm < s2Elapsed) {
+      setWeeksOfFarm(s2Elapsed);
+    }
+  }, [s2Elapsed, weeksOfFarm, setWeeksOfFarm]);
+
   const sim = useMemo(() => {
     const actualS2 = epochs ? computeActualS2FromEpochs(epochs) : undefined;
-    const s2Elapsed = epochs ? countS2EpochsElapsed(epochs) : undefined;
     return computeSimulation({
       manualPoints,
       dailyVolumeM,
@@ -103,9 +113,9 @@ export function AirdropSimulator() {
       inkFdv,
       airdropPct,
       actualS2Distributed: actualS2,
-      s2EpochsElapsed: s2Elapsed,
+      s2EpochsElapsed: s2Elapsed > 0 ? s2Elapsed : undefined,
     });
-  }, [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct, epochs]);
+  }, [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct, epochs, s2Elapsed]);
 
   return (
     <div className="space-y-6">
@@ -169,7 +179,7 @@ export function AirdropSimulator() {
           <Slider
             value={[weeksOfFarm]}
             onValueChange={(v) => setWeeksOfFarm(sliderVal(v))}
-            min={1}
+            min={s2Elapsed > 0 ? s2Elapsed : 1}
             max={52}
             step={1}
           />
