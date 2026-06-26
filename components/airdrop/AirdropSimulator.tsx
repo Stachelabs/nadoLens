@@ -37,9 +37,29 @@ function formatPct(n: number): string {
   return `${(n * 100).toFixed(4)}%`;
 }
 
-function buildShareUrl(airdropValue: number): string {
+type ShareStats = {
+  points: string;
+  rank: number;
+  tier: string;
+  volume: string;
+};
+
+function formatPoints(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toFixed(0);
+}
+
+function buildShareUrl(
+  airdropValue: number,
+  stats: ShareStats | null,
+): string {
   const value = formatUsd(airdropValue);
-  const text = `My $INK airdrop could be worth ${value} thanks to my @nadoHQ activity 🌪️\n\nSimulated with NadoLens 🔍🫟 \n\nCheck yours 👇\nnadolens.xyz/airdrop`;
+  const statsParams = stats
+    ? `&pts=${encodeURIComponent(stats.points)}&rank=${stats.rank}&tier=${encodeURIComponent(stats.tier)}&vol=${encodeURIComponent(stats.volume)}`
+    : '';
+  const shareLink = `nadolens.xyz/airdrop?val=${encodeURIComponent(value)}${statsParams}`;
+  const text = `My $INK #airdrop could be worth ${value} thanks to my @nadoHQ activity 🌪️\n\nSimulated with NadoLens 🔍🫟 \n\nCheck yours 👇\n${shareLink}`;
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
 
@@ -91,7 +111,8 @@ export function AirdropSimulator() {
   const airdropPct = useAirdropStore((s) => s.airdropPct);
   const setInkFdv = useAirdropStore((s) => s.setInkFdv);
   const setAirdropPct = useAirdropStore((s) => s.setAirdropPct);
-  const epochs = useAirdropStore((s) => s.airdropData?.points?.epochs);
+  const airdropData = useAirdropStore((s) => s.airdropData);
+  const epochs = airdropData?.points?.epochs;
 
   const s2Elapsed = useMemo(
     () => (epochs ? countS2EpochsElapsed(epochs) : 0),
@@ -115,7 +136,35 @@ export function AirdropSimulator() {
       actualS2Distributed: actualS2,
       s2EpochsElapsed: s2Elapsed > 0 ? s2Elapsed : undefined,
     });
-  }, [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct, epochs, s2Elapsed]);
+  }, [
+    manualPoints,
+    dailyVolumeM,
+    weeksOfFarm,
+    inkFdv,
+    airdropPct,
+    epochs,
+    s2Elapsed,
+  ]);
+
+  const shareStats = useMemo((): ShareStats | null => {
+    const pts = airdropData?.points;
+    if (!pts) return null;
+    const vol = airdropData.totalVolume;
+    const volStr =
+      vol !== null && vol !== undefined
+        ? vol >= 1_000_000
+          ? `$${(vol / 1_000_000).toFixed(2)}M`
+          : vol >= 1_000
+            ? `$${(vol / 1_000).toFixed(1)}K`
+            : `$${vol.toFixed(2)}`
+        : '$0';
+    return {
+      points: formatPoints(pts.allTimePoints),
+      rank: pts.allTimeRank,
+      tier: pts.allTimeTierName,
+      volume: volStr,
+    };
+  }, [airdropData]);
 
   return (
     <div className="space-y-6">
@@ -232,7 +281,7 @@ export function AirdropSimulator() {
           </span>
           <div className="mt-1 flex items-center gap-2">
             <a
-              href={buildShareUrl(sim.airdropValue)}
+              href={buildShareUrl(sim.airdropValue, shareStats)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-80"
