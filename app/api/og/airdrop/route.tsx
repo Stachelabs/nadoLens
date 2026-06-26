@@ -1,22 +1,39 @@
 import { ImageResponse } from 'next/og'
+import { NextRequest } from 'next/server'
 
-export const alt = 'NadoLens — $INK Airdrop Dashboard'
+export const runtime = 'edge'
 
-export const size = {
-  width: 1200,
-  height: 630,
-}
+const SIZE = { width: 1200, height: 630 }
 
-export const contentType = 'image/png'
-
-const STATS = [
-  { label: 'Points', icon: '★', example: 'Track yours' },
-  { label: 'Rank', icon: '#', example: 'See position' },
-  { label: 'Tier', icon: '🏅', example: 'Breeze → Tornado' },
-  { label: 'Volume', icon: '📈', example: 'All-time stats' },
+const FALLBACK_STATS = [
+  { label: 'Points', value: 'Track yours' },
+  { label: 'Rank', value: 'See position' },
+  { label: 'Tier', value: 'Breeze → Tornado' },
+  { label: 'Volume', value: 'All-time stats' },
 ]
 
-export default async function Image() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl
+  const pts = searchParams.get('pts')
+  const rank = searchParams.get('rank')
+  const tier = searchParams.get('tier')
+  const vol = searchParams.get('vol')
+  const val = searchParams.get('val')
+
+  const hasData = pts && rank && tier && vol
+  const stats = hasData
+    ? [
+        { label: 'All Time Points', value: pts },
+        { label: 'All Time Rank', value: `#${rank}` },
+        { label: 'Trader Tier', value: tier },
+        { label: 'Total Trading Volume', value: vol },
+      ]
+    : FALLBACK_STATS
+
+  const headline = val
+    ? `$INK Airdrop ≈ ${val}`
+    : 'Check your $INK Airdrop'
+
   return new ImageResponse(
     (
       <div
@@ -48,7 +65,7 @@ export default async function Image() {
           }}
         />
 
-        {/* Top: NadoLens branding */}
+        {/* NadoLens branding */}
         <div
           style={{
             display: 'flex',
@@ -59,22 +76,22 @@ export default async function Image() {
         >
           <div
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
+              width: '44px',
+              height: '44px',
+              borderRadius: '10px',
               background:
                 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '24px',
+              fontSize: '22px',
             }}
           >
             🔍
           </div>
           <div
             style={{
-              fontSize: '36px',
+              fontSize: '32px',
               fontWeight: 700,
               color: '#ffffff',
               letterSpacing: '-1px',
@@ -88,10 +105,9 @@ export default async function Image() {
         {/* Subtitle */}
         <div
           style={{
-            fontSize: '20px',
-            fontWeight: 400,
+            fontSize: '18px',
             color: '#a1a1aa',
-            marginBottom: '40px',
+            marginBottom: '36px',
             display: 'flex',
           }}
         >
@@ -101,49 +117,32 @@ export default async function Image() {
         {/* Main headline */}
         <div
           style={{
-            fontSize: '48px',
+            fontSize: '52px',
             fontWeight: 800,
             color: '#ffffff',
             letterSpacing: '-1.5px',
-            marginBottom: '8px',
+            marginBottom: '36px',
             display: 'flex',
           }}
         >
-          Check your $INK Airdrop
-        </div>
-
-        <div
-          style={{
-            fontSize: '22px',
-            fontWeight: 400,
-            color: '#a855f7',
-            marginBottom: '40px',
-            display: 'flex',
-          }}
-        >
-          Points · Rank · Tier · Volume · Simulator
+          {headline}
         </div>
 
         {/* 4 stat cards */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '16px',
-          }}
-        >
-          {STATS.map((stat) => (
+        <div style={{ display: 'flex', gap: '16px' }}>
+          {stats.map((stat) => (
             <div
               key={stat.label}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '20px 28px',
+                gap: '10px',
+                padding: '20px 24px',
                 borderRadius: '16px',
-                background: 'rgba(26, 26, 46, 0.8)',
-                border: '1px solid rgba(168, 85, 247, 0.25)',
-                minWidth: '200px',
+                background: 'rgba(20, 20, 35, 0.9)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
+                minWidth: '220px',
               }}
             >
               <div
@@ -151,19 +150,26 @@ export default async function Image() {
                   width: '44px',
                   height: '44px',
                   borderRadius: '10px',
-                  background:
-                    'linear-gradient(135deg, rgba(168,85,247,0.3) 0%, rgba(124,58,237,0.3) 100%)',
+                  background: 'rgba(168,85,247,0.2)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '22px',
+                  fontSize: '20px',
+                  color: '#a855f7',
+                  fontWeight: 700,
                 }}
               >
-                {stat.icon}
+                {stat.label === 'All Time Points' || stat.label === 'Points'
+                  ? '★'
+                  : stat.label === 'All Time Rank' || stat.label === 'Rank'
+                    ? '#'
+                    : stat.label === 'Trader Tier' || stat.label === 'Tier'
+                      ? '🏅'
+                      : '📈'}
               </div>
               <div
                 style={{
-                  fontSize: '14px',
+                  fontSize: '13px',
                   color: '#a1a1aa',
                   display: 'flex',
                 }}
@@ -172,13 +178,13 @@ export default async function Image() {
               </div>
               <div
                 style={{
-                  fontSize: '16px',
-                  fontWeight: 600,
+                  fontSize: hasData ? '24px' : '16px',
+                  fontWeight: 700,
                   color: '#ffffff',
                   display: 'flex',
                 }}
               >
-                {stat.example}
+                {stat.value}
               </div>
             </div>
           ))}
@@ -199,6 +205,6 @@ export default async function Image() {
         />
       </div>
     ),
-    { ...size },
+    { ...SIZE },
   )
 }
