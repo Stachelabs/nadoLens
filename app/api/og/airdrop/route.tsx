@@ -5,6 +5,10 @@ export const runtime = 'edge'
 
 const SIZE = { width: 1200, height: 630 }
 
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
+}
+
 function BrandingHeader() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -201,7 +205,7 @@ export async function GET(request: NextRequest) {
           <BottomBar />
         </div>
       ),
-      { ...SIZE },
+      { ...SIZE, headers: CACHE_HEADERS },
     )
   }
 
@@ -259,7 +263,7 @@ export async function GET(request: NextRequest) {
           <BottomBar />
         </div>
       ),
-      { ...SIZE },
+      { ...SIZE, headers: CACHE_HEADERS },
     )
   }
 
@@ -292,6 +296,6 @@ export async function GET(request: NextRequest) {
         <BottomBar />
       </div>
     ),
-    { ...SIZE },
+    { ...SIZE, headers: CACHE_HEADERS },
   )
 }
