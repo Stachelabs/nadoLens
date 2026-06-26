@@ -19,9 +19,15 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const val = param(sp.val);
   const hasStats = pts && rank && tier && vol;
 
-  const ogParams = hasStats
-    ? `?pts=${encodeURIComponent(pts)}&rank=${encodeURIComponent(rank)}&tier=${encodeURIComponent(tier)}&vol=${encodeURIComponent(vol)}${val ? `&val=${encodeURIComponent(val)}` : ''}`
-    : '';
+  const ogParts: string[] = [];
+  if (val) ogParts.push(`val=${encodeURIComponent(val)}`);
+  if (hasStats) {
+    ogParts.push(`pts=${encodeURIComponent(pts)}`);
+    ogParts.push(`rank=${encodeURIComponent(rank)}`);
+    ogParts.push(`tier=${encodeURIComponent(tier)}`);
+    ogParts.push(`vol=${encodeURIComponent(vol)}`);
+  }
+  const ogParams = ogParts.length > 0 ? `?${ogParts.join('&')}` : '';
 
   const title = val
     ? `$INK Airdrop ≈ ${val} | NadoLens`

@@ -55,10 +55,10 @@ function buildShareUrl(
   stats: ShareStats | null,
 ): string {
   const value = formatUsd(airdropValue);
-  const ogParams = stats
-    ? `?pts=${encodeURIComponent(stats.points)}&rank=${stats.rank}&tier=${encodeURIComponent(stats.tier)}&vol=${encodeURIComponent(stats.volume)}&val=${encodeURIComponent(value)}`
+  const statsParams = stats
+    ? `&pts=${encodeURIComponent(stats.points)}&rank=${stats.rank}&tier=${encodeURIComponent(stats.tier)}&vol=${encodeURIComponent(stats.volume)}`
     : '';
-  const shareLink = `nadolens.xyz/airdrop${ogParams}`;
+  const shareLink = `nadolens.xyz/airdrop?val=${encodeURIComponent(value)}${statsParams}`;
   const text = `My $INK #airdrop could be worth ${value} thanks to my @nadoHQ activity 🌪️\n\nSimulated with NadoLens 🔍🫟 \n\nCheck yours 👇\n${shareLink}`;
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
