@@ -1,73 +1,15 @@
 {
-  "generatedAt": "2026-06-16T15:36:07.285Z",
+  "generatedAt": "2026-06-26T09:36:07.627Z",
   "gateway": "https://gateway.prod.nado.xyz/v2",
   "marketKind": "spot",
   "entries": [
-    {
-      "marketKey": "KBTC",
-      "product_id": 1,
-      "symbol": "KBTC",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=kBTC/USDT0",
-      "message": "Spot market switcher does not show kBTC/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "NLP",
-      "product_id": 11,
-      "symbol": "NLP",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=NLP/USDT0",
-      "message": "Spot market switcher does not show NLP/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "USDC",
-      "product_id": 5,
-      "symbol": "USDC",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/spot?market=USDC/USDT0",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/usdc.3acc98a8.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
-      "sha256": "cc25427edbfd4bdeaf12f4611809ea4188a903e0758939f903ca9ecc0a44be71",
-      "bytes": 1344
-    },
-    {
-      "marketKey": "WETH",
-      "product_id": 3,
-      "symbol": "WETH",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=wETH/USDT0",
-      "message": "Spot market switcher does not show wETH/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wAAPLx",
-      "product_id": 143,
-      "symbol": "wAAPLx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=AAPLx/USDT0",
-      "message": "Spot market switcher does not show AAPLx/USDT0 — not listed on app.nado.xyz yet."
-    },
     {
       "marketKey": "wAMZNx",
       "product_id": 145,
       "symbol": "wAMZNx",
       "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=USDC/USDT0",
-      "message": "URL shows ?market=USDC/USDT0 but expected route is AMZNx/USDT0. No stable route for this spot on app.nado.xyz."
-    },
-    {
-      "marketKey": "wGOOGLx",
-      "product_id": 147,
-      "symbol": "wGOOGLx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=GOOGLx/USDT0",
-      "message": "Spot market switcher does not show GOOGLx/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wMETAx",
-      "product_id": 149,
-      "symbol": "wMETAx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=METAx/USDT0",
-      "message": "Spot market switcher does not show METAx/USDT0 — not listed on app.nado.xyz yet."
+      "finalUrl": "https://app.nado.xyz/spot?market=AMZNx/USDT0",
+      "message": "Spot market switcher does not show AMZNx/USDT0 — not listed on app.nado.xyz yet."
     },
     {
       "marketKey": "wMSFTx",
@@ -76,38 +18,6 @@
       "status": "skipped_not_on_app",
       "finalUrl": "https://app.nado.xyz/spot?market=MSFTx/USDT0",
       "message": "Spot market switcher does not show MSFTx/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wNVDAx",
-      "product_id": 153,
-      "symbol": "wNVDAx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=NVDAx/USDT0",
-      "message": "Spot market switcher does not show NVDAx/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wQQQx",
-      "product_id": 115,
-      "symbol": "wQQQx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=QQQx/USDT0",
-      "message": "Spot market switcher does not show QQQx/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wSPYx",
-      "product_id": 117,
-      "symbol": "wSPYx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=SPYx/USDT0",
-      "message": "Spot market switcher does not show SPYx/USDT0 — not listed on app.nado.xyz yet."
-    },
-    {
-      "marketKey": "wTSLAx",
-      "product_id": 155,
-      "symbol": "wTSLAx",
-      "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/spot?market=TSLAx/USDT0",
-      "message": "Spot market switcher does not show TSLAx/USDT0 — not listed on app.nado.xyz yet."
     }
   ]
 }
