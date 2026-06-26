@@ -39,7 +39,7 @@ function formatPct(n: number): string {
 
 function buildShareUrl(airdropValue: number): string {
   const value = formatUsd(airdropValue);
-  const text = `My $INK airdrop could be worth ${value} thanks to my @nadoHQ activity 🌪️\n\nSimulated with NadoLens 🔍🫟 \n\nCheck yours 👇\nnadolens.xyz/airdrop`;
+  const text = `My $INK #airdrop could be worth ${value} thanks to my @nadoHQ activity 🌪️\n\nSimulated with NadoLens 🔍🫟 \n\nCheck yours 👇\nnadolens.xyz/airdrop`;
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
 
@@ -115,7 +115,15 @@ export function AirdropSimulator() {
       actualS2Distributed: actualS2,
       s2EpochsElapsed: s2Elapsed > 0 ? s2Elapsed : undefined,
     });
-  }, [manualPoints, dailyVolumeM, weeksOfFarm, inkFdv, airdropPct, epochs, s2Elapsed]);
+  }, [
+    manualPoints,
+    dailyVolumeM,
+    weeksOfFarm,
+    inkFdv,
+    airdropPct,
+    epochs,
+    s2Elapsed,
+  ]);
 
   return (
     <div className="space-y-6">
