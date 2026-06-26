@@ -93,7 +93,6 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Exposes `POST /matches` (Archive proxy, Upstash Redis cache with TTL) · `GET /sse` (SSE → browser) · `GET /health`
 - **Token bucket**: In-memory sliding window rate limiter — 350 weight/10s budget, `X-NadoLens-Queued: true` header when wait > 2s, max 8s wait
 - Redis cache: Archive `/matches` responses cached by request hash — `no_cache` flag bypasses TTL
-- Static market subscriptions on startup: `liquidation` stream + `book_depth` for all products
 - SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount; subscriptions re-registered on WS reconnect
 - Client-side: `hooks/useAccountStream.ts` — EventSource with exponential-backoff reconnect
 
@@ -178,8 +177,6 @@ Archive:   https://archive.prod.nado.xyz/v1 (v2) — POST JSON
 ### API quirks
 
 - `/v2/tickers` and `/v2/trades` return **normal decimals** (NOT x18)
-- `book_depth` = diffs — size `"0"` = level removed from the order book
-- `product_id: null` on liquidation stream = all pairs
 
 ---
 
