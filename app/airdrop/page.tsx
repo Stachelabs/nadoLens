@@ -50,7 +50,12 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
       title,
       description:
         "Check your INK airdrop allocation, trading volume, and simulate potential airdrop value on Nado.",
-      images: [`${baseUrl}/api/og/airdrop${ogParams}`],
+      images: {
+        url: `${baseUrl}/api/og/airdrop${ogParams}`,
+        alt: val
+          ? `NadoLens airdrop card showing estimated value of ${val}`
+          : "NadoLens airdrop simulator card",
+      },
     },
   };
 }
