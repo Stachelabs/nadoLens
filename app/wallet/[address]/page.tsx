@@ -6,11 +6,14 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
+import { useOpenOrders } from "@/hooks/useOpenOrders";
+import { useTriggerOrders } from "@/hooks/useTriggerOrders";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
 import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
 import { WalletStats } from "@/components/wallet/WalletStats";
+import { WalletOpenOrders } from "@/components/wallet/WalletOpenOrders";
 import { WalletPositions } from "@/components/wallet/WalletPositions";
 import { WalletTradeHistory } from "@/components/wallet/WalletTradeHistory";
 import { WalletEquityCurve } from "@/components/wallet/WalletEquityCurve";
@@ -101,6 +104,25 @@ function WalletContent({ address }: { address: string }) {
     () => (stats ? buildSubaccountLabelByHex(stats) : new Map<string, string>()),
     [stats],
   );
+
+  const ordersCrossSubaccounts = useMemo(
+    () => stats?.cross_subaccounts ?? null,
+    [stats],
+  );
+  const {
+    orders: openOrders,
+    loading: openOrdersLoading,
+    refreshing: openOrdersRefreshing,
+    refresh: refreshOpenOrders,
+  } = useOpenOrders(address, ordersCrossSubaccounts, phase1Ready);
+
+  const {
+    triggerOrders,
+    loading: triggerOrdersLoading,
+    signatureNeeded,
+    requestSignature,
+    hasSigned: _triggerHasSigned,
+  } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
 
   if (!phase1Ready) {
     if (timedOut) {
@@ -202,6 +224,17 @@ function WalletContent({ address }: { address: string }) {
             matchedPositionKeys={matchedPositionKeys}
             snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
+          />
+          <WalletOpenOrders
+            orders={openOrders}
+            triggerOrders={triggerOrders}
+            crossSubaccountLabels={tradeCrossSubaccountLabels}
+            onRefresh={refreshOpenOrders}
+            refreshing={openOrdersRefreshing}
+            loading={openOrdersLoading}
+            signatureNeeded={signatureNeeded}
+            onRequestSignature={requestSignature}
+            triggerLoading={triggerOrdersLoading}
           />
           <WalletTradeHistory
             trades={trades}

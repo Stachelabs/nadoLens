@@ -537,6 +537,7 @@ export const NadoOrderSchema = z.object({
   digest: z.string(),
   placed_at: z.number(),
   order_type: z.enum(['default', 'ioc', 'fok', 'post_only']),
+  id: z.number().optional(),
 })
 export type NadoOrder = z.infer<typeof NadoOrderSchema>
 
@@ -554,6 +555,89 @@ export const ProductOrdersDataSchema = z.object({
       orders: z.array(NadoOrderSchema),
     })
   ),
+})
+
+// ─── Trigger service — list_trigger_orders ──────────────────────────────────
+
+const TriggerPriceRequirementSchema = z.union([
+  z.object({ oracle_price_above: z.string() }),
+  z.object({ oracle_price_below: z.string() }),
+  z.object({ last_price_above: z.string() }),
+  z.object({ last_price_below: z.string() }),
+  z.object({ mid_price_above: z.string() }),
+  z.object({ mid_price_below: z.string() }),
+])
+
+const TriggerDependencySchema = z.object({
+  digest: z.string(),
+  on_partial_fill: z.boolean(),
+})
+
+const PriceTriggerCriteriaSchema = z.object({
+  price_requirement: TriggerPriceRequirementSchema,
+  dependency: TriggerDependencySchema.nullable().optional(),
+})
+
+const TimeTriggerCriteriaSchema = z.object({
+  interval: z.number(),
+  amounts: z.array(z.string()).optional(),
+})
+
+const TriggerCriteriaSchema = z.union([
+  z.object({ price_trigger: PriceTriggerCriteriaSchema }),
+  z.object({ time_trigger: TimeTriggerCriteriaSchema }),
+])
+
+const TriggerOrderEIP712Schema = z.object({
+  sender: z.string(),
+  priceX18: z.string(),
+  amount: z.string(),
+  expiration: z.string(),
+  nonce: z.string(),
+  appendix: z.string(),
+})
+
+const TriggerServerCancelReasonSchema = z.enum([
+  'user_requested', 'linked_signer_changed', 'expired',
+  'account_health', 'isolated_subaccount_closed', 'dependent_order_cancelled',
+])
+
+const TriggerOrderStatusSchema = z.union([
+  z.literal('waiting_price'),
+  z.literal('waiting_dependency'),
+  z.literal('triggering'),
+  z.object({ cancelled: TriggerServerCancelReasonSchema }),
+  z.object({ triggered: z.unknown() }),
+  z.object({ internal_error: z.string() }),
+  z.object({ twap_executing: z.object({ current_execution: z.number(), total_executions: z.number() }) }),
+  z.object({ twap_completed: z.object({ executed: z.number(), total: z.number() }) }),
+])
+export type TriggerOrderStatus = z.infer<typeof TriggerOrderStatusSchema>
+
+const TriggerServerOrderSchema = z.object({
+  id: z.number().nullable(),
+  product_id: z.number(),
+  order: TriggerOrderEIP712Schema,
+  trigger: TriggerCriteriaSchema,
+  signature: z.string(),
+  digest: z.string().nullable(),
+  spot_leverage: z.boolean().nullable(),
+  borrow_margin: z.boolean().nullable(),
+})
+
+export const TriggerOrderInfoSchema = z.object({
+  order: TriggerServerOrderSchema,
+  status: TriggerOrderStatusSchema,
+  updated_at: z.number(),
+  placed_at: z.number(),
+})
+export type TriggerOrderInfo = z.infer<typeof TriggerOrderInfoSchema>
+
+export const TriggerListOrdersResponseSchema = z.object({
+  status: z.literal('success'),
+  data: z.object({
+    orders: z.array(TriggerOrderInfoSchema),
+  }),
 })
 
 // ─── Gateway v1 — all_products ────────────────────────────────────────────────

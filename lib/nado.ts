@@ -15,6 +15,10 @@ export const NADO_MATCHES_SERVICE_URL =
 export const NADO_FUNDING_SERVICE_URL =
   process.env.NADO_FUNDING_SERVICE_URL ?? "";
 
+// ─── Trigger service (signed queries — EIP-712) ─────────────────────────────
+export const NADO_TRIGGER_REST =
+  process.env.NADO_TRIGGER_REST ?? "https://trigger.prod.nado.xyz/v1";
+
 // ─── Client-safe URLs (NEXT_PUBLIC_ — visible dans le bundle browser) ─────────
 // Utilisé par les hooks qui appellent Nado directement (ex: fetchMatches)
 export const NADO_ARCHIVE_V1 =

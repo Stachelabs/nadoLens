@@ -1,0 +1,201 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ProductOrdersDataSchema } from "@/lib/schemas/nado";
+import type { NadoOrder } from "@/lib/schemas/nado";
+import { usePairsStore, productName } from "@/store/pairsStore";
+import { fromX18BigInt } from "@/types/nado";
+import { toast } from "sonner";
+
+const POLL_INTERVAL_MS = 60_000;
+const REFRESH_COOLDOWN_MS = 2_000;
+
+type OpenOrderEntry = NadoOrder & {
+  subaccountLabel: string;
+};
+
+type UseOpenOrdersResult = {
+  orders: OpenOrderEntry[];
+  loading: boolean;
+  refreshing: boolean;
+  refresh: () => void;
+};
+
+function formatOrderPrice(priceX18: string): string {
+  const price = fromX18BigInt(priceX18);
+  const abs = Math.abs(price);
+  if (abs > 0 && abs < 1) return price.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 6, maximumFractionDigits: 6 });
+  if (abs < 1000) return price.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  return price.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+}
+
+export function useOpenOrders(
+  address: string | null,
+  crossSubaccounts: { subaccount: string; label: string }[] | null,
+  phase1Ready: boolean,
+): UseOpenOrdersResult {
+  const [orders, setOrders] = useState<OpenOrderEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const prevDigestsRef = useRef<Set<string> | null>(null);
+  const prevOrderMapRef = useRef<Map<string, OpenOrderEntry>>(new Map());
+  const lastRefreshRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  const fetchOrders = useCallback(
+    async (signal: AbortSignal, isInitial: boolean) => {
+      if (!address || !crossSubaccounts || crossSubaccounts.length === 0) return;
+
+      const assets = usePairsStore.getState().assets;
+      const productIds = assets
+        .filter((a) => a.market_type === "perp")
+        .map((a) => a.product_id);
+      if (productIds.length === 0) return;
+
+      const productIdsParam = productIds.join(",");
+      const allOrders: OpenOrderEntry[] = [];
+
+      for (let i = 0; i < crossSubaccounts.length; i++) {
+        const sub = crossSubaccounts[i]!;
+        if (signal.aborted) return;
+        // Stagger sequential calls to avoid 429
+        if (i > 0) await new Promise((r) => setTimeout(r, 500));
+        try {
+          const res = await fetch(
+            `/api/wallet/${sub.subaccount}?query=orders&product_ids=${productIdsParam}`,
+            { signal },
+          );
+          if (!res.ok) continue;
+          const raw: unknown = await res.json();
+          const parsed = ProductOrdersDataSchema.safeParse(raw);
+          if (!parsed.success) continue;
+
+          for (const po of parsed.data.product_orders) {
+            for (const order of po.orders) {
+              allOrders.push({ ...order, subaccountLabel: sub.label });
+            }
+          }
+        } catch (e) {
+          if (e instanceof DOMException && e.name === "AbortError") return;
+        }
+      }
+
+      if (signal.aborted) return;
+
+      // Diff-based toast notifications (skip initial fetch)
+      const currentDigests = new Set(allOrders.map((o) => o.digest));
+      const currentMap = new Map(allOrders.map((o) => [o.digest, o]));
+
+      if (!isInitial && prevDigestsRef.current) {
+        const prevDigests = prevDigestsRef.current;
+        const prevMap = prevOrderMapRef.current;
+
+        for (const digest of currentDigests) {
+          if (!prevDigests.has(digest)) {
+            const order = currentMap.get(digest);
+            if (order) {
+              const pair = productName(order.product_id);
+              const direction = fromX18BigInt(order.amount) >= 0 ? "Long" : "Short";
+              const price = formatOrderPrice(order.price_x18);
+              toast.info(`${pair} — New Order`, {
+                description: `${direction} @ ${price}`,
+              });
+            }
+          }
+        }
+
+        for (const digest of prevDigests) {
+          if (!currentDigests.has(digest)) {
+            const order = prevMap.get(digest);
+            if (order) {
+              const pair = productName(order.product_id);
+              const direction = fromX18BigInt(order.amount) >= 0 ? "Long" : "Short";
+              const price = formatOrderPrice(order.price_x18);
+              toast.warning(`${pair} — Order Removed`, {
+                description: `${direction} @ ${price}`,
+              });
+            }
+          }
+        }
+      }
+
+      prevDigestsRef.current = currentDigests;
+      prevOrderMapRef.current = currentMap;
+
+      // Sort: by product_id, then placed_at descending
+      allOrders.sort((a, b) => {
+        const byProduct = a.product_id - b.product_id;
+        if (byProduct !== 0) return byProduct;
+        return b.placed_at - a.placed_at;
+      });
+
+      if (mountedRef.current) {
+        setOrders(allOrders);
+      }
+    },
+    [address, crossSubaccounts],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    if (!phase1Ready || !address || !crossSubaccounts) {
+      setOrders([]);
+      prevDigestsRef.current = null;
+      prevOrderMapRef.current = new Map();
+      return;
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let cancelled = false;
+
+    const poll = async (isInitial: boolean) => {
+      if (cancelled) return;
+      if (isInitial) setLoading(true);
+
+      await fetchOrders(controller.signal, isInitial);
+
+      if (cancelled) return;
+      if (isInitial && mountedRef.current) setLoading(false);
+
+      timerRef.current = setTimeout(() => {
+        if (!cancelled) void poll(false);
+      }, POLL_INTERVAL_MS);
+    };
+
+    void poll(true);
+
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+      controller.abort();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [phase1Ready, address, crossSubaccounts, fetchOrders]);
+
+  const refresh = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return;
+    lastRefreshRef.current = now;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
+    setRefreshing(true);
+    fetchOrders(controller.signal, false).finally(() => {
+      if (mountedRef.current) setRefreshing(false);
+      timerRef.current = setTimeout(() => {
+        void fetchOrders(controller.signal, false).then(() => {
+          // Continue poll chain
+        });
+      }, POLL_INTERVAL_MS);
+    });
+  }, [fetchOrders]);
+
+  return { orders, loading, refreshing, refresh };
+}
