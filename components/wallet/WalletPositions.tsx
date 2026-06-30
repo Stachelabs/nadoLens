@@ -28,7 +28,7 @@ import {
 import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
 import { useWalletFundingStore } from "@/store/walletFundingStore";
-import { RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
@@ -124,6 +124,9 @@ type Props = {
   snapshotReady?: boolean;
   /** True while Gateway positions are being fetched (Phase 1 in progress). */
   loading?: boolean;
+  isOwnWallet?: boolean;
+  onClosePosition?: (position: Position) => void;
+  closingProductIds?: Set<number>;
 };
 
 export function WalletPositions({
@@ -136,6 +139,9 @@ export function WalletPositions({
   matchedPositionKeys = [],
   snapshotReady = true,
   loading = false,
+  isOwnWallet = false,
+  onClosePosition,
+  closingProductIds,
 }: Props) {
   const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
   const fundedSubaccounts = useWalletFundingStore((s) => s.forActive()?.positionFundedSubaccounts ?? []);
@@ -332,6 +338,7 @@ export function WalletPositions({
                   "Realized PnL",
                   "Funding",
                   "Fees",
+                  ...(isOwnWallet ? ["_actions"] : []),
                 ].map((h) => {
                   if (h.startsWith("_"))
                     return <TableHead key={h} className="pb-2 px-1" />;
@@ -574,6 +581,24 @@ export function WalletPositions({
                         "—"
                       )}
                     </TableCell>
+                    {isOwnWallet && (
+                      <TableCell className="py-2 px-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:border-destructive/30"
+                          disabled={closingProductIds?.has(pos.product_id) ?? false}
+                          onClick={() => onClosePosition?.(pos)}
+                        >
+                          {closingProductIds?.has(pos.product_id) ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            "Close"
+                          )}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}

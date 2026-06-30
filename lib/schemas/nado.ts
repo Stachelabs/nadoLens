@@ -557,6 +557,24 @@ export const ProductOrdersDataSchema = z.object({
   ),
 })
 
+// ─── Execute results (cancel / place order) ─────────────────────────────────
+
+export const ExecuteSuccessResultSchema = z.object({
+  status: z.literal("success"),
+  data: z.object({ digest: z.string() }).optional(),
+  request_type: z.string(),
+})
+export type ExecuteSuccessResult = z.infer<typeof ExecuteSuccessResultSchema>
+
+export const CancelOrdersResultSchema = z.object({
+  status: z.literal("success"),
+  data: z.object({
+    cancelled_orders: z.array(NadoOrderSchema).optional(),
+  }).optional(),
+  request_type: z.string(),
+})
+export type CancelOrdersResult = z.infer<typeof CancelOrdersResultSchema>
+
 // ─── Trigger service — list_trigger_orders ──────────────────────────────────
 
 const TriggerPriceRequirementSchema = z.union([

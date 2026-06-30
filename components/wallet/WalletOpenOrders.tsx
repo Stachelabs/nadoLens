@@ -29,7 +29,7 @@ import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import { productName } from "@/store/pairsStore";
 import { fromX18BigInt } from "@/types/nado";
 import type { NadoOrder, TriggerOrderInfo, TriggerOrderStatus } from "@/lib/schemas/nado";
-import { RefreshCw, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, ShieldCheck, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 // ─── Unified row type ──────────────────────────────────────────────────────
@@ -38,7 +38,9 @@ type LimitOrderRow = {
   kind: "limit";
   key: string;
   productId: number;
+  digest: string;
   subaccountLabel: string;
+  subaccountName: string;
   orderType: string;
   isLong: boolean;
   price: number;
@@ -56,7 +58,9 @@ type TriggerOrderRow = {
   kind: "trigger";
   key: string;
   productId: number;
+  digest: string | null;
   subaccountLabel: string;
+  subaccountName: string;
   orderType: string;
   isLong: boolean;
   price: number;
@@ -78,6 +82,14 @@ type UnifiedRow = LimitOrderRow | TriggerOrderRow;
 type OpenOrderEntry = NadoOrder & { subaccountLabel: string };
 type TriggerOrderEntry = TriggerOrderInfo & { subaccountLabel: string };
 
+type CancelOrderParams = {
+  kind: "limit" | "trigger";
+  productId: number;
+  digest: string;
+  subaccountName: string;
+  pair: string;
+};
+
 type Props = {
   orders: OpenOrderEntry[];
   triggerOrders: TriggerOrderEntry[];
@@ -88,6 +100,9 @@ type Props = {
   signatureNeeded: boolean;
   onRequestSignature: () => void;
   triggerLoading: boolean;
+  isOwnWallet?: boolean;
+  onCancelOrder?: (params: CancelOrderParams) => void;
+  cancellingKeys?: Set<string>;
 };
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
@@ -239,6 +254,17 @@ function formatAbsoluteTime(timestamp: number): string {
 
 // ─── Row builders ───────────────────────────────────────────────────────────
 
+function subaccountNameFromSender(sender: string): string {
+  const nameHex = sender.slice(42);
+  const bytes = [];
+  for (let i = 0; i < nameHex.length; i += 2) {
+    const byte = parseInt(nameHex.slice(i, i + 2), 16);
+    if (byte === 0) break;
+    bytes.push(byte);
+  }
+  return bytes.length > 0 ? String.fromCharCode(...bytes) : "default";
+}
+
 function buildLimitRow(order: OpenOrderEntry): LimitOrderRow {
   const price = fromX18BigInt(order.price_x18);
   const totalAmount = fromX18BigInt(order.amount);
@@ -250,7 +276,9 @@ function buildLimitRow(order: OpenOrderEntry): LimitOrderRow {
     kind: "limit",
     key: `limit-${order.digest}`,
     productId: order.product_id,
+    digest: order.digest,
     subaccountLabel: order.subaccountLabel,
+    subaccountName: subaccountNameFromSender(order.sender),
     orderType: ORDER_TYPE_LABELS[order.order_type] ?? order.order_type,
     isLong,
     price,
@@ -271,7 +299,9 @@ function buildTriggerRow(entry: TriggerOrderEntry): TriggerOrderRow {
     kind: "trigger",
     key: `trigger-${entry.order.digest ?? `${entry.order.product_id}-${entry.placed_at}`}`,
     productId: entry.order.product_id,
+    digest: entry.order.digest,
     subaccountLabel: entry.subaccountLabel,
+    subaccountName: subaccountNameFromSender(entry.order.order.sender),
     orderType: getTriggerLabel(entry.order.trigger),
     isLong,
     price,
@@ -299,6 +329,9 @@ export function WalletOpenOrders({
   signatureNeeded,
   onRequestSignature,
   triggerLoading,
+  isOwnWallet = false,
+  onCancelOrder,
+  cancellingKeys,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
@@ -451,6 +484,7 @@ export function WalletOpenOrders({
     "Reduce Only",
     ...(showStatusColumn ? ["Status"] : []),
     "Time",
+    ...(isOwnWallet ? ["_actions"] : []),
   ];
 
   return (
@@ -668,6 +702,37 @@ export function WalletOpenOrders({
                         </HoverCardContent>
                       </HoverCard>
                     </TableCell>
+
+                    {/* Cancel action */}
+                    {isOwnWallet && (() => {
+                      const digest = row.digest;
+                      if (!digest) return <TableCell className="py-2 px-1" />;
+                      const cancelKey = `${row.productId}-${digest}`;
+                      const isCancelling = cancellingKeys?.has(cancelKey) ?? false;
+                      return (
+                        <TableCell className="py-2 px-1">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center size-7 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                            disabled={isCancelling}
+                            onClick={() => onCancelOrder?.({
+                              kind: row.kind,
+                              productId: row.productId,
+                              digest,
+                              subaccountName: row.subaccountName,
+                              pair,
+                            })}
+                            aria-label={`Cancel ${pair} order`}
+                          >
+                            {isCancelling ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <X className="size-3.5" />
+                            )}
+                          </button>
+                        </TableCell>
+                      );
+                    })()}
                   </TableRow>
                 );
               })}

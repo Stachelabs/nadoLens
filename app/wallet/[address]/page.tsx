@@ -4,11 +4,13 @@ import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName, subaccountDisplayLabelSortKey } from "@/lib/wallet/subaccountLabel";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { isAddress } from "viem";
+import { useAccount } from "wagmi";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
 import { useOpenOrders } from "@/hooks/useOpenOrders";
 import { useTriggerOrders } from "@/hooks/useTriggerOrders";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
+import { useExecute } from "@/hooks/useExecute";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
 import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
@@ -22,11 +24,14 @@ import { WalletTabNav } from "@/components/wallet/WalletTabNav";
 import { WalletVolumeByProductChart } from "@/components/wallet/WalletVolumeByProductChart";
 import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProductChart";
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
+import { ClosePositionDialog } from "@/components/wallet/ClosePositionDialog";
 import { InkLoader } from "@/components/ui/InkLoader";
 import { Button } from "@/components/ui/button";
 import { WalletBanner } from "@/components/wallet/WalletBanner";
 import { Spinner } from "@/components/ui/Spinner";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
+import type { Position } from "@/types/nado";
+import { toast } from "sonner";
 
 const LOAD_TIMEOUT_MS = 30_000;
 
@@ -45,6 +50,15 @@ type Props = {
 }
 
 function WalletContent({ address }: { address: string }) {
+  const { address: connectedAddress, isConnected } = useAccount();
+  const isOwnWallet = isConnected && !!connectedAddress && connectedAddress.toLowerCase() === address.toLowerCase();
+  const { cancelLimitOrder, cancelTriggerOrder, closePosition, isReady: executeReady } = useExecute();
+
+  const [cancellingKeys, setCancellingKeys] = useState<Set<string>>(new Set());
+  const [closingProductIds, setClosingProductIds] = useState<Set<number>>(new Set());
+  const [closingPosition, setClosingPosition] = useState<Position | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
   useWalletFunding(address);
   const {
     stats,
@@ -123,6 +137,68 @@ function WalletContent({ address }: { address: string }) {
     requestSignature,
     hasSigned: _triggerHasSigned,
   } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
+
+  const handleCancelOrder = useCallback(
+    async (params: { kind: "limit" | "trigger"; productId: number; digest: string; subaccountName: string; pair: string }) => {
+      if (!executeReady) return;
+      const cancelKey = `${params.productId}-${params.digest}`;
+      setCancellingKeys((prev) => new Set([...prev, cancelKey]));
+      try {
+        if (params.kind === "limit") {
+          await cancelLimitOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
+        } else {
+          await cancelTriggerOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
+        }
+        toast.success(`Order cancelled — ${params.pair}`);
+        refreshOpenOrders();
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
+          toast.warning("Signature rejected");
+        } else if (e instanceof Error) {
+          toast.error(e.message);
+        } else {
+          toast.error("Failed to cancel order");
+        }
+      } finally {
+        setCancellingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(cancelKey);
+          return next;
+        });
+      }
+    },
+    [executeReady, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders],
+  );
+
+  const handleClosePosition = useCallback(
+    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string }) => {
+      if (!executeReady) return;
+      setIsClosing(true);
+      setClosingProductIds((prev) => new Set([...prev, params.productId]));
+      try {
+        await closePosition({ subaccountName: params.subaccountName, productId: params.productId, amountX18: params.amountX18 });
+        toast.success(`Market close placed — ${params.pair}`);
+        setClosingPosition(null);
+        refresh();
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
+          toast.warning("Signature rejected");
+        } else if (e instanceof Error) {
+          toast.error(e.message);
+        } else {
+          toast.error("Failed to close position");
+        }
+      } finally {
+        setIsClosing(false);
+        setClosingProductIds((prev) => {
+          const next = new Set(prev);
+          next.delete(params.productId);
+          return next;
+        });
+      }
+    },
+    [executeReady, closePosition, refresh],
+  );
 
   if (!phase1Ready) {
     if (timedOut) {
@@ -224,6 +300,9 @@ function WalletContent({ address }: { address: string }) {
             matchedPositionKeys={matchedPositionKeys}
             snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
+            isOwnWallet={isOwnWallet}
+            onClosePosition={setClosingPosition}
+            closingProductIds={closingProductIds}
           />
           <WalletOpenOrders
             orders={openOrders}
@@ -235,6 +314,9 @@ function WalletContent({ address }: { address: string }) {
             signatureNeeded={signatureNeeded}
             onRequestSignature={requestSignature}
             triggerLoading={triggerOrdersLoading}
+            isOwnWallet={isOwnWallet}
+            onCancelOrder={handleCancelOrder}
+            cancellingKeys={cancellingKeys}
           />
           <WalletTradeHistory
             trades={trades}
@@ -266,6 +348,14 @@ function WalletContent({ address }: { address: string }) {
           <WalletFundingByProductChart />
         </>
       )}
+
+      <ClosePositionDialog
+        position={closingPosition}
+        open={closingPosition !== null}
+        onOpenChange={(open) => { if (!open) setClosingPosition(null); }}
+        onConfirm={handleClosePosition}
+        isClosing={isClosing}
+      />
     </div>
   );
 }
