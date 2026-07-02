@@ -54,6 +54,16 @@ export async function POST(request: NextRequest) {
     }
 
     const raw: unknown = await response.json();
+
+    if (typeof raw === "object" && raw !== null && "status" in raw && (raw as Record<string, unknown>).status === "failure") {
+      const fail = raw as Record<string, unknown>;
+      const msg = typeof fail.error === "string" ? fail.error : "Trigger service rejected request";
+      return NextResponse.json(
+        { error: msg, error_code: fail.error_code },
+        { status: 400 },
+      );
+    }
+
     const validated = TriggerListOrdersResponseSchema.safeParse(raw);
     if (!validated.success) {
       console.error("[api/trigger-orders] validation failed", validated.error.issues);
