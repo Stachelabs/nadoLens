@@ -39,6 +39,7 @@ function toDefaultSubaccount(address: string): `0x${string}` {
 type UseOrderStreamOptions = {
   onOrderUpdate: (event: OrderUpdateEvent) => void;
   enabled: boolean;
+  subaccounts: string[] | null;
 };
 
 type UseOrderStreamResult = {
@@ -49,7 +50,7 @@ type UseOrderStreamResult = {
 };
 
 export function useOrderStream(
-  { onOrderUpdate, enabled }: UseOrderStreamOptions,
+  { onOrderUpdate, enabled, subaccounts }: UseOrderStreamOptions,
 ): UseOrderStreamResult {
   const { address: connectedAddress } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
@@ -138,6 +139,14 @@ export function useOrderStream(
     async function connect() {
       if (cancelledRef.current) return;
 
+      const stored = storedAuthRef.current;
+      const isReconnect = attemptRef.current > 0;
+      if (isReconnect && (!stored || Date.now() / 1000 >= stored.expiresAtS - 10)) {
+        setHasSigned(false);
+        storedAuthRef.current = null;
+        return;
+      }
+
       const auth = await signAuth();
       if (!auth || cancelledRef.current) return;
 
@@ -173,16 +182,18 @@ export function useOrderStream(
           // Auth response (id: 1)
           if (msg.id === 1 && "result" in msg) {
             setAuthenticated(true);
-            const sender = auth.sender;
-            ws.send(JSON.stringify({
-              method: "subscribe",
-              stream: {
-                type: "order_update",
-                subaccount: sender,
-                product_id: null,
-              },
-              id: 2,
-            }));
+            const subs = subaccounts ?? [auth.sender];
+            subs.forEach((sub, i) => {
+              ws.send(JSON.stringify({
+                method: "subscribe",
+                stream: {
+                  type: "order_update",
+                  subaccount: sub,
+                  product_id: null,
+                },
+                id: 100 + i,
+              }));
+            });
             return;
           }
 
@@ -223,7 +234,8 @@ export function useOrderStream(
 
     void connect();
     return cleanup;
-  }, [enabled, connectedAddress, hasSigned, signAuth]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, connectedAddress, hasSigned, signAuth, subaccounts?.join(",")]);
 
   useEffect(() => {
     if (!connectedAddress) {

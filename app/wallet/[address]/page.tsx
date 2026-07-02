@@ -137,6 +137,11 @@ function WalletContent({ address }: { address: string }) {
     orderUpdateRef.current?.(event);
   }, []);
 
+  const orderStreamSubaccounts = useMemo(
+    () => ordersCrossSubaccounts?.map((s) => s.subaccount) ?? null,
+    [ordersCrossSubaccounts],
+  );
+
   const {
     connected: orderStreamConnected,
     signatureNeeded: orderStreamSignatureNeeded,
@@ -144,6 +149,7 @@ function WalletContent({ address }: { address: string }) {
   } = useOrderStream({
     onOrderUpdate: handleOrderStreamEvent,
     enabled: isOwnWallet && phase1Ready,
+    subaccounts: orderStreamSubaccounts,
   });
 
   const {

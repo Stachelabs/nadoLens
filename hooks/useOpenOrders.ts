@@ -164,7 +164,7 @@ export function useOpenOrders(
       if (cancelled) return;
       if (isInitial && mountedRef.current) setLoading(false);
 
-      if (!streamConnected) {
+      if (!streamConnectedRef.current) {
         timerRef.current = setTimeout(() => {
           if (!cancelled) void poll(false);
         }, POLL_INTERVAL_MS);
@@ -180,7 +180,10 @@ export function useOpenOrders(
       if (timerRef.current) clearTimeout(timerRef.current);
       if (streamRefreshTimerRef.current) clearTimeout(streamRefreshTimerRef.current);
     };
-  }, [phase1Ready, address, crossSubaccounts, fetchOrders, streamConnected]);
+  }, [phase1Ready, address, crossSubaccounts, fetchOrders]);
+
+  const streamConnectedRef = useRef(streamConnected);
+  useEffect(() => { streamConnectedRef.current = streamConnected; }, [streamConnected]);
 
   const refresh = useCallback(() => {
     const now = Date.now();
@@ -196,38 +199,42 @@ export function useOpenOrders(
     setRefreshing(true);
     fetchOrders(controller.signal, false).finally(() => {
       if (mountedRef.current) setRefreshing(false);
-      timerRef.current = setTimeout(() => {
-        void fetchOrders(controller.signal, false).then(() => {
-          // Continue poll chain
-        });
-      }, POLL_INTERVAL_MS);
+      if (!streamConnectedRef.current) {
+        const nextController = new AbortController();
+        abortRef.current = nextController;
+        timerRef.current = setTimeout(() => {
+          void fetchOrders(nextController.signal, false);
+        }, POLL_INTERVAL_MS);
+      }
     });
   }, [fetchOrders]);
 
   const handleOrderUpdate = useCallback((event: OrderUpdateEvent) => {
+    const pair = productName(event.product_id);
+
     if (event.reason === "cancelled" || (event.reason === "filled" && event.amount === "0")) {
+      const wasKnown = prevDigestsRef.current?.has(event.digest) ?? false;
       setOrders((prev) => {
         const filtered = prev.filter((o) => o.digest !== event.digest);
         if (filtered.length === prev.length) return prev;
-        const pair = productName(event.product_id);
+        prevDigestsRef.current?.delete(event.digest);
+        prevOrderMapRef.current.delete(event.digest);
+        return filtered;
+      });
+      if (wasKnown) {
         if (event.reason === "cancelled") {
           toast.warning(`${pair} — Order Cancelled`);
         } else {
           toast.info(`${pair} — Order Filled`);
         }
-        prevDigestsRef.current?.delete(event.digest);
-        prevOrderMapRef.current.delete(event.digest);
-        return filtered;
-      });
+      }
     } else if (event.reason === "filled") {
-      // Partial fill — update remaining amount
       setOrders((prev) =>
         prev.map((o) =>
           o.digest === event.digest ? { ...o, amount: event.amount } : o,
         ),
       );
     } else if (event.reason === "placed") {
-      // New order placed — debounce a REST refresh to get full details
       if (streamRefreshTimerRef.current) clearTimeout(streamRefreshTimerRef.current);
       streamRefreshTimerRef.current = setTimeout(() => {
         refresh();
