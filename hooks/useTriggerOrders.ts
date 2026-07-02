@@ -9,7 +9,8 @@ import { fromX18BigInt } from "@/types/nado";
 import { toast } from "sonner";
 
 const POLL_INTERVAL_MS = 60_000;
-const RECV_TIME_OFFSET_S = 90;
+const RECV_TIME_VALIDITY_S = 1800;
+const RECV_TIME_REAUTH_BUFFER_S = 120;
 
 const TRIGGER_DOMAIN = {
   name: "Nado" as const,
@@ -49,12 +50,21 @@ export type TriggerOrderEntry = TriggerOrderInfo & {
   subaccountLabel: string;
 };
 
+type StoredAuth = {
+  sender: `0x${string}`;
+  recvTime: string;
+  signature: string;
+  expiresAt: number;
+};
+
 type UseTriggerOrdersResult = {
   triggerOrders: TriggerOrderEntry[];
   loading: boolean;
   signatureNeeded: boolean;
   requestSignature: () => void;
   hasSigned: boolean;
+  refresh: () => void;
+  refreshing: boolean;
 };
 
 export function useTriggerOrders(
@@ -67,7 +77,9 @@ export function useTriggerOrders(
 
   const [triggerOrders, setTriggerOrders] = useState<TriggerOrderEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
+  const storedAuthRef = useRef<StoredAuth | null>(null);
   const prevDigestsRef = useRef<Set<string> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -84,21 +96,23 @@ export function useTriggerOrders(
     if (!isOwnWallet) {
       setHasSigned(false);
       setTriggerOrders([]);
+      storedAuthRef.current = null;
       prevDigestsRef.current = null;
     }
   }, [isOwnWallet]);
 
-  const fetchTriggerOrders = useCallback(
-    async (signal: AbortSignal, isInitial: boolean) => {
-      if (!connectedAddress) return;
+  const signOnce = useCallback(
+    async (): Promise<StoredAuth | null> => {
+      if (!connectedAddress) return null;
 
-      const assets = usePairsStore.getState().assets;
-      const productIds = assets
-        .filter((a) => a.market_type === "perp")
-        .map((a) => a.product_id);
+      const stored = storedAuthRef.current;
+      if (stored && Date.now() / 1000 < stored.expiresAt - RECV_TIME_REAUTH_BUFFER_S) {
+        return stored;
+      }
 
       const sender = toDefaultSubaccount(connectedAddress);
-      const recvTime = String((Math.floor(Date.now() / 1000) + RECV_TIME_OFFSET_S) * 1000);
+      const recvTimeS = Math.floor(Date.now() / 1000) + RECV_TIME_VALIDITY_S;
+      const recvTime = String(recvTimeS * 1000);
 
       try {
         const signature = await signTypedDataAsync({
@@ -108,15 +122,47 @@ export function useTriggerOrders(
           message: { sender, recvTime: BigInt(recvTime) },
         });
 
-        if (signal.aborted) return;
+        const auth: StoredAuth = {
+          sender,
+          recvTime,
+          signature,
+          expiresAt: recvTimeS,
+        };
+        storedAuthRef.current = auth;
+        return auth;
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("User rejected")) {
+          storedAuthRef.current = null;
+          setHasSigned(false);
+          setTriggerOrders([]);
+          prevDigestsRef.current = null;
+          return null;
+        }
+        throw e;
+      }
+    },
+    [connectedAddress, signTypedDataAsync],
+  );
 
+  const fetchWithStoredSig = useCallback(
+    async (signal: AbortSignal, isInitial: boolean) => {
+      const auth = await signOnce();
+      if (!auth) return;
+      if (signal.aborted) return;
+
+      const assets = usePairsStore.getState().assets;
+      const productIds = assets
+        .filter((a) => a.market_type === "perp")
+        .map((a) => a.product_id);
+
+      try {
         const res = await fetch("/api/trigger-orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sender,
-            recvTime,
-            signature,
+            sender: auth.sender,
+            recvTime: auth.recvTime,
+            signature: auth.signature,
             productIds: productIds.length > 0 ? productIds : undefined,
             statusTypes: ACTIVE_STATUS_TYPES,
           }),
@@ -126,6 +172,9 @@ export function useTriggerOrders(
         if (!res.ok) {
           const errorBody = await res.text().catch(() => "");
           console.error("[useTriggerOrders] API error", res.status, errorBody);
+          if (res.status === 401 || res.status === 403) {
+            storedAuthRef.current = null;
+          }
           return;
         }
 
@@ -143,7 +192,6 @@ export function useTriggerOrders(
 
         if (signal.aborted) return;
 
-        // Diff-based toast (skip initial)
         const currentDigests = new Set(
           allOrders.map((o) => o.order.digest ?? `${o.order.product_id}-${o.placed_at}`),
         );
@@ -183,14 +231,10 @@ export function useTriggerOrders(
         }
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
-        if (e instanceof Error && e.message.includes("User rejected")) {
-          setHasSigned(false);
-          return;
-        }
         console.error("[useTriggerOrders] unexpected error", e);
       }
     },
-    [connectedAddress, signTypedDataAsync],
+    [signOnce],
   );
 
   const startPolling = useCallback(() => {
@@ -203,7 +247,7 @@ export function useTriggerOrders(
       if (cancelled) return;
       if (isInitial) setLoading(true);
 
-      await fetchTriggerOrders(controller.signal, isInitial);
+      await fetchWithStoredSig(controller.signal, isInitial);
 
       if (cancelled) return;
       if (isInitial && mountedRef.current) setLoading(false);
@@ -220,7 +264,7 @@ export function useTriggerOrders(
       controller.abort();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [fetchTriggerOrders]);
+  }, [fetchWithStoredSig]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -237,11 +281,31 @@ export function useTriggerOrders(
     setHasSigned(true);
   }, []);
 
+  const refresh = useCallback(() => {
+    if (!hasSigned || !storedAuthRef.current) return;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
+    setRefreshing(true);
+    fetchWithStoredSig(controller.signal, false).finally(() => {
+      if (mountedRef.current) setRefreshing(false);
+      timerRef.current = setTimeout(() => {
+        void fetchWithStoredSig(controller.signal, false);
+      }, POLL_INTERVAL_MS);
+    });
+  }, [hasSigned, fetchWithStoredSig]);
+
   return {
     triggerOrders,
     loading,
+    refreshing,
     signatureNeeded,
     requestSignature,
     hasSigned,
+    refresh,
   };
 }

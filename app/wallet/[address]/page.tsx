@@ -136,6 +136,7 @@ function WalletContent({ address }: { address: string }) {
     signatureNeeded,
     requestSignature,
     hasSigned: _triggerHasSigned,
+    refresh: refreshTriggerOrders,
   } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
 
   const handleCancelOrder = useCallback(
@@ -150,7 +151,10 @@ function WalletContent({ address }: { address: string }) {
           await cancelTriggerOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
         }
         toast.success(`Order cancelled — ${params.pair}`);
-        refreshOpenOrders();
+        setTimeout(() => {
+          refreshOpenOrders();
+          refreshTriggerOrders();
+        }, 1500);
       } catch (e) {
         if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
           toast.warning("Signature rejected");
@@ -167,7 +171,7 @@ function WalletContent({ address }: { address: string }) {
         });
       }
     },
-    [executeReady, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders],
+    [executeReady, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders, refreshTriggerOrders],
   );
 
   const handleClosePosition = useCallback(
@@ -319,7 +323,7 @@ function WalletContent({ address }: { address: string }) {
             orders={openOrders}
             triggerOrders={triggerOrders}
             crossSubaccountLabels={tradeCrossSubaccountLabels}
-            onRefresh={refreshOpenOrders}
+            onRefresh={() => { refreshOpenOrders(); refreshTriggerOrders(); }}
             refreshing={openOrdersRefreshing}
             loading={openOrdersLoading}
             signatureNeeded={signatureNeeded}
