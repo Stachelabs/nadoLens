@@ -2,7 +2,7 @@
 
 import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName, subaccountDisplayLabelSortKey } from "@/lib/wallet/subaccountLabel";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAddress } from "viem";
 import { useAccount } from "wagmi";
 import { notFound } from "next/navigation";
@@ -57,6 +57,7 @@ function WalletContent({ address }: { address: string }) {
   const [cancellingKeys, setCancellingKeys] = useState<Set<string>>(new Set());
   const [closingKeys, setClosingKeys] = useState<Set<string>>(new Set());
   const [closingPosition, setClosingPosition] = useState<Position | null>(null);
+  const cancelRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
   useWalletFunding(address);
@@ -95,6 +96,12 @@ function WalletContent({ address }: { address: string }) {
     const timer = setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [phase1Ready]);
+
+  useEffect(() => {
+    return () => {
+      if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
+    };
+  }, []);
 
   const positionCrossSubaccountLabels = useMemo(() => {
     if (!stats) return [];
@@ -139,6 +146,11 @@ function WalletContent({ address }: { address: string }) {
     refresh: refreshTriggerOrders,
   } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
 
+  const refreshAllOrders = useCallback(() => {
+    refreshOpenOrders();
+    refreshTriggerOrders();
+  }, [refreshOpenOrders, refreshTriggerOrders]);
+
   const handleCancelOrder = useCallback(
     async (params: { kind: "limit" | "trigger"; productId: number; digest: string; subaccountName: string; pair: string }) => {
       if (!executeReady) return;
@@ -151,7 +163,8 @@ function WalletContent({ address }: { address: string }) {
           await cancelTriggerOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
         }
         toast.success(`Order cancelled — ${params.pair}`);
-        setTimeout(() => {
+        if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
+        cancelRefreshTimerRef.current = setTimeout(() => {
           refreshOpenOrders();
           refreshTriggerOrders();
         }, 1500);
@@ -323,7 +336,7 @@ function WalletContent({ address }: { address: string }) {
             orders={openOrders}
             triggerOrders={triggerOrders}
             crossSubaccountLabels={tradeCrossSubaccountLabels}
-            onRefresh={() => { refreshOpenOrders(); refreshTriggerOrders(); }}
+            onRefresh={refreshAllOrders}
             refreshing={openOrdersRefreshing}
             loading={openOrdersLoading}
             signatureNeeded={signatureNeeded}

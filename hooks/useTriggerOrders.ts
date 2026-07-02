@@ -9,8 +9,8 @@ import { fromX18BigInt } from "@/types/nado";
 import { toast } from "sonner";
 
 const POLL_INTERVAL_MS = 60_000;
-const RECV_TIME_VALIDITY_S = 1800;
-const RECV_TIME_REAUTH_BUFFER_S = 120;
+const RECV_TIME_VALIDITY_S = 300;
+const RECV_TIME_REAUTH_BUFFER_S = 30;
 
 const TRIGGER_DOMAIN = {
   name: "Nado" as const,
@@ -80,6 +80,7 @@ export function useTriggerOrders(
   const [refreshing, setRefreshing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
   const storedAuthRef = useRef<StoredAuth | null>(null);
+  const signingRef = useRef<Promise<StoredAuth | null> | null>(null);
   const prevDigestsRef = useRef<Set<string> | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -110,36 +111,46 @@ export function useTriggerOrders(
         return stored;
       }
 
-      const sender = toDefaultSubaccount(connectedAddress);
-      const recvTimeS = Math.floor(Date.now() / 1000) + RECV_TIME_VALIDITY_S;
-      const recvTime = String(recvTimeS * 1000);
+      if (signingRef.current) return signingRef.current;
 
-      try {
-        const signature = await signTypedDataAsync({
-          domain: TRIGGER_DOMAIN,
-          types: TRIGGER_TYPES,
-          primaryType: "ListTriggerOrders",
-          message: { sender, recvTime: BigInt(recvTime) },
-        });
+      const doSign = async (): Promise<StoredAuth | null> => {
+        const sender = toDefaultSubaccount(connectedAddress);
+        const recvTimeS = Math.floor(Date.now() / 1000) + RECV_TIME_VALIDITY_S;
+        const recvTime = String(recvTimeS * 1000);
 
-        const auth: StoredAuth = {
-          sender,
-          recvTime,
-          signature,
-          expiresAt: recvTimeS,
-        };
-        storedAuthRef.current = auth;
-        return auth;
-      } catch (e) {
-        if (e instanceof Error && e.message.includes("User rejected")) {
-          storedAuthRef.current = null;
-          setHasSigned(false);
-          setTriggerOrders([]);
-          prevDigestsRef.current = null;
-          return null;
+        try {
+          const signature = await signTypedDataAsync({
+            domain: TRIGGER_DOMAIN,
+            types: TRIGGER_TYPES,
+            primaryType: "ListTriggerOrders",
+            message: { sender, recvTime: BigInt(recvTime) },
+          });
+
+          const auth: StoredAuth = {
+            sender,
+            recvTime,
+            signature,
+            expiresAt: recvTimeS,
+          };
+          storedAuthRef.current = auth;
+          return auth;
+        } catch (e) {
+          if (e instanceof Error && e.message.includes("User rejected")) {
+            storedAuthRef.current = null;
+            setHasSigned(false);
+            setTriggerOrders([]);
+            prevDigestsRef.current = null;
+            return null;
+          }
+          throw e;
+        } finally {
+          signingRef.current = null;
         }
-        throw e;
-      }
+      };
+
+      const promise = doSign();
+      signingRef.current = promise;
+      return promise;
     },
     [connectedAddress, signTypedDataAsync],
   );
@@ -284,18 +295,22 @@ export function useTriggerOrders(
   const refresh = useCallback(() => {
     if (!hasSigned || !storedAuthRef.current) return;
 
+    abortRef.current?.abort();
     if (timerRef.current) clearTimeout(timerRef.current);
 
     const controller = new AbortController();
-    abortRef.current?.abort();
     abortRef.current = controller;
 
     setRefreshing(true);
     fetchWithStoredSig(controller.signal, false).finally(() => {
       if (mountedRef.current) setRefreshing(false);
-      timerRef.current = setTimeout(() => {
-        void fetchWithStoredSig(controller.signal, false);
-      }, POLL_INTERVAL_MS);
+      if (!controller.signal.aborted) {
+        timerRef.current = setTimeout(() => {
+          const nextController = new AbortController();
+          abortRef.current = nextController;
+          void fetchWithStoredSig(nextController.signal, false);
+        }, POLL_INTERVAL_MS);
+      }
     });
   }, [hasSigned, fetchWithStoredSig]);
 
