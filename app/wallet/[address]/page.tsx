@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
 import { useOpenOrders } from "@/hooks/useOpenOrders";
+import { useOrderStream } from "@/hooks/useOrderStream";
 import { useTriggerOrders } from "@/hooks/useTriggerOrders";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
 import { useExecute } from "@/hooks/useExecute";
@@ -130,21 +131,47 @@ function WalletContent({ address }: { address: string }) {
     () => stats?.cross_subaccounts ?? null,
     [stats],
   );
+
+  const orderUpdateRef = useRef<((event: import("@/lib/schemas/nado").OrderUpdateEvent) => void) | null>(null);
+  const handleOrderStreamEvent = useCallback((event: import("@/lib/schemas/nado").OrderUpdateEvent) => {
+    orderUpdateRef.current?.(event);
+  }, []);
+
+  const {
+    connected: orderStreamConnected,
+    signatureNeeded: orderStreamSignatureNeeded,
+    requestSignature: requestOrderStreamSignature,
+  } = useOrderStream({
+    onOrderUpdate: handleOrderStreamEvent,
+    enabled: isOwnWallet && phase1Ready,
+  });
+
   const {
     orders: openOrders,
     loading: openOrdersLoading,
     refreshing: openOrdersRefreshing,
     refresh: refreshOpenOrders,
-  } = useOpenOrders(address, ordersCrossSubaccounts, phase1Ready);
+    handleOrderUpdate,
+  } = useOpenOrders(address, ordersCrossSubaccounts, phase1Ready, orderStreamConnected);
+
+  useEffect(() => {
+    orderUpdateRef.current = handleOrderUpdate;
+  });
 
   const {
     triggerOrders,
     loading: triggerOrdersLoading,
-    signatureNeeded,
-    requestSignature,
+    signatureNeeded: triggerSignatureNeeded,
+    requestSignature: triggerRequestSignature,
     hasSigned: _triggerHasSigned,
     refresh: refreshTriggerOrders,
   } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
+
+  const signatureNeeded = orderStreamSignatureNeeded || triggerSignatureNeeded;
+  const requestSignature = useCallback(() => {
+    if (orderStreamSignatureNeeded) requestOrderStreamSignature();
+    if (triggerSignatureNeeded) triggerRequestSignature();
+  }, [orderStreamSignatureNeeded, requestOrderStreamSignature, triggerSignatureNeeded, triggerRequestSignature]);
 
   const refreshAllOrders = useCallback(() => {
     refreshOpenOrders();
@@ -345,6 +372,7 @@ function WalletContent({ address }: { address: string }) {
             isOwnWallet={isOwnWallet}
             onCancelOrder={handleCancelOrder}
             cancellingKeys={cancellingKeys}
+            streamConnected={orderStreamConnected}
           />
           <WalletTradeHistory
             trades={trades}

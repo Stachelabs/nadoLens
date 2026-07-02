@@ -797,6 +797,9 @@ export const OrderUpdateEventSchema = z.object({
   digest: z.string(),
   amount: x18,
   reason: z.enum(['placed', 'filled', 'cancelled']),
+  filled_qty: x18.optional(),
+  filled_price: x18.optional(),
+  id: z.number().optional(),
 })
 export type OrderUpdateEvent = z.infer<typeof OrderUpdateEventSchema>
 

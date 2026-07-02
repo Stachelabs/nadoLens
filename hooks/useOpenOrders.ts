@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProductOrdersDataSchema } from "@/lib/schemas/nado";
-import type { NadoOrder } from "@/lib/schemas/nado";
+import type { NadoOrder, OrderUpdateEvent } from "@/lib/schemas/nado";
 import { usePairsStore, productName } from "@/store/pairsStore";
 import { fromX18BigInt } from "@/types/nado";
 import { toast } from "sonner";
 
 const POLL_INTERVAL_MS = 60_000;
 const REFRESH_COOLDOWN_MS = 2_000;
+const STREAM_REFRESH_DEBOUNCE_MS = 1_500;
 
 type OpenOrderEntry = NadoOrder & {
   subaccountLabel: string;
@@ -19,6 +20,7 @@ type UseOpenOrdersResult = {
   loading: boolean;
   refreshing: boolean;
   refresh: () => void;
+  handleOrderUpdate: (event: OrderUpdateEvent) => void;
 };
 
 function formatOrderPrice(priceX18: string): string {
@@ -33,6 +35,7 @@ export function useOpenOrders(
   address: string | null,
   crossSubaccounts: { subaccount: string; label: string }[] | null,
   phase1Ready: boolean,
+  streamConnected = false,
 ): UseOpenOrdersResult {
   const [orders, setOrders] = useState<OpenOrderEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +46,7 @@ export function useOpenOrders(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
+  const streamRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchOrders = useCallback(
     async (signal: AbortSignal, isInitial: boolean) => {
@@ -160,9 +164,11 @@ export function useOpenOrders(
       if (cancelled) return;
       if (isInitial && mountedRef.current) setLoading(false);
 
-      timerRef.current = setTimeout(() => {
-        if (!cancelled) void poll(false);
-      }, POLL_INTERVAL_MS);
+      if (!streamConnected) {
+        timerRef.current = setTimeout(() => {
+          if (!cancelled) void poll(false);
+        }, POLL_INTERVAL_MS);
+      }
     };
 
     void poll(true);
@@ -172,8 +178,9 @@ export function useOpenOrders(
       mountedRef.current = false;
       controller.abort();
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (streamRefreshTimerRef.current) clearTimeout(streamRefreshTimerRef.current);
     };
-  }, [phase1Ready, address, crossSubaccounts, fetchOrders]);
+  }, [phase1Ready, address, crossSubaccounts, fetchOrders, streamConnected]);
 
   const refresh = useCallback(() => {
     const now = Date.now();
@@ -197,5 +204,36 @@ export function useOpenOrders(
     });
   }, [fetchOrders]);
 
-  return { orders, loading, refreshing, refresh };
+  const handleOrderUpdate = useCallback((event: OrderUpdateEvent) => {
+    if (event.reason === "cancelled" || (event.reason === "filled" && event.amount === "0")) {
+      setOrders((prev) => {
+        const filtered = prev.filter((o) => o.digest !== event.digest);
+        if (filtered.length === prev.length) return prev;
+        const pair = productName(event.product_id);
+        if (event.reason === "cancelled") {
+          toast.warning(`${pair} — Order Cancelled`);
+        } else {
+          toast.info(`${pair} — Order Filled`);
+        }
+        prevDigestsRef.current?.delete(event.digest);
+        prevOrderMapRef.current.delete(event.digest);
+        return filtered;
+      });
+    } else if (event.reason === "filled") {
+      // Partial fill — update remaining amount
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.digest === event.digest ? { ...o, amount: event.amount } : o,
+        ),
+      );
+    } else if (event.reason === "placed") {
+      // New order placed — debounce a REST refresh to get full details
+      if (streamRefreshTimerRef.current) clearTimeout(streamRefreshTimerRef.current);
+      streamRefreshTimerRef.current = setTimeout(() => {
+        refresh();
+      }, STREAM_REFRESH_DEBOUNCE_MS);
+    }
+  }, [refresh]);
+
+  return { orders, loading, refreshing, refresh, handleOrderUpdate };
 }

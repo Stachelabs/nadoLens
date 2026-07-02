@@ -4,7 +4,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -29,6 +28,7 @@ import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import { productName } from "@/store/pairsStore";
 import { fromX18BigInt } from "@/types/nado";
 import type { NadoOrder, TriggerOrderInfo, TriggerOrderStatus } from "@/lib/schemas/nado";
+import { LoadingShimmer } from "@/components/ui/LoadingShimmer";
 import { Loader2, RefreshCw, ShieldCheck, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
@@ -103,6 +103,7 @@ type Props = {
   isOwnWallet?: boolean;
   onCancelOrder?: (params: CancelOrderParams) => void;
   cancellingKeys?: Set<string>;
+  streamConnected?: boolean;
 };
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
@@ -367,6 +368,7 @@ export function WalletOpenOrders({
   isOwnWallet = false,
   onCancelOrder,
   cancellingKeys,
+  streamConnected = false,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
@@ -406,7 +408,7 @@ export function WalletOpenOrders({
   const showTriggerColumn = hasTriggerOrders;
   const showStatusColumn = hasTriggerOrders;
 
-  // Loading skeleton
+  // Loading state
   if (loading && allRows.length === 0) {
     return (
       <Card className="border-border bg-card">
@@ -414,17 +416,7 @@ export function WalletOpenOrders({
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
             Open Orders
           </div>
-          <div className="space-y-2 py-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-1">
-                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-                <Skeleton className="h-4 flex-1 rounded-sm" />
-                <Skeleton className="h-4 w-16 rounded-sm" />
-                <Skeleton className="h-4 w-20 rounded-sm" />
-                <Skeleton className="h-4 w-20 rounded-sm" />
-              </div>
-            ))}
-          </div>
+          <LoadingShimmer text="Loading open orders..." />
         </CardContent>
       </Card>
     );
@@ -526,11 +518,17 @@ export function WalletOpenOrders({
     <Card className="border-border bg-card">
       <CardContent className="p-4">
         <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80">
             Open Orders{" "}
-            <span className="ml-1 text-muted-foreground/80">
+            <span className="text-muted-foreground/80">
               ({filteredRows.length})
             </span>
+            {streamConnected && (
+              <span className="flex items-center gap-1 text-[9px] font-medium text-primary normal-case tracking-normal">
+                <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                Live
+              </span>
+            )}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {signatureNeeded && (
@@ -665,7 +663,7 @@ export function WalletOpenOrders({
                               : "text-[var(--bull)] border-[var(--bull)]/30 bg-[var(--bull)]/10",
                           )}
                         >
-                          {row.isLong ? "Close Short" : "Close Long"}
+                          {row.isLong ? "CLOSE SHORT" : "CLOSE LONG"}
                         </Badge>
                       ) : (
                         <Badge
@@ -677,7 +675,7 @@ export function WalletOpenOrders({
                               : "text-[var(--bear)] border-[var(--bear)]/30 bg-[var(--bear)]/10",
                           )}
                         >
-                          {row.isLong ? "LONG" : "SHORT"}
+                          {row.isLong ? "OPEN LONG" : "OPEN SHORT"}
                         </Badge>
                       )}
                     </TableCell>
