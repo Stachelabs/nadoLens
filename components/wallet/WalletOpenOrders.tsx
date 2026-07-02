@@ -142,6 +142,8 @@ function assetInitial(pair: string): string {
   return (pair.split("-")[0]?.[0] ?? pair[0] ?? "?").toUpperCase();
 }
 
+const ENTIRE_POSITION_THRESHOLD = 999_999_999;
+
 function isReduceOnly(appendix?: string): boolean {
   if (!appendix) return false;
   try {
@@ -151,6 +153,23 @@ function isReduceOnly(appendix?: string): boolean {
   }
 }
 
+function getOrderExecutionType(appendix?: string): "default" | "fok" | "ioc" | "post_only" {
+  if (!appendix) return "default";
+  try {
+    const bits = (BigInt(appendix) >> BigInt(9)) & BigInt(0b11);
+    if (bits === BigInt(1)) return "fok";
+    if (bits === BigInt(2)) return "ioc";
+    if (bits === BigInt(3)) return "post_only";
+    return "default";
+  } catch {
+    return "default";
+  }
+}
+
+function isEntirePosition(absTotal: number): boolean {
+  return absTotal > ENTIRE_POSITION_THRESHOLD;
+}
+
 const ORDER_TYPE_LABELS: Record<string, string> = {
   default: "Limit",
   ioc: "IOC",
@@ -158,19 +177,33 @@ const ORDER_TYPE_LABELS: Record<string, string> = {
   post_only: "Post Only",
 };
 
-function getTriggerLabel(trigger: TriggerOrderInfo["order"]["trigger"]): string {
-  if ("price_trigger" in trigger) {
-    const req = trigger.price_trigger.price_requirement;
-    if ("oracle_price_above" in req || "last_price_above" in req || "mid_price_above" in req) {
-      return trigger.price_trigger.dependency ? "Take Profit" : "Stop";
-    }
-    if ("oracle_price_below" in req || "last_price_below" in req || "mid_price_below" in req) {
-      return trigger.price_trigger.dependency ? "Take Profit" : "Stop";
-    }
-    return "TP/SL";
-  }
+function isTriggerAbove(trigger: TriggerOrderInfo["order"]["trigger"]): boolean | null {
+  if (!("price_trigger" in trigger)) return null;
+  const req = trigger.price_trigger.price_requirement;
+  if ("oracle_price_above" in req || "last_price_above" in req || "mid_price_above" in req) return true;
+  if ("oracle_price_below" in req || "last_price_below" in req || "mid_price_below" in req) return false;
+  return null;
+}
+
+function getTriggerTypeLabel(
+  trigger: TriggerOrderInfo["order"]["trigger"],
+  amount: number,
+  appendix?: string,
+): string {
   if ("time_trigger" in trigger) return "TWAP";
-  return "Trigger";
+
+  const above = isTriggerAbove(trigger);
+  if (above === null) return "Trigger";
+
+  const isSell = amount < 0;
+  const isTP = (isSell && above) || (!isSell && !above);
+
+  const execType = getOrderExecutionType(appendix);
+  const isMarket = execType === "ioc" || execType === "fok";
+
+  const kind = isTP ? "TP" : "SL";
+  const exec = isMarket ? "Market" : "Limit";
+  return `${kind} ${exec}`;
 }
 
 function getTriggerDetail(trigger: TriggerOrderInfo["order"]["trigger"]): string {
@@ -222,8 +255,8 @@ function getStatusColor(status: TriggerOrderStatus): string {
 const COLUMN_DESCRIPTIONS: Record<string, string> = {
   Pair: "Market this order is placed on.",
   Account: "Cross subaccount that placed this order.",
-  Type: "Order type: Limit, TP/SL, Stop, or TWAP.",
-  Direction: "Buy (Long) or Sell (Short) based on order amount sign.",
+  Type: "Order type: Limit, SL Market, SL Limit, TP Market, TP Limit, or TWAP.",
+  Direction: "Trade direction. Reduce-only orders show Close Long / Close Short.",
   "Order Price": "Limit price for this order.",
   "Trigger": "Trigger condition for TP/SL and TWAP orders.",
   "Filled / Total": "Unfilled amount remaining vs original order size.",
@@ -295,6 +328,8 @@ function buildTriggerRow(entry: TriggerOrderEntry): TriggerOrderRow {
   const totalAmount = fromX18BigInt(entry.order.order.amount);
   const isLong = totalAmount >= 0;
   const absTotal = Math.abs(totalAmount);
+  const typeLabel = getTriggerTypeLabel(entry.order.trigger, totalAmount, entry.order.order.appendix);
+  const entirePos = isEntirePosition(absTotal);
   return {
     kind: "trigger",
     key: `trigger-${entry.order.digest ?? `${entry.order.product_id}-${entry.placed_at}`}`,
@@ -302,15 +337,15 @@ function buildTriggerRow(entry: TriggerOrderEntry): TriggerOrderRow {
     digest: entry.order.digest,
     subaccountLabel: entry.subaccountLabel,
     subaccountName: subaccountNameFromSender(entry.order.order.sender),
-    orderType: getTriggerLabel(entry.order.trigger),
+    orderType: typeLabel,
     isLong,
     price,
     absTotal,
     absFilled: 0,
-    orderValue: price * absTotal,
+    orderValue: entirePos ? 0 : price * absTotal,
     reduceOnly: isReduceOnly(entry.order.order.appendix),
     placedAt: entry.placed_at,
-    triggerLabel: getTriggerLabel(entry.order.trigger),
+    triggerLabel: typeLabel,
     triggerDetail: getTriggerDetail(entry.order.trigger),
     statusLabel: getStatusLabel(entry.status),
     statusColor: getStatusColor(entry.status),
@@ -606,7 +641,13 @@ export function WalletOpenOrders({
                     <TableCell className="py-2 pr-2 text-center">
                       <span className={cn(
                         "text-[10px]",
-                        row.kind === "trigger" ? "text-purple-400 font-medium" : "text-muted-foreground",
+                        row.kind === "trigger"
+                          ? row.orderType.startsWith("TP")
+                            ? "text-purple-400 font-medium"
+                            : row.orderType.startsWith("SL")
+                              ? "text-[var(--warn)] font-medium"
+                              : "text-purple-400 font-medium"
+                          : "text-muted-foreground",
                       )}>
                         {row.orderType}
                       </span>
@@ -614,17 +655,31 @@ export function WalletOpenOrders({
 
                     {/* Direction */}
                     <TableCell className="py-2 pr-2 text-center">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[10px] font-semibold px-1.5 py-0",
-                          row.isLong
-                            ? "text-[var(--bull)] border-[var(--bull)]/30 bg-[var(--bull)]/10"
-                            : "text-[var(--bear)] border-[var(--bear)]/30 bg-[var(--bear)]/10",
-                        )}
-                      >
-                        {row.isLong ? "LONG" : "SHORT"}
-                      </Badge>
+                      {row.reduceOnly ? (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-semibold px-1.5 py-0",
+                            row.isLong
+                              ? "text-[var(--bear)] border-[var(--bear)]/30 bg-[var(--bear)]/10"
+                              : "text-[var(--bull)] border-[var(--bull)]/30 bg-[var(--bull)]/10",
+                          )}
+                        >
+                          {row.isLong ? "Close Short" : "Close Long"}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-semibold px-1.5 py-0",
+                            row.isLong
+                              ? "text-[var(--bull)] border-[var(--bull)]/30 bg-[var(--bull)]/10"
+                              : "text-[var(--bear)] border-[var(--bear)]/30 bg-[var(--bear)]/10",
+                          )}
+                        >
+                          {row.isLong ? "LONG" : "SHORT"}
+                        </Badge>
+                      )}
                     </TableCell>
 
                     {/* Order Price */}
@@ -647,26 +702,30 @@ export function WalletOpenOrders({
 
                     {/* Filled / Total */}
                     <TableCell className="py-2 pr-4 text-right whitespace-nowrap tabular-nums">
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className="text-foreground">
-                          {fmtQty(row.absFilled)} / {fmtQty(row.absTotal)}
-                        </span>
-                        {row.absFilled > 0 && (
-                          <div className="w-12 h-1 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary/60 rounded-full"
-                              style={{
-                                width: `${Math.min((row.absFilled / row.absTotal) * 100, 100)}%`,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
+                      {isEntirePosition(row.absTotal) ? (
+                        <span className="text-foreground text-xs">Entire Position</span>
+                      ) : (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-foreground">
+                            {fmtQty(row.absFilled)} / {fmtQty(row.absTotal)}
+                          </span>
+                          {row.absFilled > 0 && (
+                            <div className="w-12 h-1 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary/60 rounded-full"
+                                style={{
+                                  width: `${Math.min((row.absFilled / row.absTotal) * 100, 100)}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
 
                     {/* Order Value */}
                     <TableCell className="py-2 pr-4 text-right text-muted-foreground whitespace-nowrap tabular-nums">
-                      {fmtUsd.format(row.orderValue)}
+                      {isEntirePosition(row.absTotal) ? "—" : fmtUsd.format(row.orderValue)}
                     </TableCell>
 
                     {/* Reduce Only */}
@@ -710,10 +769,12 @@ export function WalletOpenOrders({
                       const cancelKey = `${row.productId}-${digest}`;
                       const isCancelling = cancellingKeys?.has(cancelKey) ?? false;
                       return (
-                        <TableCell className="py-2 px-1">
-                          <button
+                        <TableCell className="py-2 px-2">
+                          <Button
                             type="button"
-                            className="inline-flex items-center justify-center size-7 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px] px-2 gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/30"
                             disabled={isCancelling}
                             onClick={() => onCancelOrder?.({
                               kind: row.kind,
@@ -725,11 +786,14 @@ export function WalletOpenOrders({
                             aria-label={`Cancel ${pair} order`}
                           >
                             {isCancelling ? (
-                              <Loader2 className="size-3.5 animate-spin" />
+                              <Loader2 className="size-3 animate-spin" />
                             ) : (
-                              <X className="size-3.5" />
+                              <>
+                                <X className="size-3" />
+                                Cancel
+                              </>
                             )}
-                          </button>
+                          </Button>
                         </TableCell>
                       );
                     })()}
