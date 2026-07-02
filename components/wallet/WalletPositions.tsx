@@ -104,7 +104,13 @@ const COLUMN_DESCRIPTIONS: Record<string, string> = {
   Fees: "Total trading fees paid across all fills (taker + maker). Already deducted in the Realized PnL net figure.",
 };
 
-/** "ETH-PERP" → "E", "BTC-PERP" → "B" */
+function closingKey(pos: Position): string {
+  const name = pos.isolated
+    ? (pos.parent_subaccount_name ?? "default")
+    : (pos.subaccount_name ?? "default");
+  return `${name}:${pos.product_id}`;
+}
+
 function assetInitial(pair: string): string {
   return (pair.split("-")[0]?.[0] ?? pair[0] ?? "?").toUpperCase();
 }
@@ -126,7 +132,7 @@ type Props = {
   loading?: boolean;
   isOwnWallet?: boolean;
   onClosePosition?: (position: Position) => void;
-  closingProductIds?: Set<number>;
+  closingKeys?: Set<string>;
 };
 
 export function WalletPositions({
@@ -141,7 +147,7 @@ export function WalletPositions({
   loading = false,
   isOwnWallet = false,
   onClosePosition,
-  closingProductIds,
+  closingKeys,
 }: Props) {
   const positionFundingComplete = useWalletFundingStore((s) => s.forActive()?.positionFundingComplete ?? false);
   const fundedSubaccounts = useWalletFundingStore((s) => s.forActive()?.positionFundedSubaccounts ?? []);
@@ -588,10 +594,10 @@ export function WalletPositions({
                           variant="outline"
                           size="sm"
                           className="h-6 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:border-destructive/30"
-                          disabled={closingProductIds?.has(pos.product_id) ?? false}
+                          disabled={closingKeys?.has(closingKey(pos)) ?? false}
                           onClick={() => onClosePosition?.(pos)}
                         >
-                          {closingProductIds?.has(pos.product_id) ? (
+                          {closingKeys?.has(closingKey(pos)) ? (
                             <Loader2 className="size-3 animate-spin" />
                           ) : (
                             "Close"

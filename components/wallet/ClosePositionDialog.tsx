@@ -38,6 +38,8 @@ type Props = {
     amountX18: string;
     subaccountName: string;
     pair: string;
+    isLong: boolean;
+    isolated: boolean;
   }) => void;
   isClosing?: boolean;
 };
@@ -68,7 +70,9 @@ export function ClosePositionDialog({
   const closeX18 = (absX18 * BigInt(pct)) / BigInt(100);
   const signedCloseX18 = isLong ? -closeX18 : closeX18;
 
-  const subaccountName = position.subaccount_name ?? "default";
+  const subaccountName = position.isolated
+    ? (position.parent_subaccount_name ?? "default")
+    : (position.subaccount_name ?? "default");
 
   function handleConfirm() {
     if (!position) return;
@@ -77,12 +81,14 @@ export function ClosePositionDialog({
       amountX18: signedCloseX18.toString(),
       subaccountName,
       pair: position.pair,
+      isLong,
+      isolated: position.isolated,
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(v) => { if (!isClosing) onOpenChange(v); }}>
+      <DialogContent className="sm:max-w-md" showCloseButton={!isClosing}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Close {position.pair}
@@ -191,8 +197,8 @@ export function ClosePositionDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <DialogClose>
-            <Button type="button" variant="outline">
+          <DialogClose disabled={isClosing}>
+            <Button type="button" variant="outline" disabled={isClosing}>
               Cancel
             </Button>
           </DialogClose>
@@ -200,7 +206,7 @@ export function ClosePositionDialog({
             type="button"
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isClosing || pct === 0}
+            disabled={isClosing || pct === 0 || closeX18 === BigInt(0)}
           >
             {isClosing ? (
               <>

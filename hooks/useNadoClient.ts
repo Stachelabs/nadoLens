@@ -10,6 +10,7 @@ export function useNadoClient() {
 
   return useMemo(() => {
     if (!walletClient || !publicClient) return null;
+    if (walletClient.chain.id !== 57073) return null;
     return createNadoClient("inkMainnet", { walletClient, publicClient });
   }, [walletClient, publicClient]);
 }

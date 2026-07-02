@@ -55,7 +55,7 @@ function WalletContent({ address }: { address: string }) {
   const { cancelLimitOrder, cancelTriggerOrder, closePosition, isReady: executeReady } = useExecute();
 
   const [cancellingKeys, setCancellingKeys] = useState<Set<string>>(new Set());
-  const [closingProductIds, setClosingProductIds] = useState<Set<number>>(new Set());
+  const [closingKeys, setClosingKeys] = useState<Set<string>>(new Set());
   const [closingPosition, setClosingPosition] = useState<Position | null>(null);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -171,15 +171,26 @@ function WalletContent({ address }: { address: string }) {
   );
 
   const handleClosePosition = useCallback(
-    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string }) => {
+    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string; isLong: boolean; isolated: boolean }) => {
       if (!executeReady) return;
+      if (!connectedAddress || connectedAddress.toLowerCase() !== address.toLowerCase()) {
+        toast.warning("Wallet changed — action cancelled");
+        return;
+      }
+      const key = `${params.subaccountName}:${params.productId}`;
       setIsClosing(true);
-      setClosingProductIds((prev) => new Set([...prev, params.productId]));
+      setClosingKeys((prev) => new Set([...prev, key]));
       try {
-        await closePosition({ subaccountName: params.subaccountName, productId: params.productId, amountX18: params.amountX18 });
+        await closePosition({
+          subaccountName: params.subaccountName,
+          productId: params.productId,
+          amountX18: params.amountX18,
+          isLong: params.isLong,
+          isolated: params.isolated,
+        });
         toast.success(`Market close placed — ${params.pair}`);
         setClosingPosition(null);
-        refresh();
+        await refresh();
       } catch (e) {
         if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
           toast.warning("Signature rejected");
@@ -190,14 +201,14 @@ function WalletContent({ address }: { address: string }) {
         }
       } finally {
         setIsClosing(false);
-        setClosingProductIds((prev) => {
+        setClosingKeys((prev) => {
           const next = new Set(prev);
-          next.delete(params.productId);
+          next.delete(key);
           return next;
         });
       }
     },
-    [executeReady, closePosition, refresh],
+    [executeReady, closePosition, refresh, connectedAddress, address],
   );
 
   if (!phase1Ready) {
@@ -302,7 +313,7 @@ function WalletContent({ address }: { address: string }) {
             loading={!positionMatchesComplete}
             isOwnWallet={isOwnWallet}
             onClosePosition={setClosingPosition}
-            closingProductIds={closingProductIds}
+            closingKeys={closingKeys}
           />
           <WalletOpenOrders
             orders={openOrders}
