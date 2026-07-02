@@ -71,11 +71,13 @@ export function ClosePositionDialog({
   const signedCloseX18 = isLong ? -closeX18 : closeX18;
 
   const subaccountName = position.isolated
-    ? (position.parent_subaccount_name ?? "default")
+    ? position.parent_subaccount_name
     : (position.subaccount_name ?? "default");
+  const missingParent = position.isolated && !subaccountName;
 
   function handleConfirm() {
     if (!position) return;
+    if (!subaccountName) return;
     onConfirm({
       productId: position.product_id,
       amountX18: signedCloseX18.toString(),
@@ -193,6 +195,11 @@ export function ClosePositionDialog({
             <div className="text-[10px] text-muted-foreground/70">
               Market order · Reduce only · {isLong ? "Sell" : "Buy"} to close
             </div>
+            {missingParent && (
+              <div className="text-[10px] text-destructive">
+                Cannot close: isolated parent subaccount not resolved
+              </div>
+            )}
           </div>
         </div>
 
@@ -206,7 +213,7 @@ export function ClosePositionDialog({
             type="button"
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isClosing || pct === 0 || closeX18 === BigInt(0)}
+            disabled={isClosing || pct === 0 || closeX18 === BigInt(0) || missingParent}
           >
             {isClosing ? (
               <>
