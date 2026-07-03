@@ -104,6 +104,8 @@ type Props = {
   onCancelOrder?: (params: CancelOrderParams) => void;
   cancellingKeys?: Set<string>;
   streamConnected?: boolean;
+  has1CT?: boolean;
+  linkedSignerActive?: boolean;
 };
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
@@ -369,6 +371,8 @@ export function WalletOpenOrders({
   onCancelOrder,
   cancellingKeys,
   streamConnected = false,
+  has1CT = false,
+  linkedSignerActive = false,
 }: Props) {
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
 
@@ -433,7 +437,7 @@ export function WalletOpenOrders({
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {signatureNeeded && (
-                <SignatureButton onClick={onRequestSignature} loading={triggerLoading} />
+                <SignatureButton onClick={onRequestSignature} loading={triggerLoading} has1CT={has1CT} />
               )}
               <Button
                 type="button"
@@ -523,7 +527,7 @@ export function WalletOpenOrders({
             <span className="text-muted-foreground/80">
               ({filteredRows.length})
             </span>
-            {streamConnected && (
+            {(streamConnected || linkedSignerActive) && (
               <span className="flex items-center gap-1 text-[9px] font-medium text-primary normal-case tracking-normal">
                 <span className="size-1.5 rounded-full bg-primary animate-pulse" />
                 Live
@@ -532,7 +536,7 @@ export function WalletOpenOrders({
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {signatureNeeded && (
-              <SignatureButton onClick={onRequestSignature} loading={triggerLoading} />
+              <SignatureButton onClick={onRequestSignature} loading={triggerLoading} has1CT={has1CT} />
             )}
             <AccountFilterSelect
               options={accountFilterOptions}
@@ -808,7 +812,7 @@ export function WalletOpenOrders({
 
 // ─── Signature CTA ──────────────────────────────────────────────────────────
 
-function SignatureButton({ onClick, loading }: { onClick: () => void; loading: boolean }) {
+function SignatureButton({ onClick, loading, has1CT }: { onClick: () => void; loading: boolean; has1CT: boolean }) {
   return (
     <Button
       type="button"
@@ -819,7 +823,7 @@ function SignatureButton({ onClick, loading }: { onClick: () => void; loading: b
       disabled={loading}
     >
       <ShieldCheck className="size-3" aria-hidden />
-      {loading ? "Signing…" : "Show TP/SL & TWAP"}
+      {loading ? "Signing…" : has1CT ? "Enable Live Orders" : "Show TP/SL & TWAP"}
     </Button>
   );
 }

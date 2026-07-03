@@ -10,6 +10,7 @@ import { useWalletData } from "@/hooks/useWalletData";
 import { useOpenOrders } from "@/hooks/useOpenOrders";
 import { useOrderStream } from "@/hooks/useOrderStream";
 import { useTriggerOrders } from "@/hooks/useTriggerOrders";
+import { useLinkedSigner } from "@/hooks/useLinkedSigner";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
 import { useExecute } from "@/hooks/useExecute";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
@@ -132,6 +133,30 @@ function WalletContent({ address }: { address: string }) {
     [stats],
   );
 
+  const {
+    linkedSigners,
+    has1CT,
+    signatureNeeded: linkedSignerNeeded,
+    deriveKeys,
+    deriving: linkedSignerDeriving,
+  } = useLinkedSigner(address, ordersCrossSubaccounts, phase1Ready);
+
+  // Get the first available linked signer WalletClient for WS stream auth
+  const firstLinkedSignerClient = useMemo(() => {
+    const first = linkedSigners.values().next();
+    return first.done ? null : first.value.walletClient;
+  }, [linkedSigners]);
+
+  // Build linked signer map for trigger orders
+  const triggerLinkedSigners = useMemo(() => {
+    if (linkedSigners.size === 0) return undefined;
+    const map = new Map<string, { subaccountName: string; walletClient: typeof firstLinkedSignerClient }>();
+    for (const [sub, entry] of linkedSigners) {
+      map.set(sub, { subaccountName: entry.subaccountName, walletClient: entry.walletClient });
+    }
+    return map;
+  }, [linkedSigners, firstLinkedSignerClient]);
+
   const orderUpdateRef = useRef<((event: import("@/lib/schemas/nado").OrderUpdateEvent) => void) | null>(null);
   const handleOrderStreamEvent = useCallback((event: import("@/lib/schemas/nado").OrderUpdateEvent) => {
     orderUpdateRef.current?.(event);
@@ -150,6 +175,7 @@ function WalletContent({ address }: { address: string }) {
     onOrderUpdate: handleOrderStreamEvent,
     enabled: isOwnWallet && phase1Ready,
     subaccounts: orderStreamSubaccounts,
+    linkedSignerClient: firstLinkedSignerClient,
   });
 
   const {
@@ -171,13 +197,18 @@ function WalletContent({ address }: { address: string }) {
     requestSignature: triggerRequestSignature,
     hasSigned: _triggerHasSigned,
     refresh: refreshTriggerOrders,
-  } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready);
+  } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready, triggerLinkedSigners);
 
-  const signatureNeeded = orderStreamSignatureNeeded || triggerSignatureNeeded;
+  // Unified signature needed: linked signer takes priority over individual hooks
+  const signatureNeeded = linkedSignerNeeded || (!has1CT && (orderStreamSignatureNeeded || triggerSignatureNeeded));
   const requestSignature = useCallback(() => {
+    if (linkedSignerNeeded) {
+      deriveKeys();
+      return;
+    }
     if (orderStreamSignatureNeeded) requestOrderStreamSignature();
     if (triggerSignatureNeeded) triggerRequestSignature();
-  }, [orderStreamSignatureNeeded, requestOrderStreamSignature, triggerSignatureNeeded, triggerRequestSignature]);
+  }, [linkedSignerNeeded, deriveKeys, orderStreamSignatureNeeded, requestOrderStreamSignature, triggerSignatureNeeded, triggerRequestSignature]);
 
   const refreshAllOrders = useCallback(() => {
     refreshOpenOrders();
@@ -374,11 +405,13 @@ function WalletContent({ address }: { address: string }) {
             loading={openOrdersLoading}
             signatureNeeded={signatureNeeded}
             onRequestSignature={requestSignature}
-            triggerLoading={triggerOrdersLoading}
+            triggerLoading={triggerOrdersLoading || linkedSignerDeriving}
             isOwnWallet={isOwnWallet}
             onCancelOrder={handleCancelOrder}
             cancellingKeys={cancellingKeys}
             streamConnected={orderStreamConnected}
+            has1CT={has1CT}
+            linkedSignerActive={linkedSigners.size > 0}
           />
           <WalletTradeHistory
             trades={trades}

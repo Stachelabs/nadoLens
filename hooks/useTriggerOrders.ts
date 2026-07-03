@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
+import { signTypedData } from "viem/actions";
 import { TriggerListOrdersResponseSchema } from "@/lib/schemas/nado";
 import type { TriggerOrderInfo } from "@/lib/schemas/nado";
 import { usePairsStore, productName } from "@/store/pairsStore";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 
 const RECV_TIME_VALIDITY_S = 90;
 const RECV_TIME_REAUTH_BUFFER_S = 10;
+const LINKED_SIGNER_POLL_MS = 30_000;
 
 const TRIGGER_DOMAIN = {
   name: "Nado" as const,
@@ -56,6 +58,10 @@ type StoredAuth = {
   expiresAt: number;
 };
 
+type LinkedSignerClient = Parameters<typeof signTypedData>[0] | null;
+
+type LinkedSignerMap = Map<string, { subaccountName: string; walletClient: LinkedSignerClient }>;
+
 type UseTriggerOrdersResult = {
   triggerOrders: TriggerOrderEntry[];
   loading: boolean;
@@ -70,6 +76,7 @@ export function useTriggerOrders(
   exploredAddress: string | null,
   crossSubaccounts: { subaccount: string; label: string }[] | null,
   phase1Ready: boolean,
+  linkedSigners?: LinkedSignerMap,
 ): UseTriggerOrdersResult {
   const { address: connectedAddress } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
@@ -100,9 +107,56 @@ export function useTriggerOrders(
     }
   }, [isOwnWallet]);
 
+  const hasLinkedSigner = !!linkedSigners && linkedSigners.size > 0;
+
+  const signForSubaccount = useCallback(
+    async (
+      senderBytes32: `0x${string}`,
+      linkedClient: LinkedSignerClient,
+    ): Promise<StoredAuth | null> => {
+      const recvTimeS = Math.floor(Date.now() / 1000) + RECV_TIME_VALIDITY_S;
+      const recvTime = String(recvTimeS * 1000);
+
+      try {
+        let signature: `0x${string}`;
+
+        if (linkedClient) {
+          signature = await signTypedData(linkedClient, {
+            account: linkedClient.account!,
+            domain: TRIGGER_DOMAIN,
+            types: TRIGGER_TYPES,
+            primaryType: "ListTriggerOrders" as const,
+            message: { sender: senderBytes32, recvTime: BigInt(recvTime) },
+          });
+        } else {
+          signature = await signTypedDataAsync({
+            domain: TRIGGER_DOMAIN,
+            types: TRIGGER_TYPES,
+            primaryType: "ListTriggerOrders",
+            message: { sender: senderBytes32, recvTime: BigInt(recvTime) },
+          });
+        }
+
+        return { sender: senderBytes32, recvTime, signature, expiresAt: recvTimeS };
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("User rejected")) {
+          setHasSigned(false);
+          setTriggerOrders([]);
+          prevDigestsRef.current = null;
+          return null;
+        }
+        throw e;
+      }
+    },
+    [signTypedDataAsync],
+  );
+
   const signOnce = useCallback(
     async (): Promise<StoredAuth | null> => {
       if (!connectedAddress) return null;
+
+      // For linked signer path, re-sign every time (free, no popup)
+      if (hasLinkedSigner) return null;
 
       const stored = storedAuthRef.current;
       if (stored && Date.now() / 1000 < stored.expiresAt - RECV_TIME_REAUTH_BUFFER_S) {
@@ -113,91 +167,99 @@ export function useTriggerOrders(
 
       const doSign = async (): Promise<StoredAuth | null> => {
         const sender = toDefaultSubaccount(connectedAddress);
-        const recvTimeS = Math.floor(Date.now() / 1000) + RECV_TIME_VALIDITY_S;
-        const recvTime = String(recvTimeS * 1000);
-
-        try {
-          const signature = await signTypedDataAsync({
-            domain: TRIGGER_DOMAIN,
-            types: TRIGGER_TYPES,
-            primaryType: "ListTriggerOrders",
-            message: { sender, recvTime: BigInt(recvTime) },
-          });
-
-          const auth: StoredAuth = {
-            sender,
-            recvTime,
-            signature,
-            expiresAt: recvTimeS,
-          };
-          storedAuthRef.current = auth;
-          return auth;
-        } catch (e) {
-          if (e instanceof Error && e.message.includes("User rejected")) {
-            storedAuthRef.current = null;
-            setHasSigned(false);
-            setTriggerOrders([]);
-            prevDigestsRef.current = null;
-            return null;
-          }
-          throw e;
-        } finally {
-          signingRef.current = null;
-        }
+        const auth = await signForSubaccount(sender, null);
+        if (auth) storedAuthRef.current = auth;
+        return auth;
       };
 
       const promise = doSign();
       signingRef.current = promise;
-      return promise;
+      return promise.finally(() => { signingRef.current = null; });
     },
-    [connectedAddress, signTypedDataAsync],
+    [connectedAddress, hasLinkedSigner, signForSubaccount],
   );
 
-  const fetchWithStoredSig = useCallback(
-    async (signal: AbortSignal, isInitial: boolean) => {
-      const auth = await signOnce();
-      if (!auth) return;
-      if (signal.aborted) return;
+  const fetchForSubaccount = useCallback(
+    async (
+      senderBytes32: `0x${string}`,
+      label: string,
+      linkedClient: LinkedSignerClient,
+      signal: AbortSignal,
+    ): Promise<TriggerOrderEntry[]> => {
+      const auth = linkedClient
+        ? await signForSubaccount(senderBytes32, linkedClient)
+        : await signOnce();
+      if (!auth) return [];
+      if (signal.aborted) return [];
 
       const assets = usePairsStore.getState().assets;
       const productIds = assets
         .filter((a) => a.market_type === "perp")
         .map((a) => a.product_id);
 
+      const res = await fetch("/api/trigger-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: auth.sender,
+          recvTime: auth.recvTime,
+          signature: auth.signature,
+          productIds: productIds.length > 0 ? productIds : undefined,
+          statusTypes: ACTIVE_STATUS_TYPES,
+        }),
+        signal,
+      });
+
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 401 || res.status === 403) {
+          storedAuthRef.current = null;
+        }
+        return [];
+      }
+
+      const raw: unknown = await res.json();
+      const parsed = TriggerListOrdersResponseSchema.safeParse(raw);
+      if (!parsed.success) return [];
+
+      return parsed.data.data.orders.map((orderInfo) => ({
+        ...orderInfo,
+        subaccountLabel: label,
+      }));
+    },
+    [signOnce, signForSubaccount],
+  );
+
+  const fetchWithStoredSig = useCallback(
+    async (signal: AbortSignal, isInitial: boolean) => {
       try {
-        const res = await fetch("/api/trigger-orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sender: auth.sender,
-            recvTime: auth.recvTime,
-            signature: auth.signature,
-            productIds: productIds.length > 0 ? productIds : undefined,
-            statusTypes: ACTIVE_STATUS_TYPES,
-          }),
-          signal,
-        });
+        let allOrders: TriggerOrderEntry[] = [];
 
-        if (!res.ok) {
-          const errorBody = await res.text().catch(() => "");
-          console.error("[useTriggerOrders] API error", res.status, errorBody);
-          if (res.status === 400 || res.status === 401 || res.status === 403) {
-            storedAuthRef.current = null;
+        if (hasLinkedSigner && crossSubaccounts) {
+          // Multi-subaccount: query each cross subaccount with its linked signer
+          for (let i = 0; i < crossSubaccounts.length; i++) {
+            if (signal.aborted) return;
+            const sub = crossSubaccounts[i]!;
+            const entry = linkedSigners?.get(sub.subaccount);
+            const client = entry?.walletClient ?? null;
+            if (!client) continue;
+            if (i > 0) await new Promise((r) => setTimeout(r, 500));
+            const orders = await fetchForSubaccount(
+              sub.subaccount as `0x${string}`,
+              sub.label,
+              client,
+              signal,
+            );
+            allOrders = [...allOrders, ...orders];
           }
-          return;
+        } else {
+          // Fallback: single subaccount with wagmi popup
+          allOrders = await fetchForSubaccount(
+            toDefaultSubaccount(connectedAddress!) as `0x${string}`,
+            "default",
+            null,
+            signal,
+          );
         }
-
-        const raw: unknown = await res.json();
-        const parsed = TriggerListOrdersResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          console.error("[useTriggerOrders] validation failed", parsed.error.issues);
-          return;
-        }
-
-        const allOrders: TriggerOrderEntry[] = parsed.data.data.orders.map((orderInfo) => ({
-          ...orderInfo,
-          subaccountLabel: "default",
-        }));
 
         if (signal.aborted) return;
 
@@ -229,7 +291,7 @@ export function useTriggerOrders(
 
         prevDigestsRef.current = currentDigests;
 
-        allOrders.sort((a, b) => {
+        [...allOrders].sort((a, b) => {
           const byProduct = a.order.product_id - b.order.product_id;
           if (byProduct !== 0) return byProduct;
           return b.placed_at - a.placed_at;
@@ -243,7 +305,7 @@ export function useTriggerOrders(
         console.error("[useTriggerOrders] unexpected error", e);
       }
     },
-    [signOnce],
+    [hasLinkedSigner, crossSubaccounts, linkedSigners, connectedAddress, fetchForSubaccount],
   );
 
   const fetchOnce = useCallback(() => {
@@ -271,6 +333,33 @@ export function useTriggerOrders(
       cleanup();
     };
   }, [hasSigned, isOwnWallet, phase1Ready, fetchOnce]);
+
+  // Auto-poll when linked signer is available
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!hasLinkedSigner || !hasSigned || !isOwnWallet || !phase1Ready) {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      return;
+    }
+
+    pollTimerRef.current = setInterval(() => {
+      const controller = new AbortController();
+      abortRef.current?.abort();
+      abortRef.current = controller;
+      void fetchWithStoredSig(controller.signal, false);
+    }, LINKED_SIGNER_POLL_MS);
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, [hasLinkedSigner, hasSigned, isOwnWallet, phase1Ready, fetchWithStoredSig]);
+
+  // Auto-sign when linked signer becomes available
+  useEffect(() => {
+    if (hasLinkedSigner && !hasSigned && isOwnWallet && phase1Ready) {
+      setHasSigned(true);
+    }
+  }, [hasLinkedSigner, hasSigned, isOwnWallet, phase1Ready]);
 
   const requestSignature = useCallback(() => {
     setHasSigned(true);

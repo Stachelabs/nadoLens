@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
+import { signTypedData } from "viem/actions";
 import { OrderUpdateEventSchema, type OrderUpdateEvent } from "@/lib/schemas/nado";
 
 const NADO_SUBSCRIBE_WS = "wss://gateway.prod.nado.xyz/v1/subscribe";
@@ -36,10 +37,13 @@ function toDefaultSubaccount(address: string): `0x${string}` {
   return `0x${addr}64656661756c740000000000` as `0x${string}`;
 }
 
+type LinkedSignerClient = Parameters<typeof signTypedData>[0] | null;
+
 type UseOrderStreamOptions = {
   onOrderUpdate: (event: OrderUpdateEvent) => void;
   enabled: boolean;
   subaccounts: string[] | null;
+  linkedSignerClient?: LinkedSignerClient;
 };
 
 type UseOrderStreamResult = {
@@ -50,7 +54,7 @@ type UseOrderStreamResult = {
 };
 
 export function useOrderStream(
-  { onOrderUpdate, enabled, subaccounts }: UseOrderStreamOptions,
+  { onOrderUpdate, enabled, subaccounts, linkedSignerClient }: UseOrderStreamOptions,
 ): UseOrderStreamResult {
   const { address: connectedAddress } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
@@ -88,12 +92,25 @@ export function useOrderStream(
       const expiration = String(expirationS * 1000);
 
       try {
-        const signature = await signTypedDataAsync({
-          domain: STREAM_AUTH_DOMAIN,
-          types: STREAM_AUTH_TYPES,
-          primaryType: "StreamAuthentication",
-          message: { sender, expiration: BigInt(expiration) },
-        });
+        let signature: `0x${string}`;
+
+        if (linkedSignerClient) {
+          signature = await signTypedData(linkedSignerClient, {
+            account: linkedSignerClient.account!,
+            domain: STREAM_AUTH_DOMAIN,
+            types: STREAM_AUTH_TYPES,
+            primaryType: "StreamAuthentication" as const,
+            message: { sender, expiration: BigInt(expiration) },
+          });
+        } else {
+          signature = await signTypedDataAsync({
+            domain: STREAM_AUTH_DOMAIN,
+            types: STREAM_AUTH_TYPES,
+            primaryType: "StreamAuthentication",
+            message: { sender, expiration: BigInt(expiration) },
+          });
+        }
+
         const auth: StoredStreamAuth = { sender, expiration, signature, expiresAtS: expirationS };
         storedAuthRef.current = auth;
         return auth;
@@ -112,7 +129,7 @@ export function useOrderStream(
     const promise = doSign();
     signingRef.current = promise;
     return promise;
-  }, [connectedAddress, signTypedDataAsync]);
+  }, [connectedAddress, signTypedDataAsync, linkedSignerClient]);
 
   useEffect(() => {
     if (!enabled || !connectedAddress || !hasSigned) {
@@ -244,6 +261,13 @@ export function useOrderStream(
       storedAuthRef.current = null;
     }
   }, [connectedAddress]);
+
+  // Auto-sign when linked signer becomes available
+  useEffect(() => {
+    if (linkedSignerClient && !hasSigned && enabled && connectedAddress) {
+      setHasSigned(true);
+    }
+  }, [linkedSignerClient, hasSigned, enabled, connectedAddress]);
 
   const requestSignature = useCallback(() => {
     setHasSigned(true);
