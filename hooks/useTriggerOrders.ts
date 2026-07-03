@@ -120,9 +120,9 @@ export function useTriggerOrders(
       try {
         let signature: `0x${string}`;
 
-        if (linkedClient) {
+        if (linkedClient && linkedClient.account) {
           signature = await signTypedData(linkedClient, {
-            account: linkedClient.account!,
+            account: linkedClient.account,
             domain: TRIGGER_DOMAIN,
             types: TRIGGER_TYPES,
             primaryType: "ListTriggerOrders" as const,

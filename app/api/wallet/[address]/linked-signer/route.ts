@@ -6,8 +6,13 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
+const BYTES32_RE = /^0x[a-fA-F0-9]{64}$/;
+
 const QuerySchema = z.object({
-  subaccounts: z.string().regex(/^0x[a-fA-F0-9,]+$/),
+  subaccounts: z.string().refine(
+    (s) => s.split(",").every((sub) => BYTES32_RE.test(sub)),
+    "Each subaccount must be a valid bytes32 hex string",
+  ),
 });
 
 const GatewayResponseSchema = z.object({

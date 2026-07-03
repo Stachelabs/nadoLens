@@ -94,9 +94,9 @@ export function useOrderStream(
       try {
         let signature: `0x${string}`;
 
-        if (linkedSignerClient) {
+        if (linkedSignerClient && linkedSignerClient.account) {
           signature = await signTypedData(linkedSignerClient, {
-            account: linkedSignerClient.account!,
+            account: linkedSignerClient.account,
             domain: STREAM_AUTH_DOMAIN,
             types: STREAM_AUTH_TYPES,
             primaryType: "StreamAuthentication" as const,

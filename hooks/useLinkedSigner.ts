@@ -150,11 +150,19 @@ export function useLinkedSigner(
     };
   }, []);
 
+  const derivingLockRef = useRef(false);
+
   const deriveKeys = useCallback(async () => {
     if (!walletClient || !connectedAddress || !crossSubaccounts) return;
     if (onChain1CT.size === 0) return;
+    if (derivingLockRef.current) return;
 
+    derivingLockRef.current = true;
     setDeriving(true);
+
+    if (storedForAddress && storedForAddress !== connectedAddress.toLowerCase()) {
+      clearStoredSigners();
+    }
 
     try {
       const newSigners = new Map<string, LinkedSignerEntry>();
@@ -209,6 +217,7 @@ export function useLinkedSigner(
         toast.warning("Signature rejected — live updates disabled");
       }
     } finally {
+      derivingLockRef.current = false;
       if (mountedRef.current) setDeriving(false);
     }
   }, [walletClient, connectedAddress, crossSubaccounts, onChain1CT]);
