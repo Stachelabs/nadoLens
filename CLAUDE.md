@@ -129,7 +129,8 @@ pnpm docs:query:nado "<question>"
 # Ex: pnpm docs:query:nado "fee calculation matches archive"
 # Ex: pnpm docs:query:nado "pagination idx" --top-k 3
 ```
-Rebuild index: `pnpm docs:build:nado`
+Rebuild index: `pnpm docs:sync:llms && pnpm docs:index:nado` (uses llms.txt .md endpoints — 100% success rate)
+Legacy HTML crawler: `pnpm docs:build:nado` (often rate-limited)
 
 ### Points & Airdrop endpoints
 

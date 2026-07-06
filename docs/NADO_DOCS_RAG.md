@@ -8,20 +8,25 @@ Run from the repository root:
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm docs:sync:nado` | Crawl, normalize to Markdown + JSON, write `nado-manifest.json` + link graph |
-| `pnpm docs:index:nado` | Chunk Markdown, embed, store vectors in SQLite (`nado-rag/rag.sqlite`) |
+| `pnpm docs:sync:llms` | **Recommended.** Fetch all pages via `llms.txt` `.md` endpoints — no bot detection, 100% success rate |
+| `pnpm docs:sync:nado` | Legacy HTML crawler — slower, rate-limited, ~50% fail rate on docs.nado.xyz |
+| `pnpm docs:index:nado` | Chunk Markdown, embed with Ollama, store vectors in SQLite (`nado-rag/rag.sqlite`) |
 | `pnpm docs:verify:nado` | Coverage report + **fails if any nav link is missing** from successful fetches |
-| `pnpm docs:build:nado` | `sync` → `index` → `verify` |
+| `pnpm docs:build:nado` | Legacy: `sync` → `index` → `verify` (uses HTML crawler) |
+| `pnpm docs:query:nado "<text>"` | Semantic search over the local index |
 
-Use **`NADO_DOCS_RESUME=1`** to resume from `nado-rag/crawl-state.json` after an interruption (restores `queue` + `seen`; does not re-seed from sitemap).
-
-Optional env vars are documented in `.env.example`. With Node 20+, you can load a file without extra deps:
+### Recommended workflow
 
 ```bash
-node --env-file=.env.local pnpm docs:sync:nado
+ollama serve                    # ensure Ollama is running (nomic-embed-text)
+pnpm docs:sync:llms             # fetch 214 pages via .md endpoints (~25s)
+pnpm docs:index:nado            # chunk + embed into SQLite (~2h first run)
+pnpm docs:query:nado "cancel orders SDK"  # test
 ```
 
-(or export variables in your shell before `pnpm`.)
+### Legacy HTML crawler
+
+Use **`NADO_DOCS_RESUME=1`** to resume from `nado-rag/crawl-state.json` after an interruption. Optional env vars in `.env.example`.
 
 ## Outputs
 
@@ -68,8 +73,18 @@ If `getPageByUrl` returns `null` or sync failed for a URL:
 NADO_DOCS_INTEGRATION=1 pnpm test
 ```
 
+## How `llms-sync` works
+
+Nado docs (GitBook) expose an `llms.txt` file at `https://docs.nado.xyz/llms.txt` listing every page with a `.md` URL. The `llms-sync` script:
+
+1. Fetches `llms.txt` to discover all 214+ page URLs
+2. Downloads each page's `.md` endpoint (raw markdown, no HTML parsing)
+3. Writes `pages-md/*.md` (with YAML frontmatter) + `pages-json/*.json` (metadata)
+4. Writes `nado-manifest.json` in the format expected by `docs:index:nado`
+
+Advantages over HTML crawler: no bot detection, no Cloudflare blocks, 100% success rate, ~25 seconds total.
+
 ## TODO / external blockers
 
-- If **Cloudflare** or rate limits block the crawler, lower `NADO_DOCS_CONCURRENCY`, increase `NADO_DOCS_TIMEOUT_MS`, or retry later.
-- If **sitemap** returns 5xx, the crawler still uses **BFS from the home page + in-page links**; the manifest records `sitemapUrls` separately.
+- If `llms.txt` endpoint changes or is removed, fall back to `pnpm docs:sync:nado` (HTML crawler)
 - **GitBook** HTML structure may change; content extraction uses `main` / `article` fallbacks — adjust selectors in `lib/docs-rag/htmlToMarkdown.ts` if needed.

@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "docs:sync:nado": "pnpm exec tsx scripts/docs-rag/cli.ts sync",
+    "docs:sync:llms": "pnpm exec tsx scripts/docs-rag/llms-sync.ts",
     "docs:index:nado": "pnpm exec tsx scripts/docs-rag/cli.ts index",
     "docs:verify:nado": "pnpm exec tsx scripts/docs-rag/cli.ts verify",
     "docs:build:nado": "pnpm exec tsx scripts/docs-rag/cli.ts build",
