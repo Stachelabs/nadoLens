@@ -1,6 +1,7 @@
 import { NADO_GATEWAY_REST } from "@/lib/nado";
 import { LinkedSignerDataSchema } from "@/lib/schemas/nado";
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
+import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -43,12 +44,16 @@ export async function GET(
 
     for (const sub of subaccountList) {
       try {
-        const res = await fetch(
-          `${NADO_GATEWAY_REST}/query?type=linked_signer&subaccount=${sub}`,
-          {
-            headers: { "Accept-Encoding": "gzip, br, deflate" },
-            signal: AbortSignal.timeout(10_000),
-          },
+        const res = await withTransientRetry(
+          () =>
+            fetch(
+              `${NADO_GATEWAY_REST}/query?type=linked_signer&subaccount=${sub}`,
+              {
+                headers: { "Accept-Encoding": "gzip, br, deflate" },
+                signal: AbortSignal.timeout(10_000),
+              },
+            ),
+          { maxAttempts: 2, baseDelayMs: 500 },
         );
 
         if (!res.ok) {

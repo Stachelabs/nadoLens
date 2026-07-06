@@ -62,7 +62,7 @@ async function fetch1CTStatus(
 
 export function useLinkedSigner(
   exploredAddress: string | null,
-  crossSubaccounts: { subaccount: string; label: string }[] | null,
+  crossSubaccounts: { subaccount: string; label: string; name: string }[] | null,
   phase1Ready: boolean,
 ): UseLinkedSignerResult {
   const { address: connectedAddress } = useAccount();
@@ -172,7 +172,7 @@ export function useLinkedSigner(
 
         const subHex = subaccountToHex({
           subaccountOwner: connectedAddress,
-          subaccountName: sub.label,
+          subaccountName: sub.name,
         });
 
         // Check module-level cache first
@@ -187,7 +187,7 @@ export function useLinkedSigner(
           chainId: CHAIN_ID,
           endpointAddress: ENDPOINT_ADDRESS,
           subaccountOwner: connectedAddress,
-          subaccountName: sub.label,
+          subaccountName: sub.name,
         });
 
         const account = privateKeyToAccount(derivedKey);
@@ -198,7 +198,7 @@ export function useLinkedSigner(
         });
 
         const entry: LinkedSignerEntry = {
-          subaccountName: sub.label,
+          subaccountName: sub.name,
           walletClient: linkedWalletClient,
           address: account.address,
         };

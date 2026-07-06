@@ -28,9 +28,32 @@ import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import { productName } from "@/store/pairsStore";
 import { fromX18BigInt } from "@/types/nado";
 import type { NadoOrder, TriggerOrderInfo, TriggerOrderStatus } from "@/lib/schemas/nado";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LoadingShimmer } from "@/components/ui/LoadingShimmer";
-import { Loader2, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { CircleHelp, Loader2, RefreshCw, ShieldCheck, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
+
+function OpenOrdersHelpTooltip({ has1CT }: { has1CT?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        className="inline-flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        aria-label="What are open orders?"
+      >
+        <CircleHelp className="size-3" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[260px] text-left leading-relaxed">
+        {has1CT
+          ? "1-Click Trading detected. Enable Live Orders to auto-refresh your TP/SL and TWAP orders silently — one signature per session, no more popups."
+          : "Shows your limit, TP/SL, and TWAP orders. Enable 1-Click Trading on Nado to unlock silent auto-refresh."}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 // ─── Unified row type ──────────────────────────────────────────────────────
 
@@ -417,8 +440,9 @@ export function WalletOpenOrders({
     return (
       <Card className="border-border bg-card">
         <CardContent className="p-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80 mb-3">
             Open Orders
+            {isOwnWallet && <OpenOrdersHelpTooltip has1CT={has1CT} />}
           </div>
           <LoadingShimmer text="Loading open orders..." />
         </CardContent>
@@ -432,8 +456,9 @@ export function WalletOpenOrders({
       <Card className="border-border bg-card">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+            <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80">
               Open Orders
+              {isOwnWallet && <OpenOrdersHelpTooltip has1CT={has1CT} />}
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {signatureNeeded && (
@@ -469,8 +494,9 @@ export function WalletOpenOrders({
       <Card className="border-border bg-card">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-2 mb-3 min-h-6">
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+            <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground/80">
               Open Orders
+              {isOwnWallet && <OpenOrdersHelpTooltip has1CT={has1CT} />}
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <AccountFilterSelect
@@ -527,6 +553,7 @@ export function WalletOpenOrders({
             <span className="text-muted-foreground/80">
               ({filteredRows.length})
             </span>
+            {isOwnWallet && <OpenOrdersHelpTooltip has1CT={has1CT} />}
             {(streamConnected || linkedSignerActive) && (
               <span className="flex items-center gap-1 text-[9px] font-medium text-primary normal-case tracking-normal">
                 <span className="size-1.5 rounded-full bg-primary animate-pulse" />

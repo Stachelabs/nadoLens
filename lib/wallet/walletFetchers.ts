@@ -424,6 +424,7 @@ export async function fetchAllPositions(
     .map((s) => ({
       subaccount: s.subaccount,
       label: normalizeSubaccountDisplayName(s.subaccount_name),
+      name: s.subaccount_name ?? "default",
     }))
     .sort(
       (a, b) =>

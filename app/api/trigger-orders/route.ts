@@ -1,6 +1,7 @@
 import { NADO_TRIGGER_REST } from "@/lib/nado";
 import { TriggerListOrdersResponseSchema } from "@/lib/schemas/nado";
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
+import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -35,15 +36,19 @@ export async function POST(request: NextRequest) {
       ...(statusTypes && statusTypes.length > 0 && { status_types: statusTypes }),
     };
 
-    const response = await fetch(`${NADO_TRIGGER_REST}/query`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Encoding": "gzip, br, deflate",
-      },
-      body: JSON.stringify(triggerBody),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const response = await withTransientRetry(
+      () =>
+        fetch(`${NADO_TRIGGER_REST}/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip, br, deflate",
+          },
+          body: JSON.stringify(triggerBody),
+          signal: AbortSignal.timeout(10_000),
+        }),
+      { maxAttempts: 2, baseDelayMs: 500 },
+    );
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
