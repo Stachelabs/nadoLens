@@ -664,6 +664,16 @@
       "pickedUrl": "https://app.nado.xyz/_next/static/media/pepe.aa30ccb2.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
       "sha256": "8c49977b95898e56977e6f8ce5e22d007c58867f9e18b1e369bd140b4f4dac87",
       "bytes": 5336
+    },
+    {
+      "marketKey": "PENG",
+      "product_id": 162,
+      "symbol": "PENG-PERP",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=PENG",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/peng.4ba55dd8.svg?dpl=dpl_bh1iRAU4qiMWigFss9vxrBx6C7kR",
+      "sha256": "0f8320be6527b0e1d5f69d56373c7c7367db5f360da1631ff418a4f083db9b0f",
+      "bytes": 2169
     }
   ]
 }

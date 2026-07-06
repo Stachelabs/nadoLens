@@ -199,6 +199,39 @@ function printRunDiff(
   );
 }
 
+/**
+ * When ICONS_ONLY is active, merge new entries into the previous manifest
+ * instead of replacing it. Without a filter, return newEntries as-is (full sync).
+ */
+function mergeManifestEntries(
+  previous: ManifestSnapshot | null,
+  newEntries: ManifestEntry[],
+  onlyFilter: Set<string> | null,
+): ManifestEntry[] {
+  if (!onlyFilter || !previous) return newEntries;
+
+  const updated = new Map(
+    newEntries.map((e) => [e.marketKey.toUpperCase(), e]),
+  );
+  const merged: ManifestEntry[] = [];
+
+  for (const prev of previous.entries) {
+    const key = prev.marketKey.toUpperCase();
+    if (updated.has(key)) {
+      merged.push(updated.get(key)!);
+      updated.delete(key);
+    } else {
+      merged.push(prev);
+    }
+  }
+
+  for (const entry of updated.values()) {
+    merged.push(entry);
+  }
+
+  return merged;
+}
+
 function cfgStr(key: keyof typeof nadoPerpIconsDefaults, fallback: string): string {
   const v = process.env[key];
   return typeof v === "string" && v.length > 0 ? v : fallback;
@@ -881,9 +914,10 @@ async function main(): Promise<void> {
 
     if (runPerps) {
       await ensureNadoAppReady(page, "perp");
-      const manifest = await syncMarketBatch(page, perpRows, perpOutDir, delayMs);
+      const newEntries = await syncMarketBatch(page, perpRows, perpOutDir, delayMs);
       const manifestPath = join(perpOutDir, "manifest.json");
       const previousManifest = loadPreviousManifest(manifestPath);
+      const manifest = mergeManifestEntries(previousManifest, newEntries, only);
       writeFileSync(
         manifestPath,
         JSON.stringify(
@@ -902,14 +936,15 @@ async function main(): Promise<void> {
       console.log(
         `[icons][perp] ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
       );
-      printRunDiff(previousManifest, manifest);
+      printRunDiff(previousManifest, newEntries);
     }
 
     if (runSpot) {
       await ensureNadoAppReady(page, "spot");
-      const manifest = await syncMarketBatch(page, spotRows, spotOutDir, delayMs);
+      const newEntries = await syncMarketBatch(page, spotRows, spotOutDir, delayMs);
       const manifestPath = join(spotOutDir, "manifest.json");
       const previousManifest = loadPreviousManifest(manifestPath);
+      const manifest = mergeManifestEntries(previousManifest, newEntries, only);
       writeFileSync(
         manifestPath,
         JSON.stringify(
@@ -928,7 +963,7 @@ async function main(): Promise<void> {
       console.log(
         `[icons][spot] ${ok}/${manifest.length} ok, skipped_not_on_app=${notOnApp}. Manifest: ${manifestPath}`,
       );
-      printRunDiff(previousManifest, manifest);
+      printRunDiff(previousManifest, newEntries);
     }
   } finally {
     await close();
