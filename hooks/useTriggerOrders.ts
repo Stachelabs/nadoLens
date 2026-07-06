@@ -7,6 +7,7 @@ import { TriggerListOrdersResponseSchema } from "@/lib/schemas/nado";
 import type { TriggerOrderInfo } from "@/lib/schemas/nado";
 import { usePairsStore, productName } from "@/store/pairsStore";
 import { fromX18BigInt } from "@/types/nado";
+import { getTriggerTypeLabel } from "@/lib/wallet/triggerOrderLabels";
 import { toast } from "sonner";
 
 const RECV_TIME_VALIDITY_S = 90;
@@ -87,7 +88,7 @@ export function useTriggerOrders(
   const [hasSigned, setHasSigned] = useState(false);
   const storedAuthRef = useRef<StoredAuth | null>(null);
   const signingRef = useRef<Promise<StoredAuth | null> | null>(null);
-  const prevDigestsRef = useRef<Set<string> | null>(null);
+  const prevEntriesRef = useRef<Map<string, TriggerOrderEntry> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
@@ -103,7 +104,7 @@ export function useTriggerOrders(
       setHasSigned(false);
       setTriggerOrders([]);
       storedAuthRef.current = null;
-      prevDigestsRef.current = null;
+      prevEntriesRef.current = null;
     }
   }, [isOwnWallet]);
 
@@ -142,7 +143,7 @@ export function useTriggerOrders(
         if (e instanceof Error && e.message.includes("User rejected")) {
           setHasSigned(false);
           setTriggerOrders([]);
-          prevDigestsRef.current = null;
+          prevEntriesRef.current = null;
           return null;
         }
         throw e;
@@ -263,33 +264,33 @@ export function useTriggerOrders(
 
         if (signal.aborted) return;
 
-        const currentDigests = new Set(
-          allOrders.map((o) => o.order.digest ?? `${o.order.product_id}-${o.placed_at}`),
+        const currentEntries = new Map<string, TriggerOrderEntry>(
+          allOrders.map((o) => [o.order.digest ?? `${o.order.product_id}-${o.placed_at}`, o]),
         );
 
-        if (!isInitial && prevDigestsRef.current) {
-          const prev = prevDigestsRef.current;
-          for (const d of currentDigests) {
+        if (!isInitial && prevEntriesRef.current) {
+          const prev = prevEntriesRef.current;
+          for (const [d, entry] of currentEntries) {
             if (!prev.has(d)) {
-              const entry = allOrders.find(
-                (o) => (o.order.digest ?? `${o.order.product_id}-${o.placed_at}`) === d,
-              );
-              if (entry) {
-                const pair = productName(entry.order.product_id);
-                const direction = fromX18BigInt(entry.order.order.amount) >= 0 ? "Long" : "Short";
-                const price = formatTriggerPrice(entry.order.order.priceX18);
-                toast.info(`${pair} — New Trigger Order`, { description: `${direction} @ ${price}` });
-              }
+              const pair = productName(entry.order.product_id);
+              const amount = fromX18BigInt(entry.order.order.amount);
+              const kind = getTriggerTypeLabel(entry.order.trigger, amount, entry.order.order.appendix);
+              const direction = amount >= 0 ? "Long" : "Short";
+              const price = formatTriggerPrice(entry.order.order.priceX18);
+              toast.info(`${pair} ${kind} added`, { description: `${direction} @ ${price}` });
             }
           }
-          for (const d of prev) {
-            if (!currentDigests.has(d)) {
-              toast.warning("Trigger order removed");
+          for (const [d, entry] of prev) {
+            if (!currentEntries.has(d)) {
+              const pair = productName(entry.order.product_id);
+              const amount = fromX18BigInt(entry.order.order.amount);
+              const kind = getTriggerTypeLabel(entry.order.trigger, amount, entry.order.order.appendix);
+              toast.warning(`${pair} ${kind} removed`);
             }
           }
         }
 
-        prevDigestsRef.current = currentDigests;
+        prevEntriesRef.current = currentEntries;
 
         [...allOrders].sort((a, b) => {
           const byProduct = a.order.product_id - b.order.product_id;
