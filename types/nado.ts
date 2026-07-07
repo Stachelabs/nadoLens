@@ -114,6 +114,7 @@ export type SpotBalancesGroup = {
 export type CrossSubaccountEntry = {
   subaccount: string
   label: string
+  name: string
 }
 
 // ─── Wallet ───────────────────────────────────────────────────────────────────

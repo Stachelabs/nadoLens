@@ -2,6 +2,7 @@ import { NADO_GATEWAY_REST } from "@/lib/nado";
 import {
   IsolatedPositionsDataSchema,
   NadoSubaccountDataSchema,
+  ProductOrdersDataSchema,
   SubaccountOrdersDataSchema,
 } from "@/lib/schemas/nado";
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
@@ -12,7 +13,7 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-const QuerySchema = z.enum(["subaccount_info", "subaccount_orders", "isolated_positions"]);
+const QuerySchema = z.enum(["subaccount_info", "subaccount_orders", "isolated_positions", "orders"]);
 
 type Props = {
   params: Promise<{ address: string }>;
@@ -57,10 +58,36 @@ export async function GET(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
 
+    // Build Gateway request body — `orders` uses sender + product_ids;
+    // all others use subaccount.
+    let gatewayBody: Record<string, unknown>;
+    if (query === "orders") {
+      const rawIds = searchParams.get("product_ids");
+      if (!rawIds) {
+        return NextResponse.json(
+          { error: "product_ids query param required for orders query" },
+          { status: 400 },
+        );
+      }
+      const productIds = rawIds.split(",").map(Number).filter(Number.isFinite);
+      if (productIds.length === 0) {
+        return NextResponse.json(
+          { error: "product_ids must contain at least one valid number" },
+          { status: 400 },
+        );
+      }
+      gatewayBody = { type: "orders", sender: address, product_ids: productIds };
+    } else {
+      gatewayBody = { type: query, subaccount: address };
+    }
+
     const response = await fetch(`${NADO_GATEWAY_REST}/query`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: query, subaccount: address }),
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Encoding": "gzip",
+      },
+      body: JSON.stringify(gatewayBody),
       signal: AbortSignal.timeout(10_000),
       cache: "no-store",
     });
@@ -76,25 +103,25 @@ export async function GET(request: NextRequest, { params }: Props) {
 
     if (query === "subaccount_info") {
       const parsed = parseGatewayJson(NadoSubaccountDataSchema, raw);
-      if (!parsed.ok) {
-        return gatewayParseErrorResponse(parsed);
-      }
+      if (!parsed.ok) return gatewayParseErrorResponse(parsed);
       return NextResponse.json(parsed.data);
     }
 
     if (query === "subaccount_orders") {
       const parsed = parseGatewayJson(SubaccountOrdersDataSchema, raw);
-      if (!parsed.ok) {
-        return gatewayParseErrorResponse(parsed);
-      }
+      if (!parsed.ok) return gatewayParseErrorResponse(parsed);
+      return NextResponse.json(parsed.data);
+    }
+
+    if (query === "orders") {
+      const parsed = parseGatewayJson(ProductOrdersDataSchema, raw);
+      if (!parsed.ok) return gatewayParseErrorResponse(parsed);
       return NextResponse.json(parsed.data);
     }
 
     if (query === "isolated_positions") {
       const parsed = parseGatewayJson(IsolatedPositionsDataSchema, raw);
-      if (!parsed.ok) {
-        return gatewayParseErrorResponse(parsed);
-      }
+      if (!parsed.ok) return gatewayParseErrorResponse(parsed);
       return NextResponse.json(parsed.data);
     }
 

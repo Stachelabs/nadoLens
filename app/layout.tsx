@@ -7,6 +7,7 @@ import { Nav } from '@/components/Nav'
 import { Footer } from '@/components/Footer'
 import { JsonLd } from '@/components/seo/JsonLd'
 import { Toaster } from 'sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { ReferralCTA } from '@/components/ReferralCTA'
 import { TwitterCTA } from '@/components/TwitterCTA'
 import { Analytics } from '@vercel/analytics/next'
@@ -113,6 +114,7 @@ export default async function RootLayout({
           }}
         />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <TooltipProvider>
           <Providers cookie={cookie}>
             <div className="flex min-h-screen flex-col">
               <Nav />
@@ -123,6 +125,7 @@ export default async function RootLayout({
             <ReferralCTA />
             <TwitterCTA />
           </Providers>
+          </TooltipProvider>
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />

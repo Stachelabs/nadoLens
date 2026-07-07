@@ -2,15 +2,22 @@
 
 import { buildSubaccountLabelByHex } from "@/lib/wallet/subaccountFilter";
 import { normalizeSubaccountDisplayName, subaccountDisplayLabelSortKey } from "@/lib/wallet/subaccountLabel";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAddress } from "viem";
+import { useAccount } from "wagmi";
 import { notFound } from "next/navigation";
 import { useWalletData } from "@/hooks/useWalletData";
+import { useOpenOrders } from "@/hooks/useOpenOrders";
+import { useOrderStream } from "@/hooks/useOrderStream";
+import { useTriggerOrders } from "@/hooks/useTriggerOrders";
+import { useLinkedSigner } from "@/hooks/useLinkedSigner";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
+import { useExecute } from "@/hooks/useExecute";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
 import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
 import { WalletStats } from "@/components/wallet/WalletStats";
+import { WalletOpenOrders } from "@/components/wallet/WalletOpenOrders";
 import { WalletPositions } from "@/components/wallet/WalletPositions";
 import { WalletTradeHistory } from "@/components/wallet/WalletTradeHistory";
 import { WalletEquityCurve } from "@/components/wallet/WalletEquityCurve";
@@ -19,11 +26,14 @@ import { WalletTabNav } from "@/components/wallet/WalletTabNav";
 import { WalletVolumeByProductChart } from "@/components/wallet/WalletVolumeByProductChart";
 import { WalletFeesByProductChart } from "@/components/wallet/WalletFeesByProductChart";
 import { WalletFundingByProductChart } from "@/components/wallet/WalletFundingByProductChart";
+import { ClosePositionDialog } from "@/components/wallet/ClosePositionDialog";
 import { InkLoader } from "@/components/ui/InkLoader";
 import { Button } from "@/components/ui/button";
 import { WalletBanner } from "@/components/wallet/WalletBanner";
 import { Spinner } from "@/components/ui/Spinner";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
+import type { Position } from "@/types/nado";
+import { toast } from "sonner";
 
 const LOAD_TIMEOUT_MS = 30_000;
 
@@ -42,6 +52,16 @@ type Props = {
 }
 
 function WalletContent({ address }: { address: string }) {
+  const { address: connectedAddress, isConnected } = useAccount();
+  const isOwnWallet = isConnected && !!connectedAddress && connectedAddress.toLowerCase() === address.toLowerCase();
+  const { cancelLimitOrder, cancelTriggerOrder, closePosition, isReady: executeReady } = useExecute();
+
+  const [cancellingKeys, setCancellingKeys] = useState<Set<string>>(new Set());
+  const [closingKeys, setClosingKeys] = useState<Set<string>>(new Set());
+  const [closingPosition, setClosingPosition] = useState<Position | null>(null);
+  const cancelRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
   useWalletFunding(address);
   const {
     stats,
@@ -79,6 +99,12 @@ function WalletContent({ address }: { address: string }) {
     return () => clearTimeout(timer);
   }, [phase1Ready]);
 
+  useEffect(() => {
+    return () => {
+      if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
+    };
+  }, []);
+
   const positionCrossSubaccountLabels = useMemo(() => {
     if (!stats) return [];
     const labels = new Set<string>();
@@ -100,6 +126,170 @@ function WalletContent({ address }: { address: string }) {
   const subaccountLabelByHex = useMemo(
     () => (stats ? buildSubaccountLabelByHex(stats) : new Map<string, string>()),
     [stats],
+  );
+
+  const ordersCrossSubaccounts = useMemo(
+    () => stats?.cross_subaccounts ?? null,
+    [stats],
+  );
+
+  const {
+    linkedSigners,
+    has1CT,
+    signatureNeeded: linkedSignerNeeded,
+    deriveKeys,
+    deriving: linkedSignerDeriving,
+  } = useLinkedSigner(address, ordersCrossSubaccounts, phase1Ready);
+
+  // Get the first available linked signer WalletClient for WS stream auth
+  const firstLinkedSignerClient = useMemo(() => {
+    const first = linkedSigners.values().next();
+    return first.done ? null : first.value.walletClient;
+  }, [linkedSigners]);
+
+  // Build linked signer map for trigger orders
+  const triggerLinkedSigners = useMemo(() => {
+    if (linkedSigners.size === 0) return undefined;
+    const map = new Map<string, { subaccountName: string; walletClient: typeof firstLinkedSignerClient }>();
+    for (const [sub, entry] of linkedSigners) {
+      map.set(sub, { subaccountName: entry.subaccountName, walletClient: entry.walletClient });
+    }
+    return map;
+  }, [linkedSigners, firstLinkedSignerClient]);
+
+  const orderUpdateRef = useRef<((event: import("@/lib/schemas/nado").OrderUpdateEvent) => void) | null>(null);
+  const handleOrderStreamEvent = useCallback((event: import("@/lib/schemas/nado").OrderUpdateEvent) => {
+    orderUpdateRef.current?.(event);
+  }, []);
+
+  const orderStreamSubaccounts = useMemo(
+    () => ordersCrossSubaccounts?.map((s) => s.subaccount) ?? null,
+    [ordersCrossSubaccounts],
+  );
+
+  const {
+    connected: orderStreamConnected,
+    signatureNeeded: orderStreamSignatureNeeded,
+    requestSignature: requestOrderStreamSignature,
+  } = useOrderStream({
+    onOrderUpdate: handleOrderStreamEvent,
+    enabled: isOwnWallet && phase1Ready,
+    subaccounts: orderStreamSubaccounts,
+    linkedSignerClient: firstLinkedSignerClient,
+  });
+
+  const {
+    orders: openOrders,
+    loading: openOrdersLoading,
+    refreshing: openOrdersRefreshing,
+    refresh: refreshOpenOrders,
+    handleOrderUpdate,
+  } = useOpenOrders(address, ordersCrossSubaccounts, phase1Ready, orderStreamConnected);
+
+  useEffect(() => {
+    orderUpdateRef.current = handleOrderUpdate;
+  });
+
+  const {
+    triggerOrders,
+    loading: triggerOrdersLoading,
+    signatureNeeded: triggerSignatureNeeded,
+    requestSignature: triggerRequestSignature,
+    hasSigned: _triggerHasSigned,
+    refresh: refreshTriggerOrders,
+  } = useTriggerOrders(address, ordersCrossSubaccounts, phase1Ready, triggerLinkedSigners);
+
+  // Unified signature needed: linked signer takes priority over individual hooks
+  const signatureNeeded = linkedSignerNeeded || (!has1CT && (orderStreamSignatureNeeded || triggerSignatureNeeded));
+  const requestSignature = useCallback(() => {
+    if (linkedSignerNeeded) {
+      deriveKeys();
+      return;
+    }
+    if (orderStreamSignatureNeeded) requestOrderStreamSignature();
+    if (triggerSignatureNeeded) triggerRequestSignature();
+  }, [linkedSignerNeeded, deriveKeys, orderStreamSignatureNeeded, requestOrderStreamSignature, triggerSignatureNeeded, triggerRequestSignature]);
+
+  const refreshAllOrders = useCallback(() => {
+    refreshOpenOrders();
+    refreshTriggerOrders();
+  }, [refreshOpenOrders, refreshTriggerOrders]);
+
+  const handleCancelOrder = useCallback(
+    async (params: { kind: "limit" | "trigger"; productId: number; digest: string; subaccountName: string; pair: string }) => {
+      if (!executeReady) return;
+      const cancelKey = `${params.productId}-${params.digest}`;
+      setCancellingKeys((prev) => new Set([...prev, cancelKey]));
+      try {
+        if (params.kind === "limit") {
+          await cancelLimitOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
+        } else {
+          await cancelTriggerOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
+        }
+        toast.success(`Order cancelled — ${params.pair}`);
+        if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
+        cancelRefreshTimerRef.current = setTimeout(() => {
+          refreshOpenOrders();
+          refreshTriggerOrders();
+        }, 1500);
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
+          toast.warning("Signature rejected");
+        } else if (e instanceof Error) {
+          toast.error(e.message);
+        } else {
+          toast.error("Failed to cancel order");
+        }
+      } finally {
+        setCancellingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(cancelKey);
+          return next;
+        });
+      }
+    },
+    [executeReady, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders, refreshTriggerOrders],
+  );
+
+  const handleClosePosition = useCallback(
+    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string; isLong: boolean; isolated: boolean }) => {
+      if (!executeReady) return;
+      if (!connectedAddress || connectedAddress.toLowerCase() !== address.toLowerCase()) {
+        toast.warning("Wallet changed — action cancelled");
+        return;
+      }
+      const key = `${params.subaccountName}:${params.productId}`;
+      setIsClosing(true);
+      setClosingKeys((prev) => new Set([...prev, key]));
+      try {
+        await closePosition({
+          subaccountName: params.subaccountName,
+          productId: params.productId,
+          amountX18: params.amountX18,
+          isLong: params.isLong,
+          isolated: params.isolated,
+        });
+        toast.success(`Market close placed — ${params.pair}`);
+        setClosingPosition(null);
+        await refresh();
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
+          toast.warning("Signature rejected");
+        } else if (e instanceof Error) {
+          toast.error(e.message);
+        } else {
+          toast.error("Failed to close position");
+        }
+      } finally {
+        setIsClosing(false);
+        setClosingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    },
+    [executeReady, closePosition, refresh, connectedAddress, address],
   );
 
   if (!phase1Ready) {
@@ -202,6 +392,26 @@ function WalletContent({ address }: { address: string }) {
             matchedPositionKeys={matchedPositionKeys}
             snapshotReady={snapshotReady}
             loading={!positionMatchesComplete}
+            isOwnWallet={isOwnWallet}
+            onClosePosition={setClosingPosition}
+            closingKeys={closingKeys}
+          />
+          <WalletOpenOrders
+            orders={openOrders}
+            triggerOrders={triggerOrders}
+            crossSubaccountLabels={tradeCrossSubaccountLabels}
+            onRefresh={refreshAllOrders}
+            refreshing={openOrdersRefreshing}
+            loading={openOrdersLoading}
+            signatureNeeded={signatureNeeded}
+            onRequestSignature={requestSignature}
+            triggerLoading={triggerOrdersLoading || linkedSignerDeriving}
+            isOwnWallet={isOwnWallet}
+            onCancelOrder={handleCancelOrder}
+            cancellingKeys={cancellingKeys}
+            streamConnected={orderStreamConnected}
+            has1CT={has1CT}
+            linkedSignerActive={linkedSigners.size > 0}
           />
           <WalletTradeHistory
             trades={trades}
@@ -233,6 +443,14 @@ function WalletContent({ address }: { address: string }) {
           <WalletFundingByProductChart />
         </>
       )}
+
+      <ClosePositionDialog
+        position={closingPosition}
+        open={closingPosition !== null}
+        onOpenChange={(open) => { if (!open) setClosingPosition(null); }}
+        onConfirm={handleClosePosition}
+        isClosing={isClosing}
+      />
     </div>
   );
 }
