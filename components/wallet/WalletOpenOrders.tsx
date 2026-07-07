@@ -126,6 +126,8 @@ type Props = {
   triggerLoading: boolean;
   isOwnWallet?: boolean;
   onCancelOrder?: (params: CancelOrderParams) => void;
+  /** Fallback for a trigger row with no digest — cancels every trigger order on that product instead. */
+  onCancelProductTriggerOrders?: (params: { productId: number; subaccountName: string; pair: string }) => void;
   cancellingKeys?: Set<string>;
   streamConnected?: boolean;
   has1CT?: boolean;
@@ -351,6 +353,7 @@ export function WalletOpenOrders({
   triggerLoading,
   isOwnWallet = false,
   onCancelOrder,
+  onCancelProductTriggerOrders,
   cancellingKeys,
   streamConnected = false,
   has1CT = false,
@@ -614,8 +617,13 @@ export function WalletOpenOrders({
                     </TableCell>
 
                     {/* Pair */}
-                    <TableCell className="py-2 px-1 sticky left-0 z-20 bg-card font-medium text-foreground whitespace-nowrap">
-                      {pair}
+                    <TableCell className="py-2 pr-2 sticky left-0 z-20 bg-card whitespace-nowrap">
+                      <div className="flex flex-col items-center justify-center min-w-[72px]">
+                        <span className="font-mono text-foreground">{pair}</span>
+                        <span className="text-[10px] text-muted-foreground/80">
+                          {row.kind === "trigger" ? "Trigger" : "Limit"}
+                        </span>
+                      </div>
                     </TableCell>
 
                     {/* Account (conditional) */}
@@ -753,11 +761,49 @@ export function WalletOpenOrders({
                     {/* Cancel action */}
                     {isOwnWallet && (() => {
                       const digest = row.digest;
-                      if (!digest) return <TableCell className="py-2 px-1" />;
+                      if (!digest) {
+                        const productKey = `product-${row.productId}`;
+                        const isCancelling = cancellingKeys?.has(productKey) ?? false;
+                        return (
+                          <TableCell className="py-2 px-2 text-center">
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2 gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/30"
+                                    disabled={isCancelling}
+                                    onClick={() => onCancelProductTriggerOrders?.({
+                                      productId: row.productId,
+                                      subaccountName: row.subaccountName,
+                                      pair,
+                                    })}
+                                    aria-label={`Cancel all ${pair} trigger orders (no order ID available)`}
+                                  />
+                                }
+                              >
+                                {isCancelling ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <X className="size-3" />
+                                    Cancel All
+                                  </>
+                                )}
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-[220px] text-left leading-relaxed">
+                                This order has no individual ID yet — this cancels every trigger order on {pair} for this account instead.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                        );
+                      }
                       const cancelKey = `${row.productId}-${digest}`;
                       const isCancelling = cancellingKeys?.has(cancelKey) ?? false;
                       return (
-                        <TableCell className="py-2 px-2">
+                        <TableCell className="py-2 px-2 text-center">
                           <Button
                             type="button"
                             variant="outline"

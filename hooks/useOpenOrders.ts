@@ -19,9 +19,13 @@ type UseOpenOrdersResult = {
   orders: OpenOrderEntry[];
   loading: boolean;
   refreshing: boolean;
-  refresh: () => void;
+  refresh: (force?: boolean) => void;
   handleOrderUpdate: (event: OrderUpdateEvent) => void;
+  /** Mark a digest as cancelled by this client so the stream-echo doesn't fire a redundant toast. */
+  markSelfCancelled: (digest: string) => void;
 };
+
+const SELF_CANCEL_TTL_MS = 10_000;
 
 function formatOrderPrice(priceX18: string): string {
   const price = fromX18BigInt(priceX18);
@@ -47,6 +51,12 @@ export function useOpenOrders(
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   const streamRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selfCancelledRef = useRef<Set<string>>(new Set());
+
+  const markSelfCancelled = useCallback((digest: string) => {
+    selfCancelledRef.current.add(digest);
+    setTimeout(() => selfCancelledRef.current.delete(digest), SELF_CANCEL_TTL_MS);
+  }, []);
 
   const fetchOrders = useCallback(
     async (signal: AbortSignal, isInitial: boolean) => {
@@ -185,9 +195,9 @@ export function useOpenOrders(
   const streamConnectedRef = useRef(streamConnected);
   useEffect(() => { streamConnectedRef.current = streamConnected; }, [streamConnected]);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback((force = false) => {
     const now = Date.now();
-    if (now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return;
+    if (!force && now - lastRefreshRef.current < REFRESH_COOLDOWN_MS) return;
     lastRefreshRef.current = now;
 
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -223,7 +233,12 @@ export function useOpenOrders(
       });
       if (wasKnown) {
         if (event.reason === "cancelled") {
-          toast.warning(`${pair} — Order Cancelled`);
+          const isSelfCancel = selfCancelledRef.current.has(event.digest);
+          if (isSelfCancel) {
+            selfCancelledRef.current.delete(event.digest);
+          } else {
+            toast.warning(`${pair} — Order Cancelled`);
+          }
         } else {
           toast.info(`${pair} — Order Filled`);
         }
@@ -242,5 +257,5 @@ export function useOpenOrders(
     }
   }, [refresh]);
 
-  return { orders, loading, refreshing, refresh, handleOrderUpdate };
+  return { orders, loading, refreshing, refresh, handleOrderUpdate, markSelfCancelled };
 }

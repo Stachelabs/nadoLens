@@ -10,11 +10,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { Position } from "@/types/nado";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+
+const DEFAULT_SLIPPAGE_PCT = 1;
+const MIN_SLIPPAGE_PCT = 0.1;
+const MAX_SLIPPAGE_PCT = 50;
+
+function clampSlippage(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SLIPPAGE_PCT;
+  return Math.min(Math.max(value, MIN_SLIPPAGE_PCT), MAX_SLIPPAGE_PCT);
+}
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -40,6 +50,8 @@ type Props = {
     pair: string;
     isLong: boolean;
     isolated: boolean;
+    markPrice: number;
+    slippagePct: number;
   }) => void;
   isClosing?: boolean;
 };
@@ -52,9 +64,15 @@ export function ClosePositionDialog({
   isClosing = false,
 }: Props) {
   const [pct, setPct] = useState(100);
+  const [slippagePct, setSlippagePct] = useState(DEFAULT_SLIPPAGE_PCT);
+  const [slippageInput, setSlippageInput] = useState(String(DEFAULT_SLIPPAGE_PCT));
 
   useEffect(() => {
-    if (open) setPct(100);
+    if (open) {
+      setPct(100);
+      setSlippagePct(DEFAULT_SLIPPAGE_PCT);
+      setSlippageInput(String(DEFAULT_SLIPPAGE_PCT));
+    }
   }, [open]);
 
   if (!position) return null;
@@ -85,8 +103,14 @@ export function ClosePositionDialog({
       pair: position.pair,
       isLong,
       isolated: position.isolated,
+      markPrice: position.mark_price,
+      slippagePct,
     });
   }
+
+  const worstPrice = isLong
+    ? position.mark_price * (1 - slippagePct / 100)
+    : position.mark_price * (1 + slippagePct / 100);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!isClosing) onOpenChange(v); }}>
@@ -172,6 +196,29 @@ export function ClosePositionDialog({
             </div>
           </div>
 
+          {/* Slippage */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Max Slippage</span>
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={MIN_SLIPPAGE_PCT}
+                max={MAX_SLIPPAGE_PCT}
+                step={0.1}
+                value={slippageInput}
+                onChange={(e) => setSlippageInput(e.target.value)}
+                onBlur={() => {
+                  const clamped = clampSlippage(parseFloat(slippageInput));
+                  setSlippagePct(clamped);
+                  setSlippageInput(String(clamped));
+                }}
+                className="h-7 w-16 text-right text-xs tabular-nums"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          </div>
+
           {/* Close preview */}
           <div className="rounded-lg bg-muted/50 p-3 space-y-1.5">
             <div className="flex items-center justify-between text-sm">
@@ -192,6 +239,12 @@ export function ClosePositionDialog({
                 {fmtUsd.format(proportionalPnl)}
               </span>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Est. Worst Price</span>
+              <span className="font-mono tabular-nums text-foreground">
+                {fmtUsd.format(worstPrice)}
+              </span>
+            </div>
             <div className="text-[10px] text-muted-foreground/70">
               Market order · Reduce only · {isLong ? "Sell" : "Buy"} to close
             </div>
@@ -203,11 +256,12 @@ export function ClosePositionDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <DialogClose disabled={isClosing}>
-            <Button type="button" variant="outline" disabled={isClosing}>
-              Cancel
-            </Button>
+        <DialogFooter className="gap-2 sm:gap-3">
+          <DialogClose
+            disabled={isClosing}
+            render={<Button type="button" variant="outline" disabled={isClosing} />}
+          >
+            Cancel
           </DialogClose>
           <Button
             type="button"

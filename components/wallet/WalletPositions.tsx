@@ -28,7 +28,7 @@ import {
 import { normalizeSubaccountDisplayName } from "@/lib/wallet/subaccountLabel";
 import type { Position, SubaccountHealthEntry } from "@/types/nado";
 import { useWalletFundingStore } from "@/store/walletFundingStore";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 const fmtUsd = new Intl.NumberFormat("en-US", {
@@ -104,7 +104,7 @@ const COLUMN_DESCRIPTIONS: Record<string, string> = {
   Fees: "Total trading fees paid across all fills (taker + maker). Already deducted in the Realized PnL net figure.",
 };
 
-function closingKey(pos: Position): string {
+export function closingKey(pos: Position): string {
   const name = pos.isolated
     ? (pos.parent_subaccount_name ?? "default")
     : (pos.subaccount_name ?? "default");
@@ -593,14 +593,17 @@ export function WalletPositions({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-6 text-[10px] px-2 text-muted-foreground hover:text-destructive hover:border-destructive/30"
+                          className="h-6 text-[10px] px-2 gap-1 text-muted-foreground hover:text-destructive hover:border-destructive/30"
                           disabled={closingKeys?.has(closingKey(pos)) ?? false}
                           onClick={() => onClosePosition?.(pos)}
                         >
                           {closingKeys?.has(closingKey(pos)) ? (
                             <Loader2 className="size-3 animate-spin" />
                           ) : (
-                            "Close"
+                            <>
+                              <X className="size-3" />
+                              Close
+                            </>
                           )}
                         </Button>
                       </TableCell>
