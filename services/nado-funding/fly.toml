@@ -1,5 +1,5 @@
 app = "nadolens-nado-funding"
-primary_region = "ams"
+primary_region = "fra"
 
 [build]
   [build.args]
