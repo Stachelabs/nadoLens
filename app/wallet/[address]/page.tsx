@@ -12,13 +12,13 @@ import { useOrderStream } from "@/hooks/useOrderStream";
 import { useTriggerOrders } from "@/hooks/useTriggerOrders";
 import { useLinkedSigner } from "@/hooks/useLinkedSigner";
 import { useWalletFunding } from "@/hooks/useWalletFunding";
-import { useExecute } from "@/hooks/useExecute";
+import { useExecute, SDK_TIMEOUT_MS, ORDER_EXPIRY_S } from "@/hooks/useExecute";
 import { useWalletAnalyticsStore } from "@/store/walletAnalyticsStore";
 import { WalletHeader } from "@/components/wallet/WalletHeader";
 import { WalletSpotBalances } from "@/components/wallet/WalletSpotBalances";
 import { WalletStats } from "@/components/wallet/WalletStats";
 import { WalletOpenOrders } from "@/components/wallet/WalletOpenOrders";
-import { WalletPositions } from "@/components/wallet/WalletPositions";
+import { WalletPositions, closingKey } from "@/components/wallet/WalletPositions";
 import { WalletTradeHistory } from "@/components/wallet/WalletTradeHistory";
 import { WalletEquityCurve } from "@/components/wallet/WalletEquityCurve";
 import { WalletSummary } from "@/components/wallet/WalletSummary";
@@ -33,9 +33,16 @@ import { WalletBanner } from "@/components/wallet/WalletBanner";
 import { Spinner } from "@/components/ui/Spinner";
 import { nanoStringToMs } from "@/lib/wallet/nanoTime";
 import type { Position } from "@/types/nado";
+import { getNadoErrorMessage } from "@/lib/wallet/nadoErrorMessages";
 import { toast } from "sonner";
 
 const LOAD_TIMEOUT_MS = 30_000;
+// After a client-side close-position timeout, the previous signed order can
+// still be sitting live in the user's wallet (pending approval) until its own
+// on-chain expiration passes. Keep the retry guard held until then, so a
+// retry click can't queue a second live signature request in the wallet
+// while the first one might still be approved.
+const CLOSE_RETRY_HOLD_MS = ORDER_EXPIRY_S * 1000 - SDK_TIMEOUT_MS;
 
 function formatSinceDate(nanoTs: string | null): string | null {
   const ms = nanoTs ? nanoStringToMs(nanoTs) : null;
@@ -54,13 +61,12 @@ type Props = {
 function WalletContent({ address }: { address: string }) {
   const { address: connectedAddress, isConnected } = useAccount();
   const isOwnWallet = isConnected && !!connectedAddress && connectedAddress.toLowerCase() === address.toLowerCase();
-  const { cancelLimitOrder, cancelTriggerOrder, closePosition, isReady: executeReady } = useExecute();
+  const { cancelLimitOrder, cancelTriggerOrder, cancelTriggerProductOrders, closePosition, isReady: executeReady } = useExecute();
 
   const [cancellingKeys, setCancellingKeys] = useState<Set<string>>(new Set());
   const [closingKeys, setClosingKeys] = useState<Set<string>>(new Set());
   const [closingPosition, setClosingPosition] = useState<Position | null>(null);
   const cancelRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isClosing, setIsClosing] = useState(false);
 
   useWalletFunding(address);
   const {
@@ -184,6 +190,7 @@ function WalletContent({ address }: { address: string }) {
     refreshing: openOrdersRefreshing,
     refresh: refreshOpenOrders,
     handleOrderUpdate,
+    markSelfCancelled,
   } = useOpenOrders(address, ordersCrossSubaccounts, phase1Ready, orderStreamConnected);
 
   useEffect(() => {
@@ -219,9 +226,11 @@ function WalletContent({ address }: { address: string }) {
     async (params: { kind: "limit" | "trigger"; productId: number; digest: string; subaccountName: string; pair: string }) => {
       if (!executeReady) return;
       const cancelKey = `${params.productId}-${params.digest}`;
+      if (cancellingKeys.has(cancelKey)) return;
       setCancellingKeys((prev) => new Set([...prev, cancelKey]));
       try {
         if (params.kind === "limit") {
+          markSelfCancelled(params.digest);
           await cancelLimitOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
         } else {
           await cancelTriggerOrder({ subaccountName: params.subaccountName, productId: params.productId, digest: params.digest });
@@ -229,16 +238,14 @@ function WalletContent({ address }: { address: string }) {
         toast.success(`Order cancelled — ${params.pair}`);
         if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
         cancelRefreshTimerRef.current = setTimeout(() => {
-          refreshOpenOrders();
+          refreshOpenOrders(true);
           refreshTriggerOrders();
         }, 1500);
       } catch (e) {
         if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
           toast.warning("Signature rejected");
-        } else if (e instanceof Error) {
-          toast.error(e.message);
         } else {
-          toast.error("Failed to cancel order");
+          toast.error(getNadoErrorMessage(e));
         }
       } finally {
         setCancellingKeys((prev) => {
@@ -248,48 +255,106 @@ function WalletContent({ address }: { address: string }) {
         });
       }
     },
-    [executeReady, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders, refreshTriggerOrders],
+    [executeReady, cancellingKeys, markSelfCancelled, cancelLimitOrder, cancelTriggerOrder, refreshOpenOrders, refreshTriggerOrders],
+  );
+
+  const handleCancelProductTriggerOrders = useCallback(
+    async (params: { productId: number; subaccountName: string; pair: string }) => {
+      if (!executeReady) return;
+      const cancelKey = `product-${params.productId}`;
+      if (cancellingKeys.has(cancelKey)) return;
+      setCancellingKeys((prev) => new Set([...prev, cancelKey]));
+      try {
+        await cancelTriggerProductOrders({ subaccountName: params.subaccountName, productId: params.productId });
+        toast.success(`All ${params.pair} trigger orders cancelled`);
+        if (cancelRefreshTimerRef.current) clearTimeout(cancelRefreshTimerRef.current);
+        cancelRefreshTimerRef.current = setTimeout(() => {
+          refreshTriggerOrders();
+        }, 1500);
+      } catch (e) {
+        if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
+          toast.warning("Signature rejected");
+        } else {
+          toast.error(getNadoErrorMessage(e));
+        }
+      } finally {
+        setCancellingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(cancelKey);
+          return next;
+        });
+      }
+    },
+    [executeReady, cancellingKeys, cancelTriggerProductOrders, refreshTriggerOrders],
   );
 
   const handleClosePosition = useCallback(
-    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string; isLong: boolean; isolated: boolean }) => {
+    async (params: { productId: number; amountX18: string; subaccountName: string; pair: string; isLong: boolean; isolated: boolean; markPrice: number; slippagePct: number }) => {
       if (!executeReady) return;
       if (!connectedAddress || connectedAddress.toLowerCase() !== address.toLowerCase()) {
         toast.warning("Wallet changed — action cancelled");
         return;
       }
       const key = `${params.subaccountName}:${params.productId}`;
-      setIsClosing(true);
+      if (closingKeys.has(key)) return;
       setClosingKeys((prev) => new Set([...prev, key]));
+      let holdGuard = false;
       try {
-        await closePosition({
-          subaccountName: params.subaccountName,
-          productId: params.productId,
-          amountX18: params.amountX18,
-          isLong: params.isLong,
-          isolated: params.isolated,
-        });
+        await closePosition(
+          {
+            subaccountName: params.subaccountName,
+            productId: params.productId,
+            amountX18: params.amountX18,
+            isLong: params.isLong,
+            isolated: params.isolated,
+            markPrice: params.markPrice,
+            slippagePct: params.slippagePct,
+          },
+          (outcome) => {
+            // Fires only if the order call resolves AFTER we already showed a
+            // timeout error and re-enabled Close — reconcile instead of leaving
+            // the outcome silently unreflected in the UI, whichever way it went.
+            if (outcome.ok) {
+              toast.info(`${params.pair} — order actually went through after the timeout, refreshing`);
+              void refresh();
+            } else {
+              toast.warning(`${params.pair} — that timed-out request was rejected (likely expired), no order was placed`);
+            }
+          },
+        );
         toast.success(`Market close placed — ${params.pair}`);
         setClosingPosition(null);
         await refresh();
       } catch (e) {
         if (e instanceof Error && (e.message.includes("rejected") || e.message.includes("denied"))) {
           toast.warning("Signature rejected");
-        } else if (e instanceof Error) {
-          toast.error(e.message);
+        } else if (e instanceof Error && e.message === "Request timed out") {
+          toast.error("Request timed out — if a wallet popup is still open, reject it before retrying");
+          // The signed request may still be sitting live in the wallet until its
+          // own on-chain expiration passes — hold the retry guard that long so a
+          // retry can't queue a second live signature request alongside it.
+          holdGuard = true;
+          setTimeout(() => {
+            setClosingKeys((prev) => {
+              const next = new Set(prev);
+              next.delete(key);
+              return next;
+            });
+          }, CLOSE_RETRY_HOLD_MS);
         } else {
-          toast.error("Failed to close position");
+          toast.error(getNadoErrorMessage(e));
         }
       } finally {
-        setIsClosing(false);
-        setClosingKeys((prev) => {
-          const next = new Set(prev);
-          next.delete(key);
-          return next;
-        });
+        if (!holdGuard) {
+          setClosingKeys((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+        }
       }
     },
-    [executeReady, closePosition, refresh, connectedAddress, address],
+    [executeReady, closingKeys, closePosition, refresh, connectedAddress, address],
   );
 
   if (!phase1Ready) {
@@ -408,6 +473,7 @@ function WalletContent({ address }: { address: string }) {
             triggerLoading={triggerOrdersLoading || linkedSignerDeriving}
             isOwnWallet={isOwnWallet}
             onCancelOrder={handleCancelOrder}
+            onCancelProductTriggerOrders={handleCancelProductTriggerOrders}
             cancellingKeys={cancellingKeys}
             streamConnected={orderStreamConnected}
             has1CT={has1CT}
@@ -449,7 +515,7 @@ function WalletContent({ address }: { address: string }) {
         open={closingPosition !== null}
         onOpenChange={(open) => { if (!open) setClosingPosition(null); }}
         onConfirm={handleClosePosition}
-        isClosing={isClosing}
+        isClosing={closingPosition !== null && closingKeys.has(closingKey(closingPosition))}
       />
     </div>
   );

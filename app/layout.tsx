@@ -121,7 +121,7 @@ export default async function RootLayout({
               <main className="flex-1">{children}</main>
               <Footer />
             </div>
-            <Toaster position="bottom-right" theme="dark" richColors />
+            <Toaster position="bottom-right" theme="dark" richColors toastOptions={{ duration: 6000 }} />
             <ReferralCTA />
             <TwitterCTA />
           </Providers>
