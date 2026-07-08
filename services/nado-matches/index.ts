@@ -194,7 +194,11 @@ let redisErrors = 0;
 
 // ─── Token bucket rate limiter ────────────────────────────────────────────────
 
-const RATE_BUDGET = 350;
+// Nado granted a rate-limit lift on this service's static egress IP
+// (209.71.106.68): 2000 weight/10s, 12000 weight/min, up from the 400/10s base
+// tier. Budgeted at ~50% of the new ceiling — deliberate headroom for
+// concurrent devices/users, not maxing out the lift for a single session.
+const RATE_BUDGET = 1000;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_WAIT_MS = 8_000;
 const RATE_QUEUED_THRESHOLD_MS = 2_000;

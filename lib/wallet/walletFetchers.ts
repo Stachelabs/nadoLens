@@ -30,7 +30,9 @@ import { fromX18BigInt } from '@/types/nado'
 
 export const MATCHES_LIMIT = 500
 export const MAX_PAGES = 200
-export const MATCHES_BURST_MS = 1500
+// nado-matches now has real headroom (1000 weight/10s budget, up from 350) —
+// pace consecutive Archive calls less conservatively.
+export const MATCHES_BURST_MS = 500
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
