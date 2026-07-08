@@ -12,6 +12,7 @@ const redis = Redis.fromEnv();
 let redisWrites = 0;
 let redisErrors = 0;
 let archiveFetches = 0;
+let gatewayFetches = 0;
 let cacheHits = 0;
 
 type FundingBody = {
@@ -57,7 +58,60 @@ function positionsWeight(body: PositionsBody): number {
       return 10;
     case "orders":
       return 2 * (body.product_ids?.length ?? 1);
+    default:
+      // Unreachable once validatePositionsBody() has run — but never let an
+      // unexpected value compute to NaN and poison the shared weightLog.
+      return RATE_BUDGET;
   }
+}
+
+const VALID_POSITIONS_QUERIES = new Set<PositionsQuery>([
+  "subaccount_info",
+  "subaccount_orders",
+  "isolated_positions",
+  "orders",
+]);
+
+// Comfortable headroom over the current ~70-product universe, low enough that
+// a single `orders` request (weight = 2 × product_ids.length) can never alone
+// exceed RATE_BUDGET and starve every other concurrent request for a window.
+const MAX_ORDERS_PRODUCT_IDS = 200;
+
+function validatePositionsBody(
+  raw: unknown,
+): { ok: true; body: PositionsBody } | { ok: false; error: string } {
+  if (typeof raw !== "object" || raw === null) {
+    return { ok: false, error: "Body must be an object" };
+  }
+  const b = raw as Record<string, unknown>;
+  if (typeof b.query !== "string" || !VALID_POSITIONS_QUERIES.has(b.query as PositionsQuery)) {
+    return { ok: false, error: "Invalid or missing query type" };
+  }
+  const query = b.query as PositionsQuery;
+  const no_cache = b.no_cache === true;
+
+  if (query === "orders") {
+    if (typeof b.sender !== "string" || b.sender.length === 0) {
+      return { ok: false, error: "sender required for orders query" };
+    }
+    if (
+      !Array.isArray(b.product_ids) ||
+      b.product_ids.length === 0 ||
+      b.product_ids.length > MAX_ORDERS_PRODUCT_IDS ||
+      !b.product_ids.every((id) => typeof id === "number" && Number.isFinite(id))
+    ) {
+      return {
+        ok: false,
+        error: `product_ids must be a non-empty array of at most ${MAX_ORDERS_PRODUCT_IDS} numbers`,
+      };
+    }
+    return { ok: true, body: { query, sender: b.sender, product_ids: b.product_ids as number[], no_cache } };
+  }
+
+  if (typeof b.subaccount !== "string" || b.subaccount.length === 0) {
+    return { ok: false, error: "subaccount required" };
+  }
+  return { ok: true, body: { query, subaccount: b.subaccount, no_cache } };
 }
 
 function positionsCacheKey(body: PositionsBody): string {
@@ -237,7 +291,7 @@ async function fetchGatewayWithRetry(
     callerSignal?.addEventListener("abort", () => ac.abort(), { once: true });
 
     try {
-      archiveFetches++;
+      gatewayFetches++;
       const res = await fetch(`${GATEWAY_URL}/query`, {
         method: "POST",
         signal: ac.signal,
@@ -303,6 +357,7 @@ const server = Bun.serve({
         rate_weight_used: Math.round(currentWeight()),
         rate_budget: RATE_BUDGET,
         archive_fetches: archiveFetches,
+        gateway_fetches: gatewayFetches,
         cache_hits: cacheHits,
       });
     }
@@ -381,12 +436,18 @@ const server = Bun.serve({
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      let body: PositionsBody;
+      let rawBody: unknown;
       try {
-        body = (await req.json()) as PositionsBody;
+        rawBody = await req.json();
       } catch {
         return Response.json({ error: "Invalid request body" }, { status: 400 });
       }
+
+      const validated = validatePositionsBody(rawBody);
+      if (!validated.ok) {
+        return Response.json({ error: validated.error }, { status: 400 });
+      }
+      const body = validated.body;
 
       const key = positionsCacheKey(body);
       const responseHeaders: Record<string, string> = {};
@@ -428,7 +489,15 @@ const server = Bun.serve({
         });
       }
 
-      const data: unknown = await gatewayRes.json();
+      let data: unknown;
+      try {
+        data = await gatewayRes.json();
+      } catch {
+        return Response.json(
+          { error: "Invalid response from Gateway" },
+          { status: 502 },
+        );
+      }
 
       // Short TTL — live position/order data on a 6-12s client poll cadence,
       // unlike funding's long-TTL interest/funding cache above. Just enough to

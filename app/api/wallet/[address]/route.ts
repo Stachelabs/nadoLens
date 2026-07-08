@@ -73,9 +73,9 @@ export async function GET(request: NextRequest, { params }: Props) {
         );
       }
       const productIds = rawIds.split(",").map(Number).filter(Number.isFinite);
-      if (productIds.length === 0) {
+      if (productIds.length === 0 || productIds.length > 200) {
         return NextResponse.json(
-          { error: "product_ids must contain at least one valid number" },
+          { error: "product_ids must contain between 1 and 200 valid numbers" },
           { status: 400 },
         );
       }
