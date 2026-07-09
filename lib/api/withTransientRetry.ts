@@ -35,7 +35,11 @@ export async function withTransientRetry(
       if (response.status === 429) {
         const ra = response.headers.get("Retry-After");
         const parsed = ra ? parseInt(ra, 10) : NaN;
-        if (Number.isFinite(parsed)) retryAfterMs = parsed * 1000;
+        // Clamp — an externally-controlled Retry-After (Nado Gateway/Trigger,
+        // not just our own Fly services) must never be able to sleep past
+        // this helper's own deadline budget (mirrors the clamp already
+        // present in the Fly services' own retry helpers).
+        if (Number.isFinite(parsed)) retryAfterMs = Math.min(parsed * 1000, maxTotalMs);
       }
 
       lastResponse = response;
