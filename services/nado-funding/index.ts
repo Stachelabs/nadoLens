@@ -4,6 +4,7 @@ import { createHash } from "crypto";
 
 const PORT = parseInt(process.env.PORT ?? "3002", 10);
 const ARCHIVE_URL = process.env.NADO_ARCHIVE_REST ?? "https://archive.prod.nado.xyz/v1";
+const GATEWAY_URL = process.env.NADO_GATEWAY_REST ?? "https://gateway.prod.nado.xyz/v1";
 const SERVICE_SECRET = process.env.SERVICE_SECRET ?? "";
 
 const redis = Redis.fromEnv();
@@ -11,6 +12,7 @@ const redis = Redis.fromEnv();
 let redisWrites = 0;
 let redisErrors = 0;
 let archiveFetches = 0;
+let gatewayFetches = 0;
 let cacheHits = 0;
 
 type FundingBody = {
@@ -30,13 +32,115 @@ function cacheKey(body: FundingBody): string {
   return `nado:funding:${hash}`;
 }
 
+// ─── Positions proxy (migrated from app/api/wallet/[address], Vercel had no
+// static IP / no rate-limit lift / zero caching / zero retry on this route) ──
+
+type PositionsQuery = "subaccount_info" | "subaccount_orders" | "isolated_positions" | "orders";
+
+type PositionsBody = {
+  query: PositionsQuery;
+  subaccount?: string;
+  sender?: string;
+  product_ids?: number[];
+  no_cache?: boolean;
+};
+
+// Weights per docs/api/NADO_RATE_LIMITS.md "Gateway Queries — Weights" table.
+// `subaccount_orders` isn't a distinct row in that table — treated as the same
+// basic per-subaccount cost as subaccount_info (conservative, not confirmed).
+function positionsWeight(body: PositionsBody): number {
+  switch (body.query) {
+    case "subaccount_info":
+      return 2;
+    case "subaccount_orders":
+      return 2;
+    case "isolated_positions":
+      return 10;
+    case "orders":
+      return 2 * (body.product_ids?.length ?? 1);
+    default:
+      // Unreachable once validatePositionsBody() has run — but never let an
+      // unexpected value compute to NaN and poison the shared weightLog.
+      return RATE_BUDGET;
+  }
+}
+
+const VALID_POSITIONS_QUERIES = new Set<PositionsQuery>([
+  "subaccount_info",
+  "subaccount_orders",
+  "isolated_positions",
+  "orders",
+]);
+
+// Comfortable headroom over the current ~70-product universe, low enough that
+// a single `orders` request (weight = 2 × product_ids.length) can never alone
+// exceed RATE_BUDGET and starve every other concurrent request for a window.
+const MAX_ORDERS_PRODUCT_IDS = 200;
+
+function validatePositionsBody(
+  raw: unknown,
+): { ok: true; body: PositionsBody } | { ok: false; error: string } {
+  if (typeof raw !== "object" || raw === null) {
+    return { ok: false, error: "Body must be an object" };
+  }
+  const b = raw as Record<string, unknown>;
+  if (typeof b.query !== "string" || !VALID_POSITIONS_QUERIES.has(b.query as PositionsQuery)) {
+    return { ok: false, error: "Invalid or missing query type" };
+  }
+  const query = b.query as PositionsQuery;
+  const no_cache = b.no_cache === true;
+
+  if (query === "orders") {
+    if (typeof b.sender !== "string" || b.sender.length === 0) {
+      return { ok: false, error: "sender required for orders query" };
+    }
+    if (
+      !Array.isArray(b.product_ids) ||
+      b.product_ids.length === 0 ||
+      b.product_ids.length > MAX_ORDERS_PRODUCT_IDS ||
+      !b.product_ids.every((id) => typeof id === "number" && Number.isFinite(id))
+    ) {
+      return {
+        ok: false,
+        error: `product_ids must be a non-empty array of at most ${MAX_ORDERS_PRODUCT_IDS} numbers`,
+      };
+    }
+    return { ok: true, body: { query, sender: b.sender, product_ids: b.product_ids as number[], no_cache } };
+  }
+
+  if (typeof b.subaccount !== "string" || b.subaccount.length === 0) {
+    return { ok: false, error: "subaccount required" };
+  }
+  return { ok: true, body: { query, subaccount: b.subaccount, no_cache } };
+}
+
+function positionsCacheKey(body: PositionsBody): string {
+  const { no_cache: _, ...hashBody } = body;
+  const hash = createHash("sha256")
+    .update(JSON.stringify(hashBody))
+    .digest("hex")
+    .slice(0, 16);
+  return `nado:positions:${hash}`;
+}
+
+function positionsGatewayBody(body: PositionsBody): Record<string, unknown> {
+  if (body.query === "orders") {
+    return { type: "orders", sender: body.sender, product_ids: body.product_ids };
+  }
+  return { type: body.query, subaccount: body.subaccount };
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 // ─── Token bucket rate limiter ────────────────────────────────────────────────
 
-const RATE_BUDGET = 350;
+// Nado granted a rate-limit lift on this service's static egress IP
+// (209.71.106.95): 2000 weight/10s, 12000 weight/min, up from the 400/10s base
+// tier. Budgeted at ~50% of the new ceiling — deliberate headroom for
+// concurrent devices/users, not maxing out the lift for a single session.
+const RATE_BUDGET = 1000;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_WAIT_MS = 8_000;
 const RATE_QUEUED_THRESHOLD_MS = 2_000;
@@ -58,7 +162,9 @@ function currentWeight(): number {
   return total;
 }
 
-async function acquireWeight(weight: number): Promise<{ waited: number }> {
+async function acquireWeight(
+  weight: number,
+): Promise<{ ok: true; waited: number } | { ok: false }> {
   const start = Date.now();
   const deadline = start + RATE_MAX_WAIT_MS;
 
@@ -68,13 +174,17 @@ async function acquireWeight(weight: number): Promise<{ waited: number }> {
 
     if (currentWeight() + weight <= RATE_BUDGET) {
       weightLog.push({ ts: now, weight });
-      return { waited: now - start };
+      return { ok: true, waited: now - start };
     }
 
     if (now >= deadline) {
-      weightLog.push({ ts: now, weight });
-      console.warn(`[nado-funding] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
-      return { waited: now - start };
+      // Fail closed — do NOT push the weight and proceed anyway. Under
+      // sustained saturation that would let queued requests fire past the
+      // real budget once the deadline hits, defeating the limiter exactly
+      // when it matters most (concurrent load, the scenario this budget is
+      // meant to protect).
+      console.warn(`[nado-funding] Rate limiter: max wait exceeded, rejecting (weight=${weight})`);
+      return { ok: false };
     }
 
     const oldest = weightLog[0];
@@ -161,6 +271,76 @@ async function fetchWithRetry(
   throw lastError;
 }
 
+// ─── Gateway fetch with retry (positions proxy) ───────────────────────────────
+
+async function fetchGatewayWithRetry(
+  gatewayBody: Record<string, unknown>,
+  callerSignal?: AbortSignal,
+): Promise<Response> {
+  const maxAttempts = 4;
+  const baseDelayMs = 400;
+  const maxDelayMs = 5_000;
+  const DEADLINE_MS = 14_000;
+  const deadline = Date.now() + DEADLINE_MS;
+  let last: Response | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0 && Date.now() >= deadline) break;
+    if (callerSignal?.aborted) break;
+
+    const remainingMs = Math.max(deadline - Date.now(), 1_000);
+    const perAttemptTimeout = Math.min(remainingMs, 8_000);
+
+    const ac = new AbortController();
+    const tid = setTimeout(() => ac.abort(), perAttemptTimeout);
+    callerSignal?.addEventListener("abort", () => ac.abort(), { once: true });
+
+    try {
+      gatewayFetches++;
+      const res = await fetch(`${GATEWAY_URL}/query`, {
+        method: "POST",
+        signal: ac.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Encoding": "gzip, br, deflate",
+        },
+        body: JSON.stringify(gatewayBody),
+      });
+
+      if (res.status < 500 && res.status !== 429) return res;
+
+      if (res.status >= 500 && attempt >= 1) {
+        console.warn(`[nado-funding] Gateway 5xx after ${attempt + 1} attempts — circuit break`);
+        return res;
+      }
+
+      last = res;
+      console.warn(`[nado-funding] Gateway retry ${attempt + 1}/${maxAttempts} — status ${res.status}`);
+    } catch (e) {
+      lastError = e;
+      const reason = e instanceof Error ? e.message : "unknown";
+      console.warn(`[nado-funding] Gateway retry ${attempt + 1}/${maxAttempts} — ${reason}`);
+    } finally {
+      clearTimeout(tid);
+    }
+
+    if (attempt < maxAttempts - 1 && Date.now() < deadline) {
+      const ra = last?.headers.get("Retry-After");
+      const retryAfterMs = ra ? Math.min(parseInt(ra, 10) * 1000, maxDelayMs) : 0;
+      const jitter = 1 + Math.random() * 0.3;
+      const delay = Math.min(
+        baseDelayMs * Math.pow(2, attempt) * jitter + retryAfterMs,
+        maxDelayMs,
+      );
+      await sleep(Math.min(delay, deadline - Date.now()));
+    }
+  }
+
+  if (last) return last;
+  throw lastError;
+}
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 const server = Bun.serve({
@@ -183,6 +363,7 @@ const server = Bun.serve({
         rate_weight_used: Math.round(currentWeight()),
         rate_budget: RATE_BUDGET,
         archive_fetches: archiveFetches,
+        gateway_fetches: gatewayFetches,
         cache_hits: cacheHits,
       });
     }
@@ -218,8 +399,17 @@ const server = Bun.serve({
         }
       }
 
-      const { waited } = await acquireWeight(FUNDING_WEIGHT);
-      if (waited >= RATE_QUEUED_THRESHOLD_MS) {
+      const acquired = await acquireWeight(FUNDING_WEIGHT);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      if (acquired.waited >= RATE_QUEUED_THRESHOLD_MS) {
         responseHeaders["X-NadoLens-Queued"] = "true";
       }
 
@@ -249,6 +439,100 @@ const server = Bun.serve({
         redisErrors++;
         const msg = err instanceof Error ? err.message : "unknown";
         console.error(`[nado-funding] Redis SET failed: ${msg}`);
+      }
+
+      return Response.json(data, {
+        headers: { "X-Cache": "MISS", ...responseHeaders },
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/positions") {
+      if (SERVICE_SECRET && req.headers.get("X-Service-Secret") !== SERVICE_SECRET) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      let rawBody: unknown;
+      try {
+        rawBody = await req.json();
+      } catch {
+        return Response.json({ error: "Invalid request body" }, { status: 400 });
+      }
+
+      const validated = validatePositionsBody(rawBody);
+      if (!validated.ok) {
+        return Response.json({ error: validated.error }, { status: 400 });
+      }
+      const body = validated.body;
+
+      const key = positionsCacheKey(body);
+      const responseHeaders: Record<string, string> = {};
+
+      if (!body.no_cache) {
+        try {
+          const cached = await redis.get<unknown>(key);
+          if (cached !== null) {
+            cacheHits++;
+            return Response.json(cached, { headers: { "X-Cache": "HIT" } });
+          }
+        } catch (err) {
+          redisErrors++;
+          const msg = err instanceof Error ? err.message : "unknown";
+          console.error(`[nado-funding] Redis GET failed (positions): ${msg}`);
+        }
+      }
+
+      const weight = positionsWeight(body);
+      const acquired = await acquireWeight(weight);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      if (acquired.waited >= RATE_QUEUED_THRESHOLD_MS) {
+        responseHeaders["X-NadoLens-Queued"] = "true";
+      }
+
+      let gatewayRes: Response;
+      try {
+        gatewayRes = await fetchGatewayWithRetry(positionsGatewayBody(body), req.signal);
+      } catch {
+        return Response.json(
+          { error: "Gateway temporarily unavailable" },
+          { status: 502 },
+        );
+      }
+
+      if (!gatewayRes.ok) {
+        return new Response(await gatewayRes.text(), {
+          status: gatewayRes.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      let data: unknown;
+      try {
+        data = await gatewayRes.json();
+      } catch {
+        return Response.json(
+          { error: "Invalid response from Gateway" },
+          { status: 502 },
+        );
+      }
+
+      // Short TTL — live position/order data on a 6-12s client poll cadence,
+      // unlike funding's long-TTL interest/funding cache above. Just enough to
+      // dedupe near-simultaneous polls across multiple open tabs/users.
+      try {
+        await redis.set(key, data, { ex: 4 });
+        redisWrites++;
+      } catch (err) {
+        redisErrors++;
+        const msg = err instanceof Error ? err.message : "unknown";
+        console.error(`[nado-funding] Redis SET failed (positions): ${msg}`);
       }
 
       return Response.json(data, {

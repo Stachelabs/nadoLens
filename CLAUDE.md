@@ -91,10 +91,11 @@ Next.js 16 · TypeScript strict · Tailwind v4 · shadcn/ui · Recharts 3 · Zus
 - Ping every 30s: `{ method: "ping" }` | `id` field required in every subscribe message
 - `min_machines_running = 1` — machine never sleeps, WS connection stays alive permanently
 - Exposes `POST /matches` (Archive proxy, Upstash Redis cache with TTL) · `GET /sse` (SSE → browser) · `GET /health`
-- **Token bucket**: In-memory sliding window rate limiter — 350 weight/10s budget, `X-NadoLens-Queued: true` header when wait > 2s, max 8s wait
+- **Token bucket**: In-memory sliding window rate limiter — **1000 weight/10s budget** on both `nado-matches` and `nado-funding` (Nado granted a 5x lift, 2000/10s + 12000/min, on both services' static egress IPs — `209.71.106.68` matches, `209.71.106.95` funding; budgeted at ~50% for concurrent-user headroom, not maxed out). `X-NadoLens-Queued: true` header when wait > 2s, max 8s wait
 - Redis cache: Archive `/matches` responses cached by request hash — `no_cache` flag bypasses TTL
 - SSE clients register via `?subaccount=<bytes32>` — fill events routed per subaccount; subscriptions re-registered on WS reconnect
 - Client-side: `hooks/useAccountStream.ts` — EventSource with exponential-backoff reconnect
+- **`nado-funding`** also exposes `POST /positions` — proxies Gateway `subaccount_info`/`subaccount_orders`/`isolated_positions`/`orders` for `app/api/wallet/[address]`, migrated off Vercel's ephemeral IP. Short 4s Redis TTL (live position data, 6-12s poll cadence) — unlike `/funding`'s 1h TTL.
 
 **Vercel build**
 - Build script: `"build": "next build"`
@@ -146,8 +147,8 @@ Legacy HTML crawler: `pnpm docs:build:nado` (often rate-limited)
 - **ALWAYS**: x18 via `BigInt`, never `parseFloat` on large numbers
 - Fetch ALL subaccounts (default + isolated) before fetching matches
 - Matches pagination: `idx = page[page.length - 1].submission_idx`, stop if `page.length < 500`
-- Safety cap: `MAX_PAGES = 50` — never paginate beyond 25 000 matches per load
-- Burst delay: `MATCHES_BURST_MS = 700` between consecutive Archive calls — prevents 429s
+- Safety cap: `MAX_PAGES = 200` — never paginate beyond 100 000 matches per load
+- Burst delay: `MATCHES_BURST_MS = 500` between consecutive Archive calls — prevents 429s
 
 ### Isolated margin — parent vs pocket
 

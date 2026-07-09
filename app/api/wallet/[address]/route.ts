@@ -1,4 +1,4 @@
-import { NADO_GATEWAY_REST } from "@/lib/nado";
+import { NADO_FUNDING_SERVICE_URL } from "@/lib/nado";
 import {
   IsolatedPositionsDataSchema,
   NadoSubaccountDataSchema,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/schemas/nado";
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { parseGatewayJson } from "@/lib/api/validateResponse";
+import { withTransientRetry } from "@/lib/api/withTransientRetry";
 import { NextRequest, NextResponse } from "next/server";
 import { isAddress } from "viem";
 import { z } from "zod";
@@ -58,9 +59,11 @@ export async function GET(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
 
-    // Build Gateway request body — `orders` uses sender + product_ids;
-    // all others use subaccount.
-    let gatewayBody: Record<string, unknown>;
+    // Build the positions-proxy body — `orders` uses sender + product_ids;
+    // all others use subaccount. Proxied through nado-funding (Fly.io, static
+    // egress IP + rate-limit lift + short-TTL cache) instead of calling
+    // Gateway directly from Vercel's ephemeral IP.
+    let positionsBody: Record<string, unknown>;
     if (query === "orders") {
       const rawIds = searchParams.get("product_ids");
       if (!rawIds) {
@@ -70,31 +73,46 @@ export async function GET(request: NextRequest, { params }: Props) {
         );
       }
       const productIds = rawIds.split(",").map(Number).filter(Number.isFinite);
-      if (productIds.length === 0) {
+      if (productIds.length === 0 || productIds.length > 200) {
         return NextResponse.json(
-          { error: "product_ids must contain at least one valid number" },
+          { error: "product_ids must contain between 1 and 200 valid numbers" },
           { status: 400 },
         );
       }
-      gatewayBody = { type: "orders", sender: address, product_ids: productIds };
+      positionsBody = { query: "orders", sender: address, product_ids: productIds };
     } else {
-      gatewayBody = { type: query, subaccount: address };
+      positionsBody = { query, subaccount: address };
     }
 
-    const response = await fetch(`${NADO_GATEWAY_REST}/query`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Encoding": "gzip",
-      },
-      body: JSON.stringify(gatewayBody),
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
-    });
+    const serviceSecret = process.env.SERVICE_SECRET;
+    if (!serviceSecret) {
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+    if (!NADO_FUNDING_SERVICE_URL) {
+      return NextResponse.json(
+        { error: "Funding service not configured" },
+        { status: 503 },
+      );
+    }
+
+    const response = await withTransientRetry(
+      () =>
+        fetch(`${NADO_FUNDING_SERVICE_URL}/positions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Service-Secret": serviceSecret,
+          },
+          body: JSON.stringify(positionsBody),
+          signal: AbortSignal.timeout(15_000),
+          cache: "no-store",
+        }),
+      { maxAttempts: 3 },
+    );
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: "Gateway request failed" },
+        { error: "Positions service request failed" },
         { status: response.status },
       );
     }

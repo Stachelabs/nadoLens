@@ -194,7 +194,11 @@ let redisErrors = 0;
 
 // ─── Token bucket rate limiter ────────────────────────────────────────────────
 
-const RATE_BUDGET = 350;
+// Nado granted a rate-limit lift on this service's static egress IP
+// (209.71.106.68): 2000 weight/10s, 12000 weight/min, up from the 400/10s base
+// tier. Budgeted at ~50% of the new ceiling — deliberate headroom for
+// concurrent devices/users, not maxing out the lift for a single session.
+const RATE_BUDGET = 1000;
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_WAIT_MS = 8_000;
 const RATE_QUEUED_THRESHOLD_MS = 2_000;
@@ -203,9 +207,13 @@ type WeightEntry = { ts: number; weight: number };
 const weightLog: WeightEntry[] = [];
 
 function requestWeight(body: MatchesBody): number {
-  const limit = Math.min(body.limit ?? 250, 500);
-  const subs = Math.min(body.subaccounts?.length ?? 1, 50);
-  return 2 + (limit * subs) / 10;
+  const limit = Math.min(Math.max(body.limit ?? 250, 0), 500);
+  const subs = Math.min(Math.max(body.subaccounts?.length ?? 1, 0), 50);
+  const weight = 2 + (limit * subs) / 10;
+  // Clamp to RATE_BUDGET — a single request must never be able to poison the
+  // shared weightLog window past the budget itself (same DoS class as the
+  // /positions orders fix, applied here defense-in-depth).
+  return Math.min(weight, RATE_BUDGET);
 }
 
 function evictStale(now: number): void {
@@ -221,7 +229,9 @@ function currentWeight(): number {
   return total;
 }
 
-async function acquireWeight(weight: number): Promise<{ waited: number }> {
+async function acquireWeight(
+  weight: number,
+): Promise<{ ok: true; waited: number } | { ok: false }> {
   const start = Date.now();
   const deadline = start + RATE_MAX_WAIT_MS;
 
@@ -231,13 +241,17 @@ async function acquireWeight(weight: number): Promise<{ waited: number }> {
 
     if (currentWeight() + weight <= RATE_BUDGET) {
       weightLog.push({ ts: now, weight });
-      return { waited: now - start };
+      return { ok: true, waited: now - start };
     }
 
     if (now >= deadline) {
-      weightLog.push({ ts: now, weight });
-      console.warn(`[nado-matches] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
-      return { waited: now - start };
+      // Fail closed — do NOT push the weight and proceed anyway. Under
+      // sustained saturation that would let queued requests fire past the
+      // real budget once the deadline hits, defeating the limiter exactly
+      // when it matters most (concurrent load, the scenario this budget is
+      // meant to protect).
+      console.warn(`[nado-matches] Rate limiter: max wait exceeded, rejecting (weight=${weight})`);
+      return { ok: false };
     }
 
     const oldest = weightLog[0];
@@ -400,9 +414,13 @@ const server = Bun.serve({
 
       writer.write(encoder.encode(": connected\n\n"));
 
+      // Fly.io's edge proxy (double-hop, see `via` header) appears to idle-time
+      // an HTTP/2 SSE stream around ~12-13s if no data frame is sent — Chrome
+      // surfaces the resulting stream kill as ERR_HTTP2_PROTOCOL_ERROR. 8s
+      // keeps real margin under that observed threshold.
       const heartbeat = setInterval(() => {
         writer.write(encoder.encode(": ping\n\n")).catch(() => {});
-      }, 20_000);
+      }, 8_000);
 
       req.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);
@@ -429,7 +447,11 @@ const server = Bun.serve({
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
-          Connection: "keep-alive",
+          // NOTE: no `Connection` header — it's an HTTP/1.1-only connection-
+          // specific header, forbidden in HTTP/2 (RFC 7540 §8.1.2.2). Chrome
+          // enforces this strictly and kills the stream with
+          // ERR_HTTP2_PROTOCOL_ERROR if it's present; curl doesn't validate
+          // it, which is why this went undetected via curl-only testing.
           "Access-Control-Allow-Origin": "*",
         },
       });
@@ -469,7 +491,17 @@ const server = Bun.serve({
       }
 
       const weight = requestWeight(body);
-      const { waited } = await acquireWeight(weight);
+      const acquired = await acquireWeight(weight);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      const { waited } = acquired;
       const wasQueued = waited >= RATE_QUEUED_THRESHOLD_MS;
       if (wasQueued) {
         console.log(`[nado-matches] Request queued ${waited}ms (weight=${weight})`);
