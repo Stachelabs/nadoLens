@@ -404,9 +404,13 @@ const server = Bun.serve({
 
       writer.write(encoder.encode(": connected\n\n"));
 
+      // Fly.io's edge proxy (double-hop, see `via` header) appears to idle-time
+      // an HTTP/2 SSE stream around ~12-13s if no data frame is sent — Chrome
+      // surfaces the resulting stream kill as ERR_HTTP2_PROTOCOL_ERROR. 8s
+      // keeps real margin under that observed threshold.
       const heartbeat = setInterval(() => {
         writer.write(encoder.encode(": ping\n\n")).catch(() => {});
-      }, 20_000);
+      }, 8_000);
 
       req.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);
@@ -433,7 +437,11 @@ const server = Bun.serve({
         headers: {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
-          Connection: "keep-alive",
+          // NOTE: no `Connection` header — it's an HTTP/1.1-only connection-
+          // specific header, forbidden in HTTP/2 (RFC 7540 §8.1.2.2). Chrome
+          // enforces this strictly and kills the stream with
+          // ERR_HTTP2_PROTOCOL_ERROR if it's present; curl doesn't validate
+          // it, which is why this went undetected via curl-only testing.
           "Access-Control-Allow-Origin": "*",
         },
       });
