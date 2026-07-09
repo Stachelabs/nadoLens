@@ -207,9 +207,13 @@ type WeightEntry = { ts: number; weight: number };
 const weightLog: WeightEntry[] = [];
 
 function requestWeight(body: MatchesBody): number {
-  const limit = Math.min(body.limit ?? 250, 500);
-  const subs = Math.min(body.subaccounts?.length ?? 1, 50);
-  return 2 + (limit * subs) / 10;
+  const limit = Math.min(Math.max(body.limit ?? 250, 0), 500);
+  const subs = Math.min(Math.max(body.subaccounts?.length ?? 1, 0), 50);
+  const weight = 2 + (limit * subs) / 10;
+  // Clamp to RATE_BUDGET — a single request must never be able to poison the
+  // shared weightLog window past the budget itself (same DoS class as the
+  // /positions orders fix, applied here defense-in-depth).
+  return Math.min(weight, RATE_BUDGET);
 }
 
 function evictStale(now: number): void {
@@ -225,7 +229,9 @@ function currentWeight(): number {
   return total;
 }
 
-async function acquireWeight(weight: number): Promise<{ waited: number }> {
+async function acquireWeight(
+  weight: number,
+): Promise<{ ok: true; waited: number } | { ok: false }> {
   const start = Date.now();
   const deadline = start + RATE_MAX_WAIT_MS;
 
@@ -235,13 +241,17 @@ async function acquireWeight(weight: number): Promise<{ waited: number }> {
 
     if (currentWeight() + weight <= RATE_BUDGET) {
       weightLog.push({ ts: now, weight });
-      return { waited: now - start };
+      return { ok: true, waited: now - start };
     }
 
     if (now >= deadline) {
-      weightLog.push({ ts: now, weight });
-      console.warn(`[nado-matches] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
-      return { waited: now - start };
+      // Fail closed — do NOT push the weight and proceed anyway. Under
+      // sustained saturation that would let queued requests fire past the
+      // real budget once the deadline hits, defeating the limiter exactly
+      // when it matters most (concurrent load, the scenario this budget is
+      // meant to protect).
+      console.warn(`[nado-matches] Rate limiter: max wait exceeded, rejecting (weight=${weight})`);
+      return { ok: false };
     }
 
     const oldest = weightLog[0];
@@ -481,7 +491,17 @@ const server = Bun.serve({
       }
 
       const weight = requestWeight(body);
-      const { waited } = await acquireWeight(weight);
+      const acquired = await acquireWeight(weight);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      const { waited } = acquired;
       const wasQueued = waited >= RATE_QUEUED_THRESHOLD_MS;
       if (wasQueued) {
         console.log(`[nado-matches] Request queued ${waited}ms (weight=${weight})`);

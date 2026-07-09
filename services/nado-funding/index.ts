@@ -162,7 +162,9 @@ function currentWeight(): number {
   return total;
 }
 
-async function acquireWeight(weight: number): Promise<{ waited: number }> {
+async function acquireWeight(
+  weight: number,
+): Promise<{ ok: true; waited: number } | { ok: false }> {
   const start = Date.now();
   const deadline = start + RATE_MAX_WAIT_MS;
 
@@ -172,13 +174,17 @@ async function acquireWeight(weight: number): Promise<{ waited: number }> {
 
     if (currentWeight() + weight <= RATE_BUDGET) {
       weightLog.push({ ts: now, weight });
-      return { waited: now - start };
+      return { ok: true, waited: now - start };
     }
 
     if (now >= deadline) {
-      weightLog.push({ ts: now, weight });
-      console.warn(`[nado-funding] Rate limiter: max wait exceeded, proceeding anyway (weight=${weight})`);
-      return { waited: now - start };
+      // Fail closed — do NOT push the weight and proceed anyway. Under
+      // sustained saturation that would let queued requests fire past the
+      // real budget once the deadline hits, defeating the limiter exactly
+      // when it matters most (concurrent load, the scenario this budget is
+      // meant to protect).
+      console.warn(`[nado-funding] Rate limiter: max wait exceeded, rejecting (weight=${weight})`);
+      return { ok: false };
     }
 
     const oldest = weightLog[0];
@@ -393,8 +399,17 @@ const server = Bun.serve({
         }
       }
 
-      const { waited } = await acquireWeight(FUNDING_WEIGHT);
-      if (waited >= RATE_QUEUED_THRESHOLD_MS) {
+      const acquired = await acquireWeight(FUNDING_WEIGHT);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      if (acquired.waited >= RATE_QUEUED_THRESHOLD_MS) {
         responseHeaders["X-NadoLens-Queued"] = "true";
       }
 
@@ -467,8 +482,17 @@ const server = Bun.serve({
       }
 
       const weight = positionsWeight(body);
-      const { waited } = await acquireWeight(weight);
-      if (waited >= RATE_QUEUED_THRESHOLD_MS) {
+      const acquired = await acquireWeight(weight);
+      if (!acquired.ok) {
+        return Response.json(
+          { error: "Rate limit exceeded, retry shortly" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(Math.ceil(RATE_WINDOW_MS / 1000)) },
+          },
+        );
+      }
+      if (acquired.waited >= RATE_QUEUED_THRESHOLD_MS) {
         responseHeaders["X-NadoLens-Queued"] = "true";
       }
 
