@@ -206,6 +206,23 @@ const RATE_QUEUED_THRESHOLD_MS = 2_000;
 type WeightEntry = { ts: number; weight: number };
 const weightLog: WeightEntry[] = [];
 
+// Observability for the rate limiter — without these, tuning RATE_BUDGET is
+// guesswork instead of measurement. All-time-since-boot counters (machine
+// runs indefinitely, min_machines_running=1, so no reset logic needed).
+let rejectedCount = 0;
+let peakWeight = 0;
+
+// NOTE: weightLog above, and `clients`/`accountClients`/`subscribedAccounts`
+// (SSE routing state, declared further down) are in-memory, per-process
+// state — this service is NOT safe to run as more than 1 concurrent machine.
+// `min_machines_running: 1` in fly.toml only sets a floor, not a ceiling —
+// Fly does not auto-scale this app's machine count under load, but a human
+// running `fly scale count 2` would silently double the effective rate
+// budget past Nado's real ceiling and could route an SSE client to a
+// different machine than the one holding its Gateway subscription (dropped
+// fills, no error). Do not scale this service past 1 machine without first
+// moving weightLog + SSE routing state to Redis.
+
 function requestWeight(body: MatchesBody): number {
   const limit = Math.min(Math.max(body.limit ?? 250, 0), 500);
   const subs = Math.min(Math.max(body.subaccounts?.length ?? 1, 0), 50);
@@ -238,6 +255,7 @@ async function acquireWeight(
   while (true) {
     const now = Date.now();
     evictStale(now);
+    peakWeight = Math.max(peakWeight, currentWeight());
 
     if (currentWeight() + weight <= RATE_BUDGET) {
       weightLog.push({ ts: now, weight });
@@ -250,6 +268,7 @@ async function acquireWeight(
       // real budget once the deadline hits, defeating the limiter exactly
       // when it matters most (concurrent load, the scenario this budget is
       // meant to protect).
+      rejectedCount++;
       console.warn(`[nado-matches] Rate limiter: max wait exceeded, rejecting (weight=${weight})`);
       return { ok: false };
     }
@@ -341,8 +360,14 @@ async function fetchWithRetry(
 
     if (attempt < maxAttempts - 1 && Date.now() < deadline) {
       const ra = last?.headers.get("Retry-After");
-      const retryAfterMs = ra
-        ? Math.min(parseInt(ra, 10) * 1000, maxDelayMs)
+      const raParsed = ra ? parseInt(ra, 10) : NaN;
+      // RFC 7231 also allows Retry-After as an HTTP-date, not just seconds —
+      // parseInt on that yields NaN. Guard so a non-numeric header can't
+      // collapse the backoff to sleep(NaN) (≈ 0ms), which would burn
+      // attempts instantly with no backoff instead of respecting Archive's
+      // requested delay.
+      const retryAfterMs = Number.isFinite(raParsed)
+        ? Math.min(raParsed * 1000, maxDelayMs)
         : 0;
       const jitter = 1 + Math.random() * 0.3;
       const delay = Math.min(
@@ -377,6 +402,8 @@ const server = Bun.serve({
         account_subs: subscribedAccounts.size,
         rate_weight_used: Math.round(currentWeight()),
         rate_budget: RATE_BUDGET,
+        rate_rejected_count: rejectedCount,
+        rate_peak_weight: Math.round(peakWeight),
         memory_mb: Math.round(mem.rss / 1024 / 1024),
         heap_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
         redis_ok: redisOk,

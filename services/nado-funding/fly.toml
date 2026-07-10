@@ -1,3 +1,11 @@
+# DO NOT run `fly scale count 2` (or higher) on this app without first
+# migrating the rate-limiter's weightLog to Redis — it's in-memory,
+# per-process state (see services/nado-funding/index.ts). Scaling past 1
+# machine would silently double the effective rate budget past Nado's real
+# ceiling.
+# min_machines_running below is a FLOOR (never scale to zero), not a
+# ceiling — Fly does not auto-scale this app's machine count under load;
+# `fly scale count` is the only lever that changes it.
 app = "nadolens-nado-funding"
 primary_region = "fra"
 

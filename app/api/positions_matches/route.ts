@@ -48,13 +48,27 @@ export async function POST(
           signal: AbortSignal.timeout(15_000),
           cache: "no-store",
         }),
-      { maxAttempts: 3 },
+      // retryOnHttpStatus: false — nado-matches already retries Archive
+      // internally (fetchWithRetry, up to 4 attempts) and its response is a
+      // deliberate, final decision (including its own fail-closed 429).
+      // Retrying that response here would just re-enter the Fly service's
+      // rate limiter and re-trigger its own 4-attempt retry, multiplying
+      // real upstream calls up to 12x during exactly the moment (an Archive
+      // outage/429 storm) that's most harmful. maxAttempts:2 now covers only
+      // a thrown network error — the Fly service itself being transiently
+      // unreachable (a quick connection blip; nado-matches's own internal
+      // retry can't protect against that since it never runs if the
+      // process/network path itself is down).
+      { maxAttempts: 2, retryOnHttpStatus: false },
     );
 
     if (!response.ok) {
+      const headers: Record<string, string> = {};
+      const retryAfter = response.headers.get("Retry-After");
+      if (retryAfter) headers["Retry-After"] = retryAfter;
       return NextResponse.json(
         { error: "Matches service request failed" },
-        { status: response.status },
+        { status: response.status, headers },
       );
     }
 

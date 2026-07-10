@@ -68,7 +68,11 @@ async function fetchFromService(
         signal: AbortSignal.timeout(15_000),
         cache: "no-store",
       }),
-    { maxAttempts: 3 },
+    // retryOnHttpStatus: false — nado-matches already retries Archive
+    // internally; retrying its response here (including its own fail-closed
+    // 429) just re-enters an already-saturated rate limiter. See the same
+    // comment in app/api/positions_matches/route.ts for full rationale.
+    { maxAttempts: 3, retryOnHttpStatus: false },
   );
 
   if (!response.ok) return null;
