@@ -132,7 +132,7 @@ const features: Feature[] = [
   {
     title: "Open Orders",
     description: "Monitor pending limits and stops in real-time.",
-    badge: "Coming Soon",
+    badge: "Live",
     icon: (
       <svg
         className="size-6"
