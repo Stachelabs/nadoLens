@@ -1,3 +1,13 @@
+# DO NOT run `fly scale count 2` (or higher) on this app without first
+# migrating the rate-limiter's weightLog and the SSE routing state
+# (clients/accountClients/subscribedAccounts) to Redis — both are in-memory,
+# per-process singletons (see services/nado-matches/index.ts). Scaling past 1
+# machine would silently double the effective rate budget past Nado's real
+# ceiling and could route an SSE client to a different machine than the one
+# holding its Gateway subscription (dropped fills, no error).
+# min_machines_running below is a FLOOR (never scale to zero), not a
+# ceiling — Fly does not auto-scale this app's machine count under load;
+# `fly scale count` is the only lever that changes it.
 app = 'nadolens-nado-matches'
 primary_region = 'fra'
 

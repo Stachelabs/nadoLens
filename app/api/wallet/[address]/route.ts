@@ -107,7 +107,17 @@ export async function GET(request: NextRequest, { params }: Props) {
           signal: AbortSignal.timeout(15_000),
           cache: "no-store",
         }),
-      { maxAttempts: 3 },
+      // maxAttempts: 2 (was 3) — nado-funding already retries Gateway
+      // internally (fetchGatewayWithRetry, up to 4 attempts), so retrying a
+      // definitive Gateway/rate-limiter response here just re-enters the Fly
+      // service's rate limiter and re-triggers its own 4-attempt retry,
+      // multiplying real upstream calls up to 12x during exactly the moment
+      // (a Gateway outage/429 storm) that's most harmful. Kept at 2, not 1,
+      // to preserve one retry against the Fly service itself being
+      // transiently unreachable (deploy restart, cold start, network blip) —
+      // nado-funding's own internal retry can't cover that since it never
+      // runs if the process/network path itself is down.
+      { maxAttempts: 2 },
     );
 
     if (!response.ok) {
