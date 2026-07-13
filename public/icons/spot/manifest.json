@@ -1,8 +1,64 @@
 {
-  "generatedAt": "2026-06-26T09:36:07.627Z",
+  "generatedAt": "2026-07-13T13:36:27.920Z",
   "gateway": "https://gateway.prod.nado.xyz/v2",
   "marketKind": "spot",
   "entries": [
+    {
+      "marketKey": "KBTC",
+      "product_id": 1,
+      "symbol": "KBTC",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=kBTC/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/kbtc.0d267c0a.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "5fcababe3cf1e5695ed2beccf03eb8352564f1627c68f086a34190b67522d3a1",
+      "bytes": 2670
+    },
+    {
+      "marketKey": "NLP",
+      "product_id": 11,
+      "symbol": "NLP",
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/spot?market=kBTC/USDT0",
+      "message": "URL shows ?market=kBTC/USDT0 but expected route is NLP/USDT0. No stable route for this spot on app.nado.xyz."
+    },
+    {
+      "marketKey": "USDC",
+      "product_id": 5,
+      "symbol": "USDC",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=USDC/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/usdc.3acc98a8.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "cc25427edbfd4bdeaf12f4611809ea4188a903e0758939f903ca9ecc0a44be71",
+      "bytes": 1344
+    },
+    {
+      "marketKey": "WETH",
+      "product_id": 3,
+      "symbol": "WETH",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=wETH/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/weth.62c152dc.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "7f9177e11b329ded7a1d5a98f141ce04cf395c01cb86f6db6a73da3f502c8cec",
+      "bytes": 2466
+    },
+    {
+      "marketKey": "XAUT0",
+      "product_id": 159,
+      "symbol": "XAUT0",
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/spot?market=wETH/USDT0",
+      "message": "URL shows ?market=wETH/USDT0 but expected route is XAUT0/USDT0. No stable route for this spot on app.nado.xyz."
+    },
+    {
+      "marketKey": "wAAPLx",
+      "product_id": 143,
+      "symbol": "wAAPLx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=AAPLx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/aaplx.d3000355.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "01d075d46b9e5a3af380b808078d5f2f15bbcc6f11ba7ca3e5fe8ec046c0a5fe",
+      "bytes": 2555
+    },
     {
       "marketKey": "wAMZNx",
       "product_id": 145,
@@ -12,12 +68,72 @@
       "message": "Spot market switcher does not show AMZNx/USDT0 — not listed on app.nado.xyz yet."
     },
     {
+      "marketKey": "wGOOGLx",
+      "product_id": 147,
+      "symbol": "wGOOGLx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=GOOGLx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/googlx.c3a720e9.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "8f66ec3cdba117da97521dff2220494b4ae99b2e4342dc1b855760f137ea5d87",
+      "bytes": 2086
+    },
+    {
+      "marketKey": "wMETAx",
+      "product_id": 149,
+      "symbol": "wMETAx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=METAx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/metax.cafc84d3.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "d5ae03e0e796d6f2e47e28518348d5aaefa4f83c2d5ea7e75db04f9bce36e76f",
+      "bytes": 3134
+    },
+    {
       "marketKey": "wMSFTx",
       "product_id": 151,
       "symbol": "wMSFTx",
       "status": "skipped_not_on_app",
       "finalUrl": "https://app.nado.xyz/spot?market=MSFTx/USDT0",
       "message": "Spot market switcher does not show MSFTx/USDT0 — not listed on app.nado.xyz yet."
+    },
+    {
+      "marketKey": "wNVDAx",
+      "product_id": 153,
+      "symbol": "wNVDAx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=NVDAx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/nvdax.ec188898.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "915fa3db75fcf0ef3f06b6884d68410120bbaae654c425741ffa023c00abe0e4",
+      "bytes": 2349
+    },
+    {
+      "marketKey": "wQQQx",
+      "product_id": 115,
+      "symbol": "wQQQx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=QQQx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/qqqx.7aec127a.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "6a26bd30f4c037d76b8b785b0493d12753d84b412aa4fbff2cbb4b2963210210",
+      "bytes": 1748
+    },
+    {
+      "marketKey": "wSPYx",
+      "product_id": 117,
+      "symbol": "wSPYx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=SPYx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/spyx.6e498a86.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "311e8a178ee09feae9708aa2754eeb668758ef7eb5b83e84357c23b16b45a7e3",
+      "bytes": 909
+    },
+    {
+      "marketKey": "wTSLAx",
+      "product_id": 155,
+      "symbol": "wTSLAx",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/spot?market=TSLAx/USDT0",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/tslax.b97477bb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "a3ccf318fc3df66457e8b681fba712631111014a3dc58682eb345fe4276d9abf",
+      "bytes": 1783
     }
   ]
 }
