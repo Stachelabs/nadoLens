@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T15:35:42.373Z",
+  "generatedAt": "2026-07-13T13:35:15.135Z",
   "gateway": "https://gateway.prod.nado.xyz/v2",
   "marketKind": "perp",
   "entries": [
@@ -9,7 +9,7 @@
       "symbol": "AAPL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AAPL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/aapl.b56f1634.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/aapl.b56f1634.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "907c5e3dbaee71a378f3f21d8fb9c98d8f1eeee761cc27836682b59b9f987a94",
       "bytes": 2017
     },
@@ -19,7 +19,7 @@
       "symbol": "AAVE-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AAVE",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/aave.7e767bbb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/aave.7e767bbb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "f0372ff778c74ab4f61462f02c8baeecf3d9936ad25d09d19835c5131c47d7ee",
       "bytes": 1077
     },
@@ -27,11 +27,9 @@
       "marketKey": "ADA",
       "product_id": 60,
       "symbol": "ADA-PERP",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=ADA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/aave.7e767bbb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
-      "sha256": "f0372ff778c74ab4f61462f02c8baeecf3d9936ad25d09d19835c5131c47d7ee",
-      "bytes": 1077
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AAVE",
+      "message": "URL shows ?market=AAVE but expected route is ADA. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "AMD",
@@ -39,7 +37,7 @@
       "symbol": "AMD-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AMD",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/amd.2c6e2fd8.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/amd.2c6e2fd8.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "e21a1323771fba078cba746e8034114a9220e66e5b0ec60e9e98ce62e2002473",
       "bytes": 636
     },
@@ -49,7 +47,7 @@
       "symbol": "AMZN-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AMZN",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/amzn.8ea1f6d1.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/amzn.8ea1f6d1.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "7295ee12feb578fad7f025339218914009e30444589af1edd46964fc99e97552",
       "bytes": 1994
     },
@@ -57,11 +55,9 @@
       "marketKey": "ARB",
       "product_id": 62,
       "symbol": "ARB-PERP",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=ARB",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/amzn.8ea1f6d1.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
-      "sha256": "7295ee12feb578fad7f025339218914009e30444589af1edd46964fc99e97552",
-      "bytes": 1994
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AMZN",
+      "message": "URL shows ?market=AMZN but expected route is ARB. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "ASTER",
@@ -69,7 +65,7 @@
       "symbol": "ASTER-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ASTER",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/aster.a4ef691c.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/aster.a4ef691c.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "e800ee982cbc31ced0abe46a3dbf7c732a6d46a4c64df4fe97e842b5d0b7b010",
       "bytes": 1147
     },
@@ -79,7 +75,7 @@
       "symbol": "AVAX-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AVAX",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/avax.2a414b3d.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/avax.2a414b3d.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "f97135eb4f2cfbea27e89250a498c17c8200e2a05f49465358ab2aeb62fa330b",
       "bytes": 345
     },
@@ -89,7 +85,7 @@
       "symbol": "AVGO-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=AVGO",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/avgo.84369857.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/avgo.84369857.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "34c9b38bb88a7bc4b8a4234d426e8bf9995720cb476bc3c8a2570245263bdd6b",
       "bytes": 2481
     },
@@ -102,12 +98,20 @@
       "message": "URL shows ?market=AVGO but expected route is AXS. No stable route for this perp on app.nado.xyz."
     },
     {
+      "marketKey": "BBX",
+      "product_id": 164,
+      "symbol": "BBX-PERP",
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=AVGO",
+      "message": "URL shows ?market=AVGO but expected route is BBX. No stable route for this perp on app.nado.xyz."
+    },
+    {
       "marketKey": "BCH",
       "product_id": 68,
       "symbol": "BCH-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=BCH",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/bch.1eff764a.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/bch.1eff764a.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "c13b950502fbab6b043cf23caedf162e0316f814a99b2fe2734ea1f058b8d078",
       "bytes": 866
     },
@@ -115,11 +119,9 @@
       "marketKey": "BERA",
       "product_id": 70,
       "symbol": "BERA-PERP",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=BERA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/bch.1eff764a.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
-      "sha256": "c13b950502fbab6b043cf23caedf162e0316f814a99b2fe2734ea1f058b8d078",
-      "bytes": 866
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=BCH",
+      "message": "URL shows ?market=BCH but expected route is BERA. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "BNB",
@@ -127,7 +129,7 @@
       "symbol": "BNB-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=BNB",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/bnb.ba2d0a87.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/bnb.ba2d0a87.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "d068cbf5169368d3e27992d205e7891f2a376908fb6d6f5edbacf11a3f058c61",
       "bytes": 1608
     },
@@ -137,9 +139,19 @@
       "symbol": "BTC-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=BTC",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/btc.a7bb970b.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/btc.a7bb970b.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "05a5d3a26aec5dc330e9f5b83ef73ac22a28d40643e3bfe3cf48b73c9a88e6ec",
       "bytes": 1214
+    },
+    {
+      "marketKey": "CHIP",
+      "product_id": 158,
+      "symbol": "CHIP-PERP",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=CHIP",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/chip.fd8a4a53.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "47a5bb40de913ca6f763c1ca3dd01d492e0a15f83454f377a1fedc37393a071d",
+      "bytes": 2317
     },
     {
       "marketKey": "DELL",
@@ -147,7 +159,7 @@
       "symbol": "DELL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=DELL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/dell.b509f3fb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/dell.b509f3fb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "bcc887c30b4eb81989f1aa758fb7f2f8c47ff80516d9acee86c1e128019fcdff",
       "bytes": 1023
     },
@@ -157,7 +169,7 @@
       "symbol": "DOGE-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=DOGE",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/doge.a3a33acc.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/doge.a3a33acc.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "fd1c5bba25550fb3817560c04c9ec96e9b1a59251249997220a98b8c69cc5cdc",
       "bytes": 57184
     },
@@ -167,7 +179,7 @@
       "symbol": "ENA-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ENA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/ena.26343b8e.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/ena.26343b8e.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "5f296b85ccdd17bcbce815bf02d0864c6c27fa78eb3d4a06f3ba3a14cefaa4ce",
       "bytes": 1487
     },
@@ -177,7 +189,7 @@
       "symbol": "ETH-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ETH",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/eth.b2205244.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/eth.b2205244.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "68330c3b0ce96dd3eeb4c3b6a69d9d143ec85fa25ad7e11d3239855162e6f616",
       "bytes": 890
     },
@@ -187,7 +199,7 @@
       "symbol": "EURUSD-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=EURUSD",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/eurusd.252f1e32.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/eurusd.252f1e32.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "ef6dcab931a05aad1ab7af3762dbe592bf8ec7f2c0fe85e71f3a4d398696f6b1",
       "bytes": 1229
     },
@@ -197,7 +209,7 @@
       "symbol": "FARTCOIN-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=FARTCOIN",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/fartcoin.ed1aad49.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/fartcoin.ed1aad49.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "be0aaaae79d39800aba5eca42d89380ca40f67eb310325edf37c54f9a09472a3",
       "bytes": 1803
     },
@@ -207,7 +219,7 @@
       "symbol": "GBPUSD-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=GBPUSD",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/gbpusd.ff6b5f89.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/gbpusd.ff6b5f89.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "49f8ff0348071145eb35b6a855fcc841ab71c42d66d99a8e6569d4309727b203",
       "bytes": 641
     },
@@ -217,7 +229,7 @@
       "symbol": "GOOGL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=GOOGL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/goog.e820c444.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/goog.e820c444.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "db040c94ded8b2d1e9cf3821062d524fef60b082b845f6112bf8c42da69ec20c",
       "bytes": 4043
     },
@@ -227,7 +239,7 @@
       "symbol": "HYPE-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=HYPE",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/hype.1738e6d5.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/hype.1738e6d5.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "83599f27ba820eb30291f3e7d2327835d1bf79eadb8b58ef1607c36a8bfb1a07",
       "bytes": 780
     },
@@ -237,7 +249,7 @@
       "symbol": "INTC-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=INTC",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/intc.892044cb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/intc.892044cb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "3183a8eb15dc3d7817a1cb90b43dbb6faf93025a14579155e6253afc67d5e418",
       "bytes": 1996
     },
@@ -247,7 +259,7 @@
       "symbol": "JUP-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=JUP",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/jup.93f1fedb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/jup.93f1fedb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "95fa718292f136288e0f41d9beb9dfa65cff62d75870732e1f111d3a5aac4261",
       "bytes": 3123
     },
@@ -257,7 +269,7 @@
       "symbol": "LINK-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=LINK",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/link.eb1a4e56.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/link.eb1a4e56.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "44f03722fe182e5cee65cb2811b293ca23d759c150d00ac309179a493b572875",
       "bytes": 387
     },
@@ -267,7 +279,7 @@
       "symbol": "LIT-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=LIT",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/lit.bf817220.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/lit.bf817220.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "59cebe5a346d08012026d7fb44fe24e60266de2c7fea49a3a019c7759e58d32f",
       "bytes": 1050
     },
@@ -277,7 +289,7 @@
       "symbol": "LTC-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=LTC",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/ltc.70a5497f.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/ltc.70a5497f.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "901e5e481607d2c8118c21b64f0652f9292e7771752cfead5bbd6fd42b066d2c",
       "bytes": 324
     },
@@ -287,7 +299,7 @@
       "symbol": "MEGA-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=MEGA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/mega.6054219f.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/mega.6054219f.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "273bd1f480c775fb80563f9c048e879fa9602a2686b94064b2691bf65cb2e98b",
       "bytes": 3663
     },
@@ -297,7 +309,7 @@
       "symbol": "META-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=META",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/meta.33a96703.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/meta.33a96703.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "2eafcc5ea68e3d0edc673ba088bb990c7afd4ced694155af322e414017690d26",
       "bytes": 3282
     },
@@ -307,7 +319,7 @@
       "symbol": "MON-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=MON",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/mon.8d4ebd3e.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/mon.8d4ebd3e.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "28b00747d25f08625c21ae6fc8f0c5e23232b4f55ceaeecec08b568646479f24",
       "bytes": 719
     },
@@ -317,7 +329,7 @@
       "symbol": "MRVL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=MRVL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/mrvl.7398ba35.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/mrvl.7398ba35.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "39ce79b91df9f1e73eac93cd7bcab8f53a078315e4c89001582d25367e6add0c",
       "bytes": 786
     },
@@ -327,9 +339,17 @@
       "symbol": "MSFT-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=MSFT",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/msft.e4c0f42d.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/msft.e4c0f42d.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "ff48939542b39f44935d599589db9785205e3e331a55c88b3296269753d4ad44",
       "bytes": 620
+    },
+    {
+      "marketKey": "MSTR",
+      "product_id": 166,
+      "symbol": "MSTR-PERP",
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=MSFT",
+      "message": "URL shows ?market=MSFT but expected route is MSTR. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "MU",
@@ -337,7 +357,7 @@
       "symbol": "MU-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=MU",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/mu.47397779.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/mu.47397779.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "00ca963bc8619fb3af6dfdc6187149b53ef1d22ae9c8f71145be350348a7814a",
       "bytes": 2415
     },
@@ -347,7 +367,7 @@
       "symbol": "NEAR-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=NEAR",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/near.971af833.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/near.971af833.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "af0f85feb7dc8ced16ba609f864052b6f9ed94129d5daabae1e03e5b08b26b97",
       "bytes": 1343
     },
@@ -357,7 +377,7 @@
       "symbol": "NVDA-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=NVDA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/nvda.5b7157e1.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/nvda.5b7157e1.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "8a5b17f80027d06c13c7f375ab51b327a0bc9b09bdd93044865b93dcb09f70ba",
       "bytes": 1957
     },
@@ -367,9 +387,19 @@
       "symbol": "ONDO-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ONDO",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/ondo.a36629f1.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/ondo.a36629f1.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "ff1a6c089d7da6d15529fa9a12a7b2e382581c570606ed3f4819bf4343fe0a66",
       "bytes": 1037
+    },
+    {
+      "marketKey": "PENG",
+      "product_id": 162,
+      "symbol": "PENG-PERP",
+      "status": "ok",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=PENG",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/peng.4ba55dd8.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
+      "sha256": "0f8320be6527b0e1d5f69d56373c7c7367db5f360da1631ff418a4f083db9b0f",
+      "bytes": 2169
     },
     {
       "marketKey": "PENGU",
@@ -377,7 +407,7 @@
       "symbol": "PENGU-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=PENGU",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/pengu.79ebbccc.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/pengu.79ebbccc.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "54f006fe2972d94ec58e0bbab4e7a60d942ba33ecd08561b20a3bdfad7158406",
       "bytes": 7702
     },
@@ -387,7 +417,7 @@
       "symbol": "PUMP-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=PUMP",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/pump.2f15571b.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/pump.2f15571b.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "7de7108c80bb875bccff531408590be977d519636f98f6908abd79b432fbbac0",
       "bytes": 1317
     },
@@ -397,7 +427,7 @@
       "symbol": "QQQ-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=QQQ",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/qqq.27f7d8bb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/qqq.27f7d8bb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "36a213534c4614d9f39edc52f63e28d638d4a0455387fb20543a1e39e2699ffe",
       "bytes": 4072
     },
@@ -415,7 +445,7 @@
       "symbol": "SKY-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SKY",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/sky.6b6d7877.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/sky.6b6d7877.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "07ce3fc20bce1fcb0eb6c6b156bc35bfd3f4ac272160e67d34e7e5ec7a0f53d2",
       "bytes": 3893
     },
@@ -425,7 +455,7 @@
       "symbol": "SNDK-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SNDK",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/sndk.e81772e3.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/sndk.e81772e3.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "cfb9f4d37e1b026a77b278752cf3891b0d2f531d0eee3535615709c713db4ac7",
       "bytes": 544
     },
@@ -435,7 +465,7 @@
       "symbol": "SOL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SOL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/sol.5c652667.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/sol.5c652667.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "d24c0910eaf0dff78a1a85123c8603d90606e2d23b14d556128f2e9365428539",
       "bytes": 1519
     },
@@ -445,7 +475,7 @@
       "symbol": "SPCX-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SPCX",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/spcx.15814662.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/spcx.15814662.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "955b4d3661896d2dbc9feead6b6abdb481770a9155fb99e6d9585826f611ae54",
       "bytes": 734
     },
@@ -455,7 +485,7 @@
       "symbol": "SPY-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SPY",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/spy.bcded553.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/spy.bcded553.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "363ee90dd39c6a62e40a3db410bf045c6e31a42c31798c5c62e505317dab7257",
       "bytes": 2715
     },
@@ -465,7 +495,7 @@
       "symbol": "SUI-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=SUI",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/sui.43c57828.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/sui.43c57828.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "8b0feb28791da8fd81c362886262e1e147009c2469d23e1b36e3d493445b4f3a",
       "bytes": 1651
     },
@@ -475,7 +505,7 @@
       "symbol": "TAO-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=TAO",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/tao.14bfb7e5.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/tao.14bfb7e5.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "721caa48faf23beab962ba6361a272227c488ba2acdc909261e51256825a9255",
       "bytes": 983
     },
@@ -483,11 +513,9 @@
       "marketKey": "TON",
       "product_id": 122,
       "symbol": "TON-PERP",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=TON",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/ton.67dddcc2.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
-      "sha256": "9c02843b1d1b5604a190baf903b1eed186b8a07ceb6520aa5862b1befac340ab",
-      "bytes": 985
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=TAO",
+      "message": "URL shows ?market=TAO but expected route is TON. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "TSLA",
@@ -495,7 +523,7 @@
       "symbol": "TSLA-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=TSLA",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/tsla.c4353c65.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/tsla.c4353c65.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "2c38f67381848495a3f6c8f1ace5efbe338fa4bd305c67c25504668df1cbde01",
       "bytes": 1011
     },
@@ -505,7 +533,7 @@
       "symbol": "UNI-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=UNI",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/uni.25e4c1ac.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/uni.25e4c1ac.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "5b2c366a1c14fd5dc2d793d42065f3a6d813b15fb6a617fe4bf45cbc7cdee5e9",
       "bytes": 4718
     },
@@ -515,7 +543,7 @@
       "symbol": "USDJPY-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=USDJPY",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/usdjpy.4986c9c4.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/usdjpy.4986c9c4.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "3761cee7fff6fc3f87d6ff38dec71a415583b041d32b96a10273a859316cb1de",
       "bytes": 1515
     },
@@ -532,8 +560,8 @@
       "product_id": 84,
       "symbol": "VIRTUAL-PERP",
       "status": "skipped_not_on_app",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=VIRTUAL",
-      "message": "Market switcher shows \"Choose Market\" — not listed on app.nado.xyz (Gateway /v2/assets may still expose it)."
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=USELESS",
+      "message": "URL shows ?market=USELESS but expected route is VIRTUAL. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "VVV",
@@ -541,7 +569,7 @@
       "symbol": "VVV-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=VVV",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/vvv.56b71feb.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/vvv.56b71feb.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "3d98beda54aa70693116473bfbb912316e77ac6942b8230d382181506e567524",
       "bytes": 4720
     },
@@ -551,7 +579,7 @@
       "symbol": "WLD-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=WLD",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/wld.52876c7c.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/wld.52876c7c.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "7d2a48e4c847e6258599f14e50042e0556567dc4d705c10a82bfe114c95a953a",
       "bytes": 1752
     },
@@ -561,7 +589,7 @@
       "symbol": "WLFI-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=WLFI",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/wlfi.d716323c.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/wlfi.d716323c.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "eddc3d4783f6833d46c66347d8a4e97057ce3215df430e96d62e968a1d0ec032",
       "bytes": 2443
     },
@@ -571,7 +599,7 @@
       "symbol": "WTI-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=WTI",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/oil.46a7063c.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/oil.46a7063c.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "f0165fe9112ccc08793e307c163f37174d7e38bab69594ace88114763aedc2eb",
       "bytes": 763
     },
@@ -581,7 +609,7 @@
       "symbol": "XAG-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=XAG",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/silver.3c82ff15.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/silver.3c82ff15.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "77c891a2a4a1fd75240077614382f3fa3a6cd3a4f98f1c72ce6cafa167264270",
       "bytes": 1277
     },
@@ -591,7 +619,7 @@
       "symbol": "XAUT-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=XAUT",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/xaut.854eba77.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/xaut.854eba77.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "3075b4b8605da1db7c0bb1a28ce9f0fd8235a4de6a556b57053f5271f7b5faed",
       "bytes": 1374
     },
@@ -601,7 +629,7 @@
       "symbol": "XMR-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=XMR",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/xmr.77f6ddb2.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/xmr.77f6ddb2.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "9b67d6098031651a47e85aae125873a1d880e3e83f0881289db97c2049ee3b44",
       "bytes": 1311
     },
@@ -611,7 +639,7 @@
       "symbol": "XPL-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=XPL",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/xpl.be9a150a.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/xpl.be9a150a.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "38f2bfd82faf9f53ce81cc8b03f000aa14222d5cca72d7ca22f486999bdaf770",
       "bytes": 5876
     },
@@ -621,7 +649,7 @@
       "symbol": "XRP-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=XRP",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/xrp.a69dd461.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/xrp.a69dd461.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "774d1ff53b216da7a43e26356c305469cbf29b2a744f0d584fc7f82ce68640d0",
       "bytes": 566
     },
@@ -631,9 +659,17 @@
       "symbol": "ZEC-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ZEC",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/zec.410e9be6.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/zec.410e9be6.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "f17421a8d6e79b27b6be67bd3003ad4078882f3ebbcce26caed149b7a7933f08",
       "bytes": 1046
+    },
+    {
+      "marketKey": "ZHIPU",
+      "product_id": 168,
+      "symbol": "ZHIPU-PERP",
+      "status": "skipped_not_on_app",
+      "finalUrl": "https://app.nado.xyz/perpetuals?market=ZEC",
+      "message": "URL shows ?market=ZEC but expected route is ZHIPU. No stable route for this perp on app.nado.xyz."
     },
     {
       "marketKey": "ZRO",
@@ -641,7 +677,7 @@
       "symbol": "ZRO-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=ZRO",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/zro.3b26cfc0.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/zro.3b26cfc0.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "e3bac9a96efd7a1c39427d85367c83bcc5c689ee25efc2a8854b8f4a7a061b0f",
       "bytes": 885
     },
@@ -651,7 +687,7 @@
       "symbol": "kBONK-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=kBONK",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/bonk.5b233595.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/bonk.5b233595.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "0897662ad0925038afd81cbe53a5985347f14a3fa0b73a84ede8f423009e18a3",
       "bytes": 3181
     },
@@ -661,19 +697,9 @@
       "symbol": "kPEPE-PERP",
       "status": "ok",
       "finalUrl": "https://app.nado.xyz/perpetuals?market=kPEPE",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/pepe.aa30ccb2.svg?dpl=dpl_Fabgqr5u86mfi9u1LWbHQopJLnct",
+      "pickedUrl": "https://app.nado.xyz/_next/static/media/pepe.aa30ccb2.svg?dpl=dpl_GNGuArM3LivY81rh8gnEB2S6syVq",
       "sha256": "8c49977b95898e56977e6f8ce5e22d007c58867f9e18b1e369bd140b4f4dac87",
       "bytes": 5336
-    },
-    {
-      "marketKey": "PENG",
-      "product_id": 162,
-      "symbol": "PENG-PERP",
-      "status": "ok",
-      "finalUrl": "https://app.nado.xyz/perpetuals?market=PENG",
-      "pickedUrl": "https://app.nado.xyz/_next/static/media/peng.4ba55dd8.svg?dpl=dpl_bh1iRAU4qiMWigFss9vxrBx6C7kR",
-      "sha256": "0f8320be6527b0e1d5f69d56373c7c7367db5f360da1631ff418a4f083db9b0f",
-      "bytes": 2169
     }
   ]
 }
