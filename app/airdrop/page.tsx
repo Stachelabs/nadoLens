@@ -29,27 +29,34 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   }
   const ogParams = ogParts.length > 0 ? `?${ogParts.join('&')}` : '';
 
+  // Use absolute title when personalized so root template does not double-suffix "| NadoLens"
   const title = val
+    ? { absolute: `$INK Airdrop ≈ ${val} | NadoLens` as const }
+    : "Nado INK Airdrop Simulator";
+  const ogTitle = val
     ? `$INK Airdrop ≈ ${val} | NadoLens`
-    : "Airdrop Dashboard | NadoLens";
+    : "Nado INK Airdrop Simulator | NadoLens";
+  const description =
+    "Estimate your Nado $INK airdrop from points, tier & volume. Look up any wallet and simulate airdrop value on Ink L2.";
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nadolens.xyz";
 
   return {
     title,
-    description:
-      "Check your INK airdrop allocation, trading volume, and simulate potential airdrop value on Nado.",
+    description,
+    alternates: {
+      canonical: "/airdrop",
+    },
     openGraph: {
-      title,
-      description:
-        "Check your INK airdrop allocation, trading volume, and simulate potential airdrop value on Nado.",
+      title: ogTitle,
+      description,
+      url: "/airdrop",
       images: [`${baseUrl}/api/og/airdrop${ogParams}`],
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description:
-        "Check your INK airdrop allocation, trading volume, and simulate potential airdrop value on Nado.",
+      title: ogTitle,
+      description,
       images: {
         url: `${baseUrl}/api/og/airdrop${ogParams}`,
         alt: val

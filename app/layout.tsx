@@ -109,7 +109,7 @@ export default async function RootLayout({
             '@type': 'Organization',
             name: 'NadoLens',
             url: SITE_URL,
-            logo: `${SITE_URL}/opengraph-image`,
+            logo: `${SITE_URL}/apple-icon`,
             sameAs: ['https://x.com/stache_dev'],
           }}
         />

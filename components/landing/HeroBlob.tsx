@@ -3,7 +3,7 @@
 import { ScrambleWord } from "@/components/ui/ScrambleWord";
 import { useScrambleText } from "@/hooks/useScrambleText";
 import { motion } from "framer-motion";
-import { LayoutDashboard, Wallet } from "lucide-react";
+import { Gift, LayoutDashboard, Wallet } from "lucide-react";
 import Link from "next/link";
 
 const TARGET_TEXT = "NadoLens";
@@ -320,6 +320,14 @@ export function HeroBlob() {
           >
             Explore Wallet
             <Wallet className="size-4" />
+          </Link>
+
+          <Link
+            href="/airdrop"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card max-[399px]:px-4 max-[399px]:text-[13px] px-6 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
+          >
+            Track INK airdrop
+            <Gift className="size-4" />
           </Link>
         </motion.div>
       </motion.div>

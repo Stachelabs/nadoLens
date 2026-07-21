@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useProtocolMarketSnapshots } from "@/hooks/useProtocolMarketSnapshots";
 import { fromX18BigInt } from "@/types/nado";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -103,26 +104,28 @@ export function LiveMetrics() {
         viewport={{ once: true, amount: 0.3 }}
       >
         {metrics.map((m) => (
-          <motion.div
-            key={m.key}
-            variants={cardVariants}
-            className="rounded-xl border border-border bg-card p-4 transition-colors hover:border-brand/30"
-          >
-            <div className="mb-3 flex items-center justify-center gap-2">
-              <MetricIcon type={m.icon} />
-              <span className="text-sm text-muted-foreground">{m.label}</span>
-            </div>
-            {isLoading ? (
-              <Skeleton className="mx-auto h-8 w-24" />
-            ) : (
-              <p className="text-center text-2xl font-bold tracking-tight text-foreground">
-                {error
-                  ? "—"
-                  : m.key === "dau"
-                    ? data![m.key].toLocaleString("en-US")
-                    : fmtCompact(data![m.key])}
-              </p>
-            )}
+          <motion.div key={m.key} variants={cardVariants}>
+            <Link
+              href="/protocol"
+              className="block rounded-xl border border-border bg-card p-4 transition-colors hover:border-brand/30"
+              title={`View Nado ${m.label} on protocol dashboard`}
+            >
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <MetricIcon type={m.icon} />
+                <span className="text-sm text-muted-foreground">{m.label}</span>
+              </div>
+              {isLoading ? (
+                <Skeleton className="mx-auto h-8 w-24" />
+              ) : (
+                <p className="text-center text-2xl font-bold tracking-tight text-foreground">
+                  {error
+                    ? "—"
+                    : m.key === "dau"
+                      ? data![m.key].toLocaleString("en-US")
+                      : fmtCompact(data![m.key])}
+                </p>
+              )}
+            </Link>
           </motion.div>
         ))}
       </motion.div>
