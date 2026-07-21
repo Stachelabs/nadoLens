@@ -7,7 +7,7 @@ export function TradeOnNadoButton({ className }: { className?: string }) {
     <Link
       href="https://app.nado.xyz?join=ak8qEBT"
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener noreferrer sponsored"
       className={cn(
         buttonVariants({ variant: "ghost", size: "sm" }),
         "border border-brand/40 bg-brand/20 hover:bg-brand/15 text-brand hover:text-brand/90",

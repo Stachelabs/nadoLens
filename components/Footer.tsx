@@ -73,6 +73,12 @@ function ProductLinks() {
           ) : (
             <Link
               href={link.href}
+              {...(link.href.includes("join=")
+                ? {
+                    target: "_blank" as const,
+                    rel: "noopener noreferrer sponsored",
+                  }
+                : {})}
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               {link.label}
