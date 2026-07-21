@@ -2,9 +2,13 @@ import { AirdropDashboard } from "@/components/airdrop/AirdropDashboard";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Airdrop Dashboard | NadoLens",
+  title: "Nado INK Airdrop Lookup",
   description:
-    "Check your INK airdrop allocation, trading volume, and simulate potential airdrop value on Nado.",
+    "Estimate your Nado $INK airdrop from points, tier & volume. Look up any wallet and simulate airdrop value on Ink L2.",
+  robots: { index: false, follow: true },
+  alternates: {
+    canonical: "/airdrop",
+  },
 };
 
 export default async function AirdropAddressPage({
