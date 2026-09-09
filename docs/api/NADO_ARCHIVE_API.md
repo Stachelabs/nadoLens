@@ -500,8 +500,14 @@ Result: 0x{walletAddress}{subaccountNameHex}
 
 **Get all-time points, rank, tier + per-epoch distribution history**
 
+**CRITICAL — separate base path**: as of 2026-09, Nado moved `nado_points` and
+`ink_airdrop` off `archive.prod.nado.xyz/v1` onto `archive.prod.nado.xyz/rewards/v1`.
+Calling them on `/v1` now 403s with `unknown variant`. `account_snapshots` and
+every other Archive call stay on `/v1` — only these two rewards endpoints moved.
+Use `NADO_ARCHIVE_REWARDS_REST` (`lib/nado.ts`), not `NADO_ARCHIVE_REST`.
+
 ```json
-POST /
+POST https://archive.prod.nado.xyz/rewards/v1
 {
   "nado_points": {
     "address": "0xc5a752A4B8d751859d29af9069486B5b48Fa9499"
@@ -545,8 +551,10 @@ Notes:
 
 **Get $INK token airdrop allocation (not yet active)**
 
+Also moved to `archive.prod.nado.xyz/rewards/v1` — see note above.
+
 ```json
-POST /
+POST https://archive.prod.nado.xyz/rewards/v1
 {
   "ink_airdrop": {
     "address": "0xc5a752A4B8d751859d29af9069486B5b48Fa9499"

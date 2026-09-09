@@ -1,6 +1,6 @@
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { withArchiveRetry } from "@/lib/archiveRetry";
-import { NADO_ARCHIVE_REST } from "@/lib/nado";
+import { NADO_ARCHIVE_REST, NADO_ARCHIVE_REWARDS_REST } from "@/lib/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     const [pointsResult, snapshotResult, inkResult] = await Promise.allSettled([
       withArchiveRetry(() =>
-        fetch(NADO_ARCHIVE_REST, {
+        fetch(NADO_ARCHIVE_REWARDS_REST, {
           method: "POST",
           headers: ARCHIVE_HEADERS,
           body: JSON.stringify({ nado_points: { address } }),
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         }),
       ),
       withArchiveRetry(() =>
-        fetch(NADO_ARCHIVE_REST, {
+        fetch(NADO_ARCHIVE_REWARDS_REST, {
           method: "POST",
           headers: ARCHIVE_HEADERS,
           body: JSON.stringify({ ink_airdrop: { address } }),

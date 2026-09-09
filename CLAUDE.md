@@ -135,8 +135,8 @@ Legacy HTML crawler: `pnpm docs:build:nado` (often rate-limited)
 
 ### Points & Airdrop endpoints
 
-- **`nado_points`**: `POST archive.prod.nado.xyz/v1` with `{"nado_points":{"address":"0x..."}}` → `{points_per_epoch: [{epoch, description, points(x18), rank, tier}...], all_time_points: {points(x18), rank, tier}}`. Undocumented but public (confirmed by Nado team). Tier mapping: 1=Breeze, 2=Gust, 3=Wind, 4=Storm, 5=Tornado
-- **`ink_airdrop`**: `POST archive.prod.nado.xyz/v1` with `{"ink_airdrop":{"address":"0x..."}}` → `{amount: string}`. Future $INK token distribution — returns "0" until airdrop goes live. Weight=2, documented in docs.nado.xyz
+- **`nado_points`**: `POST archive.prod.nado.xyz/rewards/v1` (moved off `/v1` 2026-09 — `/v1` now 403s "unknown variant") with `{"nado_points":{"address":"0x..."}}` → `{points_per_epoch: [{epoch, description, points(x18), rank, tier}...], all_time_points: {points(x18), rank, tier}}`. Undocumented but public (confirmed by Nado team). Tier mapping: 1=Breeze, 2=Gust, 3=Wind, 4=Storm, 5=Tornado
+- **`ink_airdrop`**: `POST archive.prod.nado.xyz/rewards/v1` (same move) with `{"ink_airdrop":{"address":"0x..."}}` → `{amount: string}`. Future $INK token distribution — returns "0" until airdrop goes live. Weight=2, documented in docs.nado.xyz
 - **`account_snapshots`**: volume via `quote_volume_cumulative` (x18) — nested response: `{snapshots: {subaccount: {timestamp: [events]}}}`
 
 ### Critical rules

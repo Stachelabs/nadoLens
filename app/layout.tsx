@@ -24,6 +24,10 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
   display: 'swap',
+  // Mono only paints for addresses/numbers, which on JS-heavy pages (wallet,
+  // airdrop) render after Web3 provider hydration — well past the browser's
+  // "preload unused" window. Load it on demand instead of preloading.
+  preload: false,
 })
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nadolens.xyz'
