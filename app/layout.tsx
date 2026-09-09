@@ -24,9 +24,10 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
   display: 'swap',
-  // Mono only paints for addresses/numbers, which on JS-heavy pages (wallet,
-  // airdrop) render after Web3 provider hydration — well past the browser's
-  // "preload unused" window. Load it on demand instead of preloading.
+  // Not needed for first paint (Outfit covers headings/body everywhere);
+  // mono only backs secondary content (addresses, numeric tables) that
+  // isn't part of the critical above-the-fold render. Load on demand
+  // instead of preloading to stop the browser's "preload unused" warning.
   preload: false,
 })
 
