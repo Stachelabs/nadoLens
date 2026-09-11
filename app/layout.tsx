@@ -24,6 +24,11 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
   display: 'swap',
+  // Not needed for first paint (Outfit covers headings/body everywhere);
+  // mono only backs secondary content (addresses, numeric tables) that
+  // isn't part of the critical above-the-fold render. Load on demand
+  // instead of preloading to stop the browser's "preload unused" warning.
+  preload: false,
 })
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nadolens.xyz'

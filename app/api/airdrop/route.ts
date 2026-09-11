@@ -1,6 +1,6 @@
 import { categorizedErrorResponse } from "@/lib/api/apiErrorResponse";
 import { withArchiveRetry } from "@/lib/archiveRetry";
-import { NADO_ARCHIVE_REST } from "@/lib/nado";
+import { NADO_ARCHIVE_REST, NADO_ARCHIVE_REWARDS_REST } from "@/lib/nado";
 import { fromX18BigInt } from "@/types/nado";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 
     const [pointsResult, snapshotResult, inkResult] = await Promise.allSettled([
       withArchiveRetry(() =>
-        fetch(NADO_ARCHIVE_REST, {
+        fetch(NADO_ARCHIVE_REWARDS_REST, {
           method: "POST",
           headers: ARCHIVE_HEADERS,
           body: JSON.stringify({ nado_points: { address } }),
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
         }),
       ),
       withArchiveRetry(() =>
-        fetch(NADO_ARCHIVE_REST, {
+        fetch(NADO_ARCHIVE_REWARDS_REST, {
           method: "POST",
           headers: ARCHIVE_HEADERS,
           body: JSON.stringify({ ink_airdrop: { address } }),
@@ -175,11 +175,12 @@ export async function GET(request: NextRequest) {
         };
       } else {
         errors.push("nado_points: invalid response shape");
+        console.error("[api/airdrop] nado_points: invalid response shape", parsed.error);
       }
     } else {
-      errors.push(
-        `nado_points: ${pointsResult.status === "rejected" ? "network error" : `status ${pointsResult.value.status}`}`,
-      );
+      const detail = `nado_points: ${pointsResult.status === "rejected" ? "network error" : `status ${pointsResult.value.status}`}`;
+      errors.push(detail);
+      console.error(`[api/airdrop] ${detail}`);
     }
 
     // ── account_snapshots (volume) ───────────────────────────────────────────
@@ -212,11 +213,12 @@ export async function GET(request: NextRequest) {
         totalVolume = volumeByProduct.reduce((sum, p) => sum + p.volume, 0);
       } else {
         errors.push("account_snapshots: invalid response shape");
+        console.error("[api/airdrop] account_snapshots: invalid response shape", parsed.error);
       }
     } else {
-      errors.push(
-        `account_snapshots: ${snapshotResult.status === "rejected" ? "network error" : `status ${snapshotResult.value.status}`}`,
-      );
+      const detail = `account_snapshots: ${snapshotResult.status === "rejected" ? "network error" : `status ${snapshotResult.value.status}`}`;
+      errors.push(detail);
+      console.error(`[api/airdrop] ${detail}`);
     }
 
     // ── ink_airdrop (future $INK token) ──────────────────────────────────────
@@ -230,11 +232,12 @@ export async function GET(request: NextRequest) {
         inkAmount = parsed.data.amount;
       } else {
         errors.push("ink_airdrop: invalid response shape");
+        console.error("[api/airdrop] ink_airdrop: invalid response shape", parsed.error);
       }
     } else {
-      errors.push(
-        `ink_airdrop: ${inkResult.status === "rejected" ? "network error" : `status ${inkResult.value.status}`}`,
-      );
+      const detail = `ink_airdrop: ${inkResult.status === "rejected" ? "network error" : `status ${inkResult.value.status}`}`;
+      errors.push(detail);
+      console.error(`[api/airdrop] ${detail}`);
     }
 
     // ── response ─────────────────────────────────────────────────────────────
