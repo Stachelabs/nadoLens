@@ -568,6 +568,171 @@ Weight: 2. Rate limit: 1200 req/min.
 
 ---
 
+## Rewards API — full endpoint map (undocumented, discovered 2026-09)
+
+`archive.prod.nado.xyz/rewards/v1` accepts **13 request variants**, not just
+`nado_points`/`ink_airdrop`. Discovered by sending an invalid variant name and
+reading the deserialize error, which lists every accepted type:
+
+```
+leaderboard · leaderboard_rank · leaderboard_contests · leaderboard_registrations
+leaderboard_register · social_connect · list_social_accounts · revoke_social_account
+ink_airdrop · private_alpha_choice · nado_points · nado_xpoints · cash_incentives
+```
+
+None of these (besides `nado_points`/`ink_airdrop`) are referenced in NadoLens
+code today. Documenting what each does in case they're useful later — all
+confirmed live via direct curl, all public/unauthenticated like `nado_points`.
+
+### `cash_incentives` — live weekly USD reward pool (separate from points)
+
+Real cash, not points. Weekly volume-tiered payout with merkle-proof claims
+against a dedicated airdrop contract, independent of the $INK/points system.
+
+```json
+POST https://archive.prod.nado.xyz/rewards/v1
+{ "cash_incentives": { "wallet_address": "0x..." } }
+```
+
+Response shape:
+```json
+{
+  "events": [
+    {
+      "metadata": {
+        "event_id": 6, "description": "Week 6",
+        "epoch_start": "1788787800", "epoch_end": "1789392600",
+        "min_volume": "1050000000000000000000000000",
+        "max_volume": "2450000000000000000000000000",
+        "min_reward": "50000000000000000000000",
+        "max_reward": "100000000000000000000000"
+      },
+      "platform": { "platform_volume": "...", "unlocked_reward": "..." },
+      "wallet": {
+        "reward": "30587383903267827803",
+        "claim": {
+          "status": "claimable",
+          "airdrop_address": "0xbeb0994d29e4b34f9103d0d6faa32b488ef8864d",
+          "week": 4, "total_amount": "30587383",
+          "proof": ["0x...", "..."]
+        }
+      }
+    }
+  ],
+  "wallet_summary": { "total_reward": "...", "claimable_reward": "..." }
+}
+```
+
+Notes:
+- `min_volume`/`max_volume`/`min_reward`/`max_reward` are x18 — platform-wide
+  volume for that week determines the payout tier for everyone.
+- `claim.status` seen so far: `"pending"`, `"in_progress"`, `"claimable"`.
+- `wallet.reward` and `wallet_summary.total_reward`/`claimable_reward` are x18.
+- 6 weekly events observed as of 2026-09; program appears ongoing.
+- Param name is `wallet_address`, not `address` (inconsistent with every other
+  variant here).
+
+### `nado_xpoints` — second, separate points currency ("quest" based)
+
+Distinct from `nado_points`. Structured around named quest types rather than
+raw trading activity.
+
+```json
+POST https://archive.prod.nado.xyz/rewards/v1
+{ "nado_xpoints": { "address": "0x..." } }
+```
+
+Response shape:
+```json
+{
+  "points_per_epoch": [
+    {
+      "epoch": 1, "description": "Week 1",
+      "start_time": "1783040400", "end_time": "1783645200",
+      "total_points": "0",
+      "quests": [
+        { "quest_type": "ProtocolDepositBoost", "points": "0" },
+        { "quest_type": "ProtocolTieredVolumeBoost", "points": "0" }
+      ],
+      "rank": 0
+    }
+  ],
+  "all_time_points": {
+    "total_points": "0",
+    "quests": [ { "quest_type": "...", "points": "0" } ],
+    "rank": 0
+  }
+}
+```
+
+Notes:
+- Only 2 quest types observed so far (`ProtocolDepositBoost`,
+  `ProtocolTieredVolumeBoost`); all-zero across 9 epochs for every wallet
+  checked — schema exists, payouts don't appear to be live yet.
+- Likely infrastructure for a future points-multiplier/boost mechanic.
+
+### `leaderboard*` — recurring cash trading competitions
+
+Four related variants:
+
+- `leaderboard_contests` — list all contests, no params (`{"leaderboard_contests":{}}`).
+  Each contest has `tracks` (e.g. `roi`, `volume`), a title/description, and
+  `active` flag. 2 contests observed so far, both ended.
+- `leaderboard` — `{"leaderboard":{"contest_id": N, "rank_type": "roi"|"volume"}}`
+  → full ranked positions list for that contest/track.
+- `leaderboard_rank` — `{"leaderboard_rank":{"contest_ids": [N,...], "subaccount": "0x..."}}`
+  → one wallet's position across multiple contests at once.
+- `leaderboard_registrations` — `{"leaderboard_registrations":{"subaccount": "0x..."}}`
+  → which contests a subaccount has registered for.
+- `leaderboard_register` — presumably the write/opt-in call (not tested — looks
+  mutating, avoid probing without a real signed-in context).
+
+Leaderboard position objects carry a `social_accounts: []` field — ties into
+the social-linking endpoints below, likely for eligibility or bonus multipliers.
+
+Example contest from `leaderboard_contests`:
+```json
+{
+  "contest_id": 1,
+  "title": "Cash Trading Competition - Week 1",
+  "description": "ROI and Volume tracks across all markets",
+  "start_time": "1779717600", "end_time": "1780322400",
+  "active": false,
+  "tracks": [
+    { "track_id": 1, "rank_type": "roi", "threshold": "1000" },
+    { "track_id": 2, "rank_type": "volume", "threshold": "10000" }
+  ]
+}
+```
+
+### `social_connect` / `list_social_accounts` / `revoke_social_account`
+
+Account-linking endpoints (X/Discord/etc — exact provider not confirmed, not
+probed since `social_connect`/`revoke_social_account` look mutating). Referenced
+by the empty `social_accounts` array on leaderboard positions — schema exists,
+not observed populated on any wallet checked yet.
+
+### `private_alpha_choice` — NFT eligibility + fee refund track
+
+```json
+POST https://archive.prod.nado.xyz/rewards/v1
+{ "private_alpha_choice": { "address": "0x..." } }
+```
+
+Response: `{"points": "0", "fee_refund": "0", "nft_eligibility": false}`
+
+Separate track for early/private-alpha participants — points, a fee refund
+amount, and an NFT eligibility flag, independent of `nado_points`.
+
+### Caution
+
+`leaderboard_register`, `social_connect`, and `revoke_social_account` were
+**not** probed — their names suggest write/mutating operations, unlike every
+other variant here which is read-only. Don't call them without understanding
+what they do first.
+
+---
+
 ### Number precision
 
 All amounts are x18 (multiplied by 1e18).
