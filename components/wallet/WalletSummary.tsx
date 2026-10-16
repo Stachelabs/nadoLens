@@ -66,6 +66,8 @@ function timeAgo(nanoTs: string | null): string {
 type Props = {
   stats: WalletStats;
   globalMatchesComplete?: boolean;
+  positionMatchesComplete?: boolean;
+  snapshotReady?: boolean;
   matchesError?: string | null;
   /** Re-fetch subaccounts, matches, funding — updates equity, overview, PnL from history. */
   onRefresh?: () => void | Promise<void>;
@@ -136,6 +138,8 @@ function Section({
 export function WalletSummary({
   stats,
   globalMatchesComplete = true,
+  positionMatchesComplete = true,
+  snapshotReady = true,
   matchesError,
   onRefresh,
   refreshing = false,
@@ -158,6 +162,8 @@ export function WalletSummary({
   const isPerpPnlPositive = stats.trading_pnl_usd >= 0;
   const isAllTimePnlPositive = stats.net_pnl_usd >= 0;
   const isFundingPositive = fundingPaidUsd >= 0;
+  const overviewBusy = refreshing || !globalMatchesComplete;
+  const positionsBusy = unrealizedRefreshing || !positionMatchesComplete || !snapshotReady;
   const tradesLoading = !globalMatchesComplete;
 
   const showSinceBadge = !globalMatchesComplete || !!matchesError;
@@ -201,14 +207,14 @@ export function WalletSummary({
                     variant="ghost"
                     size="icon-xs"
                     className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-                    disabled={unrealizedRefreshing}
+                    disabled={positionsBusy}
                     onClick={() => void onRefreshUnrealized()}
                     aria-label="Refresh unrealized PnL and mark prices"
                   >
                     <RefreshCw
                       className={cn(
                         "size-3",
-                        unrealizedRefreshing && "animate-spin",
+                        positionsBusy && "animate-spin",
                       )}
                       aria-hidden
                     />
@@ -245,12 +251,12 @@ export function WalletSummary({
                   variant="ghost"
                   size="icon-xs"
                   className="shrink-0 text-muted-foreground hover:text-foreground -mr-1"
-                  disabled={refreshing}
+                  disabled={overviewBusy}
                   onClick={() => void onRefresh()}
                   aria-label="Refresh account snapshot, volumes, and funding"
                 >
                   <RefreshCw
-                    className={cn("size-3", refreshing && "animate-spin")}
+                    className={cn("size-3", overviewBusy && "animate-spin")}
                     aria-hidden
                   />
                 </Button>

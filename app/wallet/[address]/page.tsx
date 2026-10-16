@@ -435,6 +435,8 @@ function WalletContent({ address }: { address: string }) {
           <WalletSummary
             stats={stats}
             globalMatchesComplete={globalMatchesComplete}
+            positionMatchesComplete={positionMatchesComplete}
+            snapshotReady={snapshotReady}
             matchesError={matchesError}
             onRefresh={refresh}
             refreshing={refreshing}

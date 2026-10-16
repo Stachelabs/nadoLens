@@ -190,6 +190,7 @@ export function WalletTradeHistory({
   dataCompleteness,
 }: Props) {
   const isPartial = dataCompleteness === 'truncated' || dataCompleteness === 'partial_error';
+  const tradesBusy = tradesRefreshing || !globalMatchesComplete;
   const [page, setPage] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("aggregated");
   const [selectedFilter, setSelectedFilter] = useState(SUBACCOUNT_FILTER_ALL);
@@ -428,12 +429,12 @@ export function WalletTradeHistory({
                 variant="ghost"
                 size="icon-xs"
                 className="shrink-0 text-muted-foreground hover:text-foreground"
-                disabled={tradesRefreshing}
+                disabled={tradesBusy}
                 onClick={() => void onRefreshTrades()}
                 aria-label="Fetch new trades since last sync"
               >
                 <RefreshCw
-                  className={cn("size-3", tradesRefreshing && "animate-spin")}
+                  className={cn("size-3", tradesBusy && "animate-spin")}
                   aria-hidden
                 />
               </Button>
