@@ -39,13 +39,10 @@ NadoLens is a portfolio-grade analytics platform that gives traders full visibil
 ## 📸 Previews
 
 <p align="center">
-  <img src="previews/nadolens-demo.gif" alt="NadoLens Demo"><br><br>
   <img src="previews/nadolens-landing.png" alt="Landing Page"><br><br>
   <img src="previews/nadolens-wallet.png" alt="Wallet Explorer"><br><br>
   <img src="previews/nadolens-protocol.png" alt="Protocol Dashboard">
 </p>
-
-> Screenshots coming soon. Run locally to preview.
 
 ---
 
@@ -218,3 +215,9 @@ Contributions are welcome. Fork the repo, create a feature branch, and open a pu
 ## 📩 Contact
 
 GitHub: [@Stachelabs](https://github.com/Stachelabs)
+
+---
+
+## 📄 License
+
+[MIT](LICENSE)
