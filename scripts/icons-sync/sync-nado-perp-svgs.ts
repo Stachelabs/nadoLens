@@ -368,9 +368,15 @@ function isNoiseSvgUrl(url: string): boolean {
   );
 }
 
-/** Only Next hashed assets: btc.<hash>.svg — not /icon-*.svg favicons. */
+/**
+ * Only Next hashed assets: btc.<hash>.svg — not /icon-*.svg favicons.
+ * Path matched loosely as "/_next/static/" + ".svg" rather than a fixed
+ * "/_next/static/media/" — Nado added an "immutable/" segment
+ * (/_next/static/immutable/media/...) at some point, which would otherwise
+ * silently zero out every match.
+ */
 function isNextMediaAssetUrl(url: string): boolean {
-  return url.includes("/_next/static/media/") && url.toLowerCase().includes(".svg");
+  return url.includes("/_next/static/") && url.toLowerCase().includes(".svg");
 }
 
 function pickSvgForMarket(marketKey: string, caps: SvgCapture[]): SvgCapture | null {
@@ -392,28 +398,32 @@ function pickSvgForMarket(marketKey: string, caps: SvgCapture[]): SvgCapture | n
 
 /** Collect absolute URLs for Next media assets (img + next/image patterns). */
 async function collectMediaSvgUrls(page: Page): Promise<string[]> {
-  // No arrow callbacks inside evaluate — tsx can inject helpers that break in the browser (__name).
-  return page.evaluate(function collectMediaSvgUrlsInPage() {
-    const out: string[] = [];
-    function push(u: string | null) {
-      if (u && u.includes("/_next/static/media/") && u.includes(".svg")) out.push(u);
+  // Pass raw source as a string, not a JS function reference — tsx/esbuild
+  // injects a `__name()` call when serializing named functions for
+  // page.evaluate, which ReferenceErrors in the browser since that helper
+  // only exists in the Node bundle. A string literal bypasses esbuild's
+  // function serialization entirely and runs as-is in the browser.
+  const result = await page.evaluate(`(function collectMediaSvgUrlsInPage() {
+    var out = [];
+    function push(u) {
+      if (u && u.indexOf("/_next/static/") !== -1 && u.indexOf(".svg") !== -1) out.push(u);
     }
-    const imgList = document.querySelectorAll<HTMLImageElement>("img");
-    for (let i = 0; i < imgList.length; i++) {
-      const el = imgList[i];
+    var imgList = document.querySelectorAll("img");
+    for (var i = 0; i < imgList.length; i++) {
+      var el = imgList[i];
       push(el.currentSrc || el.src);
       push(el.getAttribute("src"));
     }
-    const sources = document.querySelectorAll<HTMLSourceElement>(
-      "source[srcset]",
-    );
-    for (let i = 0; i < sources.length; i++) {
-      const el = sources[i];
-      const first = el.srcset.split(",")[0]?.trim().split(/\s+/)[0];
-      push(first ?? null);
+    var sourceList = document.querySelectorAll("source[srcset]");
+    for (var i = 0; i < sourceList.length; i++) {
+      var srcEl = sourceList[i];
+      var first = srcEl.srcset.split(",")[0];
+      if (first) first = first.trim().split(/\\s+/)[0];
+      push(first || null);
     }
-    return [...new Set(out)];
-  });
+    return Array.from(new Set(out));
+  })()`);
+  return result as string[];
 }
 
 /** Fetch SVG from resolved img src (Next /_next/static/media/… only). */
@@ -493,7 +503,7 @@ async function pickSvgFromMarketDropdown(
       .click({ timeout: 4000 })
       .catch(() => {});
 
-    const imgs = wrapper.locator('img[src*="/_next/static/media/"]');
+    const imgs = wrapper.locator('img[src*="/_next/static/"]');
     const n = await imgs.count();
     for (let i = 0; i < n; i++) {
       const img = imgs.nth(i);
@@ -755,7 +765,7 @@ async function syncMarketBatch(
         .waitFor({ state: "visible", timeout: 25_000 })
         .catch(() => {});
       await page
-        .waitForSelector('img[src*="/_next/static/media/"]', { timeout: 5_000 })
+        .waitForSelector('img[src*="/_next/static/"]', { timeout: 5_000 })
         .catch(() => {});
       await sleep(Number.isFinite(delayMs) ? delayMs : 2000);
 
