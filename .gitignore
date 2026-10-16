@@ -69,3 +69,4 @@ nado-rag/
 
 # ws-proxy deps
 ws-proxy/node_modules/
+scripts/output/
